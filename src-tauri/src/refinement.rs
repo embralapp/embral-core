@@ -41,14 +41,27 @@ pub fn notes_config(profile: &LlmProfile) -> embral_notes::NotesConfig {
     }
 }
 
-/// Run best-effort post-meeting integrations (the Markdown export). Gated on
-/// its config fields; failures are logged, never propagated — a broken vault
-/// path must not affect the saved meeting. `export_md` is the composed
-/// document ([integrations.md]).
+/// Delivery attempts per webhook destination: the first try, then one
+/// retry per pause listed here.
+const WEBHOOK_RETRY_PAUSES: [std::time::Duration; 2] = [
+    std::time::Duration::from_secs(5),
+    std::time::Duration::from_secs(30),
+];
+
+/// Run best-effort post-meeting integrations (the Markdown export and the
+/// meeting-finished webhooks). Gated on their config fields; failures are
+/// logged, never propagated — a broken vault path or a dead endpoint must
+/// not affect the saved meeting. `export_md` is the composed document; the
+/// webhook payload carries metadata always and the content parts only for
+/// destinations that opted in ([integrations.md] §Webhooks).
 pub fn run_post_meeting_integrations(
+    app: &tauri::AppHandle,
     config: &AppConfig,
     record: &embral_types::MeetingRecord,
     export_md: &str,
+    summary_md: &str,
+    user_notes_md: &str,
+    transcript_md: &str,
 ) {
     if config.obsidian_export_enabled && !config.obsidian_vault_dir.trim().is_empty() {
         let base = crate::storage::storage_base(&config.storage_dir);
@@ -63,6 +76,60 @@ pub fn run_post_meeting_integrations(
             Ok(path) => tracing::info!("Obsidian export written to {}", path.display()),
             Err(e) => tracing::warn!("Obsidian export failed: {}", e),
         }
+    }
+
+    // Webhooks: one spawned task per destination, so a slow or dead
+    // endpoint never blocks finalize or a neighbor destination. Each task
+    // owns its payload and retry clock; the final failure becomes an event
+    // the frontend turns into a notification (events.ts) — the user
+    // configured this endpoint, so silence would be the worst outcome.
+    for destination in &config.webhooks {
+        if destination.url.trim().is_empty() {
+            continue;
+        }
+        let content = embral_notes::integrations::WebhookContent {
+            summary_markdown: summary_md,
+            notes_markdown: user_notes_md,
+            transcript_markdown: transcript_md,
+        };
+        let payload = embral_notes::integrations::webhook_payload(
+            record,
+            destination.include_content.then_some(&content),
+        );
+        let destination = destination.clone();
+        let record = record.clone();
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let url = destination.url.trim().to_string();
+            for attempt in 0..=WEBHOOK_RETRY_PAUSES.len() {
+                if attempt > 0 {
+                    tokio::time::sleep(WEBHOOK_RETRY_PAUSES[attempt - 1]).await;
+                }
+                match embral_notes::integrations::send_webhook(&url, destination.method, &payload)
+                    .await
+                {
+                    Ok(()) => {
+                        tracing::info!("webhook delivered to {url}");
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            attempt = attempt + 1,
+                            "webhook delivery to {url} failed: {e:#}"
+                        );
+                    }
+                }
+            }
+            use tauri::Emitter;
+            let _ = app.emit(
+                "webhook-delivery-failed",
+                serde_json::json!({
+                    "meeting_id": record.id,
+                    "title": record.title,
+                    "url": url,
+                }),
+            );
+        });
     }
 }
 

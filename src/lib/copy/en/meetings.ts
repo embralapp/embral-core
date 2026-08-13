@@ -34,7 +34,7 @@ export const meetings = {
   list: {
     loading: 'Loading meetings...',
     empty: 'No meetings yet...',
-    finishingUp: 'Finishing up…',
+    finishingUp: 'Finishing up...',
     import: 'Import a recording',
     // The right-click menu on a row; it acts on the whole selection.
     menuDelete: (n: number) =>
@@ -44,8 +44,8 @@ export const meetings = {
   // The pane shown when several meetings are selected at once.
   multiSelect: {
     selected: (n: number) => `${n} meetings selected`,
-    delete: (n: number) => `Delete ${n}`,
-    hint: 'Or press Delete.'
+    delete: (n: number) => `Delete ${n} meetings`,
+    hint: 'Or press Delete'
   },
 
   // The delete confirmation, shared by the multi-select pane and a single
@@ -58,8 +58,8 @@ export const meetings = {
       }),
     body: (n: number) =>
       plural(locale, n, {
-        one: 'Deleting this meeting will permanently delete its notes, transcript, and audio.',
-        other: `Deleting these ${n} meetings will permanently delete their notes, transcripts, and audio.`
+        one: 'Deleting this meeting will permanently delete its notes, transcript, and audio',
+        other: `Deleting these ${n} meetings will permanently delete their notes, transcripts, and audio`
       }),
     confirm: (n: number) =>
       plural(locale, n, { one: 'Delete', other: `Delete ${n}` })
@@ -83,10 +83,10 @@ export const meetings = {
       failed: "Couldn't save"
     },
     titleRequired: 'Title required',
-    selectPrompt: 'Select a meeting to view its notes.',
+    selectPrompt: 'Select a meeting to view its notes',
     loading: 'Loading meeting...',
-    summaryPlaceholder: 'No summary saved yet.',
-    transcriptPlaceholder: 'No transcript saved yet.',
+    summaryPlaceholder: 'No summary saved yet',
+    transcriptPlaceholder: 'No transcript saved yet',
     // The H1 written into the saved transcript document.
     transcriptHeading: (title: string) => `${title} Transcript`
   },
@@ -100,12 +100,12 @@ export const meetings = {
       notes: 'Notes',
       transcript: 'Transcript'
     },
-    noSpeech: 'No speech was transcribed.'
+    noSpeech: 'No speech was transcribed'
   },
 
   // The import-processing screen.
   processing: {
-    importing: 'Importing a recording…',
+    importing: 'Importing a recording...',
     // Keyed by the step id order.
     steps: {
       transcribing: 'Transcribing file',
@@ -140,7 +140,7 @@ export const meetings = {
     assignSpeaker: 'Assign a speaker',
     splitSegment: 'Split a sentence',
     deleteSegment: 'Delete sentence',
-    splitHint: 'Click inside a sentence where the split should happen.',
+    splitHint: 'Click inside a sentence where the split should happen',
     jumpToCurrent: 'Jump to current'
   },
 
@@ -159,16 +159,21 @@ export const meetings = {
     // Raised when the app stands labeling down on its own, having found
     // more voices than a meeting plausibly has.
     tooManySpeakers: (count: number) =>
-      `Stopped labeling speakers — ${count} were detected, which usually means one voice is being split up.`,
-    listening: 'Listening…',
+      `Too many speakers to label`,
+    listening: 'Listening...',
     jumpToLatest: 'Jump to latest'
   },
 
-  // The silence check-in banner during a recording.
+  // The silence check-in banner during a recording. The detail claims
+  // only what the app can know: words it transcribed (or notes typed),
+  // not whether anyone spoke.
   silence: {
     label: 'Still recording?',
     detail: (minutes: number) =>
-      `No speech for ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`,
+      plural(locale, minutes, {
+        one: 'No words transcribed for 1 minute.',
+        other: `No words transcribed for ${minutes} minutes.`
+      }),
     keep: 'Keep recording',
     stop: 'Stop recording'
   },
@@ -198,31 +203,37 @@ export const meetings = {
     // `aria-pressed` carries the state, and the rail reads as a set of
     // named things rather than a set of instructions.
     shadowMode: 'Shadow mode',
+    // The toggle's hover tip while shadow is on. The one sanctioned
+    // instructional tooltip ([shell.md] §Recording): pause and stop are
+    // hidden, and the way out has to be discoverable at the moment of
+    // need without showing on the shared screen.
+    shadowStopHint: (shortcut: string) =>
+      `Shadow mode`,
     stop: 'Stop recording'
   },
 
   // The audio player at the foot of a meeting.
   player: {
-    pause: 'Pause (Space)',
-    play: 'Play (Space)',
+    pause: 'Pause',
+    play: 'Play',
     pauseAria: 'Pause audio',
     playAria: 'Play audio',
     position: 'Audio position',
     playFrom: (time: string) => `Play from ${time}`,
-    noAudio: 'Audio was not retained for this meeting.',
+    noAudio: 'Audio was not retained for this meeting',
     // Frontend-authored playback failures shown under the player.
     errors: {
-      couldNotPlay: 'Could not play audio.',
-      aborted: 'Loading was aborted.',
-      network: 'The audio file could not be loaded.',
-      decode: 'The audio file could not be decoded.',
-      unsupported: 'The audio source is not supported.'
+      couldNotPlay: 'Could not play audio',
+      aborted: 'Audio load was aborted',
+      network: 'Audio file could not be loaded',
+      decode: 'Audio file could not be decoded',
+      unsupported: 'Audio source is not supported'
     }
   },
 
   // The notes editor and its read-only view.
   notes: {
-    placeholder: "Take notes — they'll be woven into the summary.",
-    emptyView: 'No notes were taken during this meeting.'
+    placeholder: "Take notes or paste images to be included in the summary",
+    emptyView: 'No notes were taken during this meeting'
   }
 };

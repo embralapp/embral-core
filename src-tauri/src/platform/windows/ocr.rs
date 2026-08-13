@@ -19,6 +19,7 @@ use windows::Media::Ocr::OcrEngine;
 use windows::Storage::Streams::{DataWriter, InMemoryRandomAccessStream};
 
 use crate::platform::types::Recognized;
+use embral_notes::ocr::OcrLine;
 
 /// Read the text in one image. Bytes rather than a path: the decoder is
 /// happy with an in-memory stream, and file IO belongs above the seam.
@@ -41,7 +42,11 @@ pub fn recognize_text(bytes: &[u8]) -> Recognized {
 
     match read(&engine, bytes) {
         Ok(lines) => {
-            let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
+            // Geometry first: the engine emits lines top to bottom across
+            // the whole image, which interleaves columns; layout puts them
+            // back into reading order before the text is flattened.
+            let ordered = embral_notes::ocr::layout(&lines);
+            let borrowed: Vec<&str> = ordered.iter().map(String::as_str).collect();
             Recognized::Text(embral_notes::ocr::normalize(&borrowed))
         }
         Err(e) => Recognized::Failed(e.message()),
@@ -50,7 +55,7 @@ pub fn recognize_text(bytes: &[u8]) -> Recognized {
 
 /// The decode-and-recognize path, with every WinRT error funnelled into one
 /// `Failed`. Split out so `recognize_text` stays a readable summary.
-fn read(engine: &OcrEngine, bytes: &[u8]) -> windows_core::Result<Vec<String>> {
+fn read(engine: &OcrEngine, bytes: &[u8]) -> windows_core::Result<Vec<OcrLine>> {
     let stream = InMemoryRandomAccessStream::new()?;
     let writer = DataWriter::CreateDataWriter(&stream)?;
     writer.WriteBytes(bytes)?;
@@ -87,7 +92,28 @@ fn read(engine: &OcrEngine, bytes: &[u8]) -> windows_core::Result<Vec<String>> {
     let result = engine.RecognizeAsync(&bitmap)?.join()?;
     let mut lines = Vec::new();
     for line in result.Lines()? {
-        lines.push(line.Text()?.to_string_lossy());
+        let text = line.Text()?.to_string_lossy();
+        // `OcrLine` exposes no rect of its own; its box is the union of
+        // its words' (pixel space, top-left origin — what layout wants).
+        let mut x0 = f32::INFINITY;
+        let mut y0 = f32::INFINITY;
+        let mut x1 = f32::NEG_INFINITY;
+        let mut y1 = f32::NEG_INFINITY;
+        for word in line.Words()? {
+            let r = word.BoundingRect()?;
+            x0 = x0.min(r.X);
+            y0 = y0.min(r.Y);
+            x1 = x1.max(r.X + r.Width);
+            y1 = y1.max(r.Y + r.Height);
+        }
+        // A wordless line keeps its text with a zero box rather than
+        // losing it; layout tolerates the degenerate rectangle.
+        let (x, y, width, height) = if x0.is_finite() {
+            (x0, y0, x1 - x0, y1 - y0)
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        };
+        lines.push(OcrLine { text, x, y, width, height });
     }
     Ok(lines)
 }
@@ -151,5 +177,30 @@ mod tests {
             Recognized::Unavailable => {}
             other => panic!("expected a failure, got {other:?}"),
         }
+    }
+
+    /// The committed two-column fixture through the real engine: the whole
+    /// point of carrying geometry is that the left column's text comes out
+    /// before the right's instead of interleaved straight across both.
+    #[test]
+    fn columns_are_read_in_order() {
+        const FIXTURE: &[u8] = include_bytes!("../../../testdata/two-column.png");
+        let text = match recognize_text(FIXTURE) {
+            Recognized::Text(text) => text,
+            // No language pack on this machine: the ordering itself is
+            // covered by the pure tests; this one is about the engine.
+            Recognized::Unavailable => return,
+            Recognized::Failed(why) => panic!("engine refused the fixture: {why}"),
+        };
+        let lower = text.to_lowercase();
+        let pos = |w: &str| lower.find(w).unwrap_or_else(|| panic!("{w} missing from: {lower}"));
+        for left in ["alpha", "bravo", "charlie"] {
+            for right in ["delta", "echo", "foxtrot"] {
+                assert!(pos(left) < pos(right), "{left} after {right} in: {lower}");
+            }
+        }
+        // The full-width title reads first, above both columns.
+        assert!(pos("quarterly") < pos("alpha"), "title after the left column: {lower}");
+        assert!(pos("quarterly") < pos("delta"), "title after the right column: {lower}");
     }
 }

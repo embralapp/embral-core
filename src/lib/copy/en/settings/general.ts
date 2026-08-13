@@ -33,7 +33,7 @@ export const general = {
   storage: {
     _group: 'Storage',
     folder: { label: 'Storage folder' },
-    browse: 'Browse…'
+    browse: 'Browse...'
   },
 
   audio: {

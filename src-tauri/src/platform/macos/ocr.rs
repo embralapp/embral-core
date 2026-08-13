@@ -19,6 +19,7 @@ use objc2_vision::{
 };
 
 use crate::platform::types::Recognized;
+use embral_notes::ocr::OcrLine;
 
 /// Read the text in one image. Bytes rather than a path: the handler takes
 /// an `NSData` directly, and file IO belongs above the seam.
@@ -53,15 +54,30 @@ pub fn recognize_text(bytes: &[u8]) -> Recognized {
     let observations: Retained<NSArray<VNRecognizedTextObservation>> =
         unsafe { Retained::cast_unchecked(results) };
 
-    let mut lines: Vec<String> = Vec::new();
+    let mut lines: Vec<OcrLine> = Vec::new();
     for observation in &*observations {
         // One candidate is enough: the rest are lower-confidence readings
         // of the same line, and search wants the engine's best guess.
         if let Some(best) = observation.topCandidates(1).firstObject() {
-            lines.push(best.string().to_string());
+            // Vision's boundingBox is normalized 0..1 with a bottom-left
+            // origin; layout wants top-left, so the y flips.
+            // SAFETY: a plain getter returning a CGRect by value, on a
+            // live observation out of the results array.
+            let rect = unsafe { observation.boundingBox() };
+            lines.push(OcrLine {
+                text: best.string().to_string(),
+                x: rect.origin.x as f32,
+                y: (1.0 - (rect.origin.y + rect.size.height)) as f32,
+                width: rect.size.width as f32,
+                height: rect.size.height as f32,
+            });
         }
     }
-    let borrowed: Vec<&str> = lines.iter().map(String::as_str).collect();
+    // Geometry first: the engine emits lines top to bottom across the
+    // whole image, which interleaves columns; layout puts them back into
+    // reading order before the text is flattened.
+    let ordered = embral_notes::ocr::layout(&lines);
+    let borrowed: Vec<&str> = ordered.iter().map(String::as_str).collect();
     Recognized::Text(embral_notes::ocr::normalize(&borrowed))
 }
 
@@ -104,5 +120,29 @@ mod tests {
             Recognized::Failed(_) => {}
             other => panic!("expected a failure, got {other:?}"),
         }
+    }
+
+    /// The committed two-column fixture through the real engine: the whole
+    /// point of carrying geometry is that the left column's text comes out
+    /// before the right's instead of interleaved straight across both.
+    /// This is also the check on the blind-written y flip above — Vision
+    /// always ships, so unlike the Windows twin there is no skip path.
+    #[test]
+    fn columns_are_read_in_order() {
+        const FIXTURE: &[u8] = include_bytes!("../../../testdata/two-column.png");
+        let text = match recognize_text(FIXTURE) {
+            Recognized::Text(text) => text,
+            other => panic!("expected text from the fixture, got {other:?}"),
+        };
+        let lower = text.to_lowercase();
+        let pos = |w: &str| lower.find(w).unwrap_or_else(|| panic!("{w} missing from: {lower}"));
+        for left in ["alpha", "bravo", "charlie"] {
+            for right in ["delta", "echo", "foxtrot"] {
+                assert!(pos(left) < pos(right), "{left} after {right} in: {lower}");
+            }
+        }
+        // The full-width title reads first, above both columns.
+        assert!(pos("quarterly") < pos("alpha"), "title after the left column: {lower}");
+        assert!(pos("quarterly") < pos("delta"), "title after the right column: {lower}");
     }
 }

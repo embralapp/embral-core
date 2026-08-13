@@ -190,6 +190,7 @@ struct ChunkRow {
     start_secs: Option<f64>,
     end_secs: Option<f64>,
     text: String,
+    image_filename: Option<String>,
 }
 
 fn load_chunk(db: &Db, passage_id: i64) -> Result<ChunkRow, ToolError> {
@@ -197,7 +198,7 @@ fn load_chunk(db: &Db, passage_id: i64) -> Result<ChunkRow, ToolError> {
         Ok(conn
             .query_row(
                 "SELECT meeting_id, dictation_id, source, chunk_index,
-                        start_secs, end_secs, text
+                        start_secs, end_secs, text, image_filename
                  FROM chunks WHERE id = ?1",
                 [passage_id],
                 |r| {
@@ -209,6 +210,7 @@ fn load_chunk(db: &Db, passage_id: i64) -> Result<ChunkRow, ToolError> {
                         start_secs: r.get(4)?,
                         end_secs: r.get(5)?,
                         text: r.get(6)?,
+                        image_filename: r.get(7)?,
                     })
                 },
             )
@@ -277,14 +279,21 @@ pub fn passage_context(
         })
         .map_err(ToolError::Db)
     };
-    Ok(json!({
+    let mut out = json!({
         "passage_id": passage_id,
         "meeting_id": chunk.meeting_id,
         "dictation_id": chunk.dictation_id,
         "before": neighbor(-1)?,
         "passage": chunk.text,
         "after": neighbor(1)?,
-    }))
+    });
+    // Which image an image_text passage was read out of — the handle
+    // `get_meeting_image` takes, kept through expansion like the search
+    // hit that led here.
+    if let Some(image) = &chunk.image_filename {
+        out["image"] = json!(image);
+    }
+    Ok(out)
 }
 
 fn require_meeting(db: &Db, id: &str) -> Result<MeetingRow, ToolError> {
@@ -294,8 +303,9 @@ fn require_meeting(db: &Db, id: &str) -> Result<MeetingRow, ToolError> {
 }
 
 /// The full picture of one meeting: metadata, who attended vs who spoke,
-/// the summary document, and the user's own notes.
-pub fn get_meeting(db: &Db, id: &str) -> Result<Value, ToolError> {
+/// the summary document, the user's own notes, and which pasted images
+/// exist (fetchable through `get_meeting_image`).
+pub fn get_meeting(db: &Db, storage_dir: &std::path::Path, id: &str) -> Result<Value, ToolError> {
     let m = require_meeting(db, id)?;
     let spoke: Vec<String> = db
         .with_conn(|conn| {
@@ -311,12 +321,25 @@ pub fn get_meeting(db: &Db, id: &str) -> Result<Value, ToolError> {
         })
         .map_err(ToolError::Db)?;
     let user_notes = db.get_notes(id).map_err(ToolError::Db)?;
+    // The inventory is what's on disk; `has_text` says whether a usable
+    // OCR reading is already indexed for it.
+    let readings = db.image_text(id).map_err(ToolError::Db)?;
+    let images: Vec<Value> = crate::images::list(storage_dir, id)
+        .into_iter()
+        .map(|filename| {
+            let has_text = readings
+                .iter()
+                .any(|(name, text)| *name == filename && embral_notes::ocr::is_usable(text));
+            json!({ "filename": filename, "has_text": has_text })
+        })
+        .collect();
     Ok(json!({
         "meeting": summary(&m),
         "speakers": spoke,
         "summary": m.summary,
         "user_notes": user_notes,
         "has_transcript": !m.transcript.trim().is_empty(),
+        "images": images,
     }))
 }
 
@@ -632,15 +655,93 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = fixture(dir.path());
 
-        let detail = get_meeting(&db, "m-hiring").unwrap();
+        let detail = get_meeting(&db, dir.path(), "m-hiring").unwrap();
         assert_eq!(detail["meeting"]["attendees"], json!(["Alice", "Dana"]));
         assert_eq!(detail["speakers"], json!(["Dana Smith"]));
         assert_eq!(detail["user_notes"], "");
+        assert_eq!(detail["images"], json!([]));
 
         assert!(matches!(
-            get_meeting(&db, "nope"),
+            get_meeting(&db, dir.path(), "nope"),
             Err(ToolError::MeetingNotFound { .. })
         ));
+    }
+
+    #[test]
+    fn get_meeting_inventories_images_with_their_text_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = fixture(dir.path());
+        std::fs::create_dir_all(dir.path().join("assets/m-budget")).unwrap();
+        std::fs::write(dir.path().join("assets/m-budget/img-01.png"), b"x").unwrap();
+        std::fs::write(dir.path().join("assets/m-budget/img-02.png"), b"x").unwrap();
+        // One usable reading, one unread — written by a writer handle; the
+        // fixture's is read-only, like production's.
+        {
+            let writer = Db::open(&dir.path().join("embral.db")).unwrap();
+            writer
+                .set_image_text("m-budget", "img-01.png", "Q3 revenue up twelve percent", "windows")
+                .unwrap();
+        }
+
+        let detail = get_meeting(&db, dir.path(), "m-budget").unwrap();
+        assert_eq!(
+            detail["images"],
+            json!([
+                { "filename": "img-01.png", "has_text": true },
+                { "filename": "img-02.png", "has_text": false }
+            ])
+        );
+    }
+
+    #[test]
+    fn image_passages_keep_their_image_through_expansion() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = fixture(dir.path());
+        {
+            let writer = Db::open(&dir.path().join("embral.db")).unwrap();
+            // Image text is indexed for images the documents reference.
+            writer
+                .set_notes(
+                    "m-budget",
+                    "freeze confirmed by finance\n\n![shot](assets/m-budget/img-01.png)",
+                )
+                .unwrap();
+            writer
+                .set_image_text(
+                    "m-budget",
+                    "img-01.png",
+                    "Spending freeze until Q4 on one slide",
+                    "windows",
+                )
+                .unwrap();
+            embral_search::sync_meeting(&writer, "m-budget").unwrap();
+        }
+
+        let (id, image): (i64, Option<String>) = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT id, image_filename FROM chunks WHERE source = 'image_text' LIMIT 1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(image.as_deref(), Some("img-01.png"));
+
+        let ctx = passage_context(&db, id, 0.0, 0.0).unwrap();
+        assert_eq!(ctx["image"], "img-01.png");
+        // A notes passage carries none.
+        let (notes_id,): (i64,) = db
+            .with_conn(|conn| {
+                Ok(conn.query_row(
+                    "SELECT id FROM chunks WHERE source = 'user_notes' LIMIT 1",
+                    [],
+                    |r| Ok((r.get(0)?,)),
+                )?)
+            })
+            .unwrap();
+        let notes_ctx = passage_context(&db, notes_id, 0.0, 0.0).unwrap();
+        assert!(notes_ctx.get("image").is_none());
     }
 
     #[test]

@@ -146,6 +146,10 @@
                         {t.clients.codex.instruction}
                     </p>
                     <CodeSnippet text={info.codex_command} />
+                    <p class="text-xs text-muted-foreground">
+                        {t.clients.codex.orConfig}
+                    </p>
+                    <CodeSnippet text={info.codex_toml} />
                 {/if}
             {/snippet}
         </ClientCard>

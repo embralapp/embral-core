@@ -7,6 +7,7 @@
   import { speakersStore } from '$lib/stores/speakers.svelte';
   import { nameClass } from '$lib/utils/speakerColors';
   import { formatTime } from '$lib/utils/meetingFormat';
+  import { startsNewParagraph } from '$lib/utils/transcriptBreaks';
   import { cn } from '$lib/utils';
   import SpeakerNameInput from './SpeakerNameInput.svelte';
   import * as ContextMenu from '$lib/components/ui/context-menu';
@@ -105,17 +106,25 @@
   }
   const turns = $derived.by(() => {
     const out: Turn[] = [];
+    // The shared paragraph rules (gaps, sentence breaks, running length —
+    // the same ones the stored markdown uses), plus this surface's own
+    // breaks: a starred moment, and the row under edit. Without the
+    // shared rules a speakerless meeting rendered as one turn.
+    let runningLen = 0;
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i];
       const last = out[out.length - 1];
       if (
         !last ||
-        (seg.speaker ?? null) !== last.speaker ||
+        startsNewParagraph(segments[i - 1], seg, runningLen) ||
         starMarkers.has(i) ||
         editingRow === i ||
         editingRow === i - 1
       ) {
         out.push({ speaker: seg.speaker ?? null, start: seg.start, first: i, items: [] });
+        runningLen = seg.text.length;
+      } else {
+        runningLen += seg.text.length + 1;
       }
       out[out.length - 1].items.push({ seg, index: i });
     }
@@ -312,27 +321,25 @@
     splittingTurn = null;
   }
 
-  /** Rename a whole turn: one reassign per sentence, same name. The turn
-   * is captured up front — reassigns never shift indexes, so the list
-   * re-deriving underneath doesn't move the targets. */
+  /** Rename a whole turn in one edit: the turn's rows are contiguous by
+   * construction, so a single index-range reassign covers it — one
+   * document regeneration however long the turn, which is what makes
+   * naming a speakerless meeting practical ([speakers.md]). */
   async function commitTurnEdit(g: number) {
     const turn = turns[g];
     const speaker = turnDraft.trim();
     editingTurn = null;
     if (!turn || !speaker || speaker === turn.speaker) return;
     const speaker_id = registryIdFor(speaker);
-    await apply(async () => {
-      let updated: MeetingDetail | undefined;
-      for (const { index } of turn.items) {
-        updated = await meetingsStore.editSegments(meetingId, {
-          kind: 'reassign',
-          index,
-          speaker,
-          speaker_id
-        });
-      }
-      return updated;
-    });
+    await apply(() =>
+      meetingsStore.editSegments(meetingId, {
+        kind: 'reassign_range',
+        from_index: turn.items[0].index,
+        to_index: turn.items[turn.items.length - 1].index,
+        speaker,
+        speaker_id
+      })
+    );
   }
 
   async function deleteRow(index: number) {

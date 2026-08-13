@@ -1,6 +1,6 @@
 [package]
 name = "embral"
-version = "26.8.2"
+version = "26.8.3"
 description = "Meeting transcription and notes, on your machine."
 authors = ["avirut"]
 edition = "2021"
@@ -30,6 +30,9 @@ tauri-plugin-process = "2"
 tauri-plugin-single-instance = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Format-preserving edits of ~/.codex/config.toml (MCP registration when
+# the codex CLI is absent): a user's comments and tables must survive.
+toml_edit = "0.22"
 chrono = { workspace = true }
 tokio = { workspace = true }
 dirs = { workspace = true }
@@ -97,6 +100,13 @@ base64 = "0.22"
 arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] }
 
+[dev-dependencies]
+# `start_paused` tests: the stall-path deadlines elapse on virtual time,
+# so the tests finish instantly instead of really waiting them out.
+tokio = { workspace = true, features = ["test-util"] }
+# The stale-server sweep tests build their directories somewhere real.
+tempfile = "3"
+
 # The Windows platform layer (src/platform/windows/). The macOS build must
 # not drag Win32 bindings in; keep every OS-specific dependency under its
 # target table.
@@ -141,8 +151,9 @@ objc2-core-audio-types = "0.3.2"
 objc2-core-foundation = "0.3.2"
 objc2-core-graphics = { version = "0.3.2", features = ["CGEvent", "CGEventTypes"] }
 objc2-foundation = { version = "0.3.2", features = ["NSArray", "NSData", "NSDictionary", "NSProcessInfo", "NSUserDefaults", "NSString"] }
-# Vision, for the in-box OCR engine (platform/macos/ocr.rs).
-objc2-vision = { version = "0.3.2", features = ["VNObservation", "VNRecognizeTextRequest", "VNRequest", "VNRequestHandler", "VNTypes"] }
+# Vision, for the in-box OCR engine (platform/macos/ocr.rs). The
+# objc2-core-foundation feature unlocks boundingBox(), which returns CGRect.
+objc2-vision = { version = "0.3.2", features = ["VNObservation", "VNRecognizeTextRequest", "VNRequest", "VNRequestHandler", "VNTypes", "objc2-core-foundation"] }
 
 # The Linux platform layer (src/platform/linux/). Kept deliberately small:
 # every capability here is either a plain syscall, a freedesktop D-Bus

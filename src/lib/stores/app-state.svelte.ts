@@ -292,16 +292,23 @@ export const appState = {
     return _liveDiarization;
   },
   setLiveDiarization(on: boolean) {
+    // A real flip is no longer the guard's doing; a no-op call — the
+    // focus reconcile adopting a backend flag that never changed — must
+    // not launder the guard's reason into a user choice.
+    if (on !== _liveDiarization) _diarizationRunaway = false;
     _liveDiarization = on;
-    // Any deliberate flip — the header toggle, or the reconcile adopting
-    // the backend's flag — is no longer the guard's doing.
-    _diarizationRunaway = false;
   },
   /** The runaway guard stood labeling down: more voices than a meeting
    * plausibly has, so the labels were not believable ([speakers.md]). */
   standDownDiarization() {
     _liveDiarization = false;
     _diarizationRunaway = true;
+  },
+  /** A new recording starts with no guard history — called at
+   * recording-started, where adopting the setting may be a no-op call
+   * that would otherwise preserve a stale reason. */
+  clearDiarizationRunaway() {
+    _diarizationRunaway = false;
   },
   /** True only while labeling is off *because* of the guard. */
   get diarizationRunaway() {
@@ -409,6 +416,7 @@ export const appState = {
     _view = 'idle';
     _isRecording = false;
     _isPaused = false;
+    _diarizationRunaway = false;
     _segments = [];
     _interim = null;
     _providerCapabilities = null;

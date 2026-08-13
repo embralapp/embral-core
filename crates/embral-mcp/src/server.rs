@@ -1,4 +1,4 @@
-//! The MCP surface: seven read-only tools over the library, served by rmcp.
+//! The MCP surface: eight read-only tools over the library, served by rmcp.
 //! Query logic lives in [`crate::queries`]; this file is schemas, wiring,
 //! and the result envelope. Search is hybrid (keyword + semantic) when the
 //! embedding model is on disk and keyword-only otherwise — silently: a
@@ -21,7 +21,9 @@ each with an opaque passage_id, its meeting, speakers, and timestamps. Expand a 
 hit with get_passage_context instead of pulling whole transcripts. Filters: `participants` \
 = people who were IN the meeting, `speakers` = people who SAID the words; asking about a \
 person needs neither — just put them in the query. Meeting ids come from list/search \
-results. If tools fail, call get_storage_status to see why.";
+results. Pasted images are fetchable: get_meeting lists them, image-sourced hits carry \
+an `image` field, and get_meeting_image returns the picture itself (downscaled to a \
+client-safe size) with its OCR text. If tools fail, call get_storage_status to see why.";
 
 #[derive(Clone)]
 pub struct EmbralServer {
@@ -130,6 +132,15 @@ pub struct MeetingArgs {
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
+pub struct MeetingImageArgs {
+    /// The meeting id, as returned by list_meetings or search_meetings.
+    pub id: String,
+    /// The image filename, from get_meeting's `images` list or a search
+    /// hit's `image` field (e.g. "img-01.png").
+    pub image: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
 pub struct TranscriptArgs {
     /// The meeting id.
     pub id: String,
@@ -210,7 +221,10 @@ impl EmbralServer {
         let vector = self.query_vector(&args.query, args.mode);
         let params = SearchParams {
             query: args.query,
-            mode: args.mode.map(SearchMode::to_mode).unwrap_or(embral_search::Mode::Auto),
+            mode: args
+                .mode
+                .map(SearchMode::to_mode)
+                .unwrap_or(embral_search::Mode::Auto),
             sources: args
                 .sources
                 .map(|s| s.into_iter().map(SourceArg::to_source).collect()),
@@ -228,7 +242,7 @@ impl EmbralServer {
     }
 
     #[tool(
-        description = "Search the user's dictation history — personal voice notes dictated into other apps, separate from meetings. Use for 'what did I dictate/note about …' questions.",
+        description = "Search the user's dictation history — personal voice notes dictated into other apps, separate from meetings. Use for 'what did I dictate/note about ...' questions.",
         annotations(read_only_hint = true)
     )]
     async fn search_dictations(
@@ -238,7 +252,10 @@ impl EmbralServer {
         let vector = self.query_vector(&args.query, args.mode);
         let params = SearchParams {
             query: args.query,
-            mode: args.mode.map(SearchMode::to_mode).unwrap_or(embral_search::Mode::Auto),
+            mode: args
+                .mode
+                .map(SearchMode::to_mode)
+                .unwrap_or(embral_search::Mode::Auto),
             sources: None,
             participants: None,
             speakers: None,
@@ -282,8 +299,49 @@ impl EmbralServer {
         respond(
             self.store
                 .open()
-                .and_then(|db| queries::get_meeting(&db, &args.id)),
+                .and_then(|db| queries::get_meeting(&db, &self.store.storage_dir, &args.id)),
         )
+    }
+
+    #[tool(
+        description = "One pasted image from a meeting, as viewable image content plus its OCR text. Filenames come from get_meeting's `images` list or a search hit's `image` field. Large images are downscaled to a client-safe size; originals stay untouched on disk.",
+        annotations(read_only_hint = true)
+    )]
+    async fn get_meeting_image(
+        &self,
+        Parameters(args): Parameters<MeetingImageArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let fetched = self
+            .store
+            .open()
+            .and_then(|db| crate::images::fetch(&self.store.storage_dir, &db, &args.id, &args.image));
+        match fetched {
+            // The one tool whose success is not a single text envelope:
+            // the picture must be a real image block or clients will not
+            // show it to their model. The metadata rides beside it.
+            Ok(f) => {
+                use base64::Engine;
+                let data = base64::engine::general_purpose::STANDARD.encode(&f.bytes);
+                let mut meta = serde_json::Map::new();
+                meta.insert("ok".into(), json!(true));
+                meta.insert("meeting_id".into(), json!(args.id));
+                meta.insert("image".into(), json!(args.image));
+                meta.insert("mime_type".into(), json!(f.mime));
+                meta.insert("width".into(), json!(f.width));
+                meta.insert("height".into(), json!(f.height));
+                meta.insert("scaled".into(), json!(f.scaled));
+                if let Some(text) = &f.image_text {
+                    meta.insert("image_text".into(), json!(text));
+                }
+                let meta_text = serde_json::to_string_pretty(&Value::Object(meta))
+                    .unwrap_or_default();
+                Ok(CallToolResult::success(vec![
+                    ContentBlock::image(data, f.mime),
+                    ContentBlock::text(meta_text),
+                ]))
+            }
+            Err(e) => respond(Err(e)),
+        }
     }
 
     #[tool(
@@ -295,9 +353,9 @@ impl EmbralServer {
         Parameters(args): Parameters<TranscriptArgs>,
     ) -> Result<CallToolResult, McpError> {
         respond(
-            self.store
-                .open()
-                .and_then(|db| queries::get_transcript(&db, &args.id, args.from_secs, args.to_secs)),
+            self.store.open().and_then(|db| {
+                queries::get_transcript(&db, &args.id, args.from_secs, args.to_secs)
+            }),
         )
     }
 
@@ -310,7 +368,12 @@ impl EmbralServer {
         Parameters(args): Parameters<ListArgs>,
     ) -> Result<CallToolResult, McpError> {
         respond(self.store.open().and_then(|db| {
-            queries::list_meetings(&db, args.limit, args.since.as_deref(), args.participant.as_deref())
+            queries::list_meetings(
+                &db,
+                args.limit,
+                args.since.as_deref(),
+                args.participant.as_deref(),
+            )
         }))
     }
 }

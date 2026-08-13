@@ -69,6 +69,10 @@ const manifest = {
       name: "list_meetings",
       description: "List meetings, newest first, with since/participant filters.",
     },
+    {
+      name: "get_meeting_image",
+      description: "One pasted image from a meeting, downscaled, with its OCR text.",
+    },
   ],
   compatibility: {
     claude_desktop: ">=0.10.0",

@@ -15,6 +15,7 @@ import { updaterStore } from '$lib/stores/updater.svelte';
 import { copy } from '$lib/copy';
 import { errorMessage } from '$lib/copy/errors';
 import { displayAppName } from '$lib/utils/detectedApp';
+import { fixtureActive } from '$lib/fixture';
 import type { ModelProgress } from '$lib/types';
 
 /// Whether a notification event may fire, per the user's notification config.
@@ -71,7 +72,10 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
         // Labeling starts from the setting every recording, exactly as the
         // backend's own per-recording flag does — otherwise a meeting that
         // stood labeling down leaves the next one's header saying so while
-        // the backend is happily labeling.
+        // the backend is happily labeling. The guard history clears first:
+        // with the setting off, adopting it is a no-op call, which now
+        // preserves the reason by design.
+        appState.clearDiarizationRunaway();
         appState.setLiveDiarization(configStore.config?.diarization_enabled ?? true);
 
         // Notices fire whatever the window state — tray, minimized, or
@@ -105,24 +109,32 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
   );
 
   unlisteners.push(
-    await listen<{ minutes: number }>('silence-notice', async (e) => {
-      // The silence check-in ("Still recording?"): banner in-app plus the
-      // notice, whatever the window state — this event precedes a
-      // possible auto-stop, so it has no per-event toggle; turning the
-      // feature off is silence_stop_minutes = 0.
-      appState.setSilenceNotice(e.payload.minutes);
-      await invoke('notify', {
-        payload: {
-          kind: 'silence',
-          title: copy.notifications.os.stillRecording.title,
-          actions: [
-            { id: 'keep', label: copy.meetings.silence.keep },
-            { id: 'stop', label: copy.meetings.silence.stop }
-          ],
-          sticky: true
-        }
-      });
-    })
+    await listen<{ minutes: number; stops_at_ms?: number | null }>(
+      'silence-notice',
+      async (e) => {
+        // The silence check-in ("Still recording?"): banner in-app plus the
+        // notice, whatever the window state — this event precedes a
+        // possible auto-stop, so it has no per-event toggle; turning the
+        // feature off is silence_stop_minutes = 0.
+        appState.setSilenceNotice(e.payload.minutes);
+        await invoke('notify', {
+          payload: {
+            kind: 'silence',
+            title: copy.notifications.os.stillRecording.title,
+            actions: [
+              // Shorter words than the in-app banner's, same commands: the
+              // notice row also holds the title and the countdown.
+              { id: 'keep', label: copy.notifications.os.stillRecording.keep },
+              { id: 'stop', label: copy.notifications.os.stillRecording.stop }
+            ],
+            sticky: true,
+            // The decision deadline — present only when unanswered means
+            // stop; the notice renders it as a countdown.
+            countdown_until_ms: e.payload.stops_at_ms ?? null
+          }
+        });
+      }
+    )
   );
 
   unlisteners.push(
@@ -181,7 +193,12 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
       invoke('stop_recording', {
         userNotes: snapshot?.notes ?? null,
         meetingTitle: snapshot?.title ?? null
-      }).catch((e) => console.error('requested stop failed:', e));
+      }).catch((e) => {
+        // A backend-requested stop that fails must be visible like a
+        // button stop's failure, not only a console line.
+        console.error('requested stop failed:', e);
+        appState.setError(errorMessage(e));
+      });
     })
   );
 
@@ -321,6 +338,27 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
   );
 
   unlisteners.push(
+    await listen<{ meeting_id: string; title: string; url: string }>(
+      'webhook-delivery-failed',
+      async (e) => {
+        // Fired after the backend's last retry. Configuring a webhook is
+        // the opt-in, so no notification toggle gates this — a silent
+        // failure would be the worst outcome. The meeting is one click
+        // away via the target; the URL and error are in the log.
+        await invoke('notify', {
+          payload: {
+            kind: 'webhook_failed',
+            title: copy.notifications.os.webhookFailed.title,
+            actions: [],
+            sticky: false,
+            target: { kind: 'meeting', id: e.payload.meeting_id }
+          }
+        });
+      }
+    )
+  );
+
+  unlisteners.push(
     await listen('processing-error', (e) => {
       const message = errorMessage(e.payload);
       appState.setError(message);
@@ -413,6 +451,9 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
 /// left the surfaced window showing a dead idle shell). Called on mount
 /// and whenever the window regains focus or visibility.
 export async function syncRecordingStatus(): Promise<void> {
+  // A staged screenshot moment ($lib/fixture) is deliberately not what the
+  // backend is doing; reconciling would wipe it to idle.
+  if (fixtureActive()) return;
   const status = await invoke<{
     recording: boolean;
     paused: boolean;
@@ -423,7 +464,9 @@ export async function syncRecordingStatus(): Promise<void> {
     selected_apps: number[] | null;
     extra_mics: string[];
   }>('recording_status').catch(() => null);
-  if (!status) return;
+  // Re-checked after the await: a fixture that loaded while this call was
+  // in flight must not be reconciled away either.
+  if (!status || fixtureActive()) return;
 
   if (status.recording && !appState.isRecording) {
     // The window missed recording-started: rebuild the live view.

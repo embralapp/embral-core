@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 pub mod local;
+pub mod stream;
 
 /// Cadence for the standardized per-session info heartbeat. Every provider
 /// emits one `heartbeat` line at this interval while audio is flowing, so a
@@ -17,7 +18,7 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
 /// 16 kHz mono is the canonical source rate fed to every provider (the recorder
 /// resamples to it before fan-out), so audio-seconds == samples / 16000
 /// uniformly, even for providers that re-resample internally.
-const SOURCE_SAMPLE_RATE: f64 = 16_000.0;
+pub(crate) const SOURCE_SAMPLE_RATE: f64 = 16_000.0;
 
 /// Lock-free counters backing the standardized session heartbeat and finish
 /// summary shared by every provider, so the log shape can't drift between
@@ -244,5 +245,8 @@ fn relay_provider(
         config.cloud_url(),
         language_hints,
         config.diarization_enabled,
+        // A recording's (or dictation's) first stream numbers from
+        // Speaker 1; only a mid-recording reopen passes a base.
+        0,
     ))
 }

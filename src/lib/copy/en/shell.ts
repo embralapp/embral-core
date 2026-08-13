@@ -7,16 +7,16 @@ export const shell = {
     // The record button is the rail's headline action. Its tooltip has three
     // states because the button means three different things.
     recordTip: {
-      recording: 'Recording — open the live view',
+      recording: 'Recording',
       ready: 'Start recording',
       notConfigured: 'Configure transcription in Settings first'
     },
     recordLabel: {
-      recording: 'Recording…',
+      recording: 'Recording...',
       // Shadow mode: the rail must not read as "a meeting is being
       // recorded" at a glance, so the row names the destination it opens
       // rather than the state it is in.
-      shadow: 'Live view',
+      shadow: 'Current meeting',
       idle: 'Record'
     },
 
@@ -41,7 +41,7 @@ export const shell = {
   /** The window chrome across the top. */
   titleBar: {
     commandBar: {
-      placeholder: 'Search or run a command…',
+      placeholder: 'Search or run a command...',
       shortcut: 'Ctrl+K'
     },
     minimize: 'Minimize',
@@ -53,12 +53,12 @@ export const shell = {
   palette: {
     dialogTitle: 'Search',
     dialogDescription: 'Search meetings, dictations, and commands',
-    placeholder: 'Search meetings, dictations, and commands…',
+    placeholder: 'Search meetings, dictations, and commands...',
 
     // Shown only once a search has finished — saying it mid-flight tells the
     // user their meeting isn't there a moment before it appears.
-    empty: 'No results.',
-    searching: 'Searching…',
+    empty: 'No results',
+    searching: 'Searching...',
 
     groups: {
       meetings: 'Meetings',
@@ -71,7 +71,7 @@ export const shell = {
       stopRecording: 'Stop recording',
       startRecording: 'Start recording',
       startDictation: 'Start dictation',
-      importRecording: 'Import a recording…',
+      importRecording: 'Import a recording...',
       newProfile: 'New profile'
     },
 
@@ -85,7 +85,7 @@ export const shell = {
    * complete strings rather than one. */
   detectionBanner: {
     label: 'Call in progress',
-    detail: (app: string) => `— ${app} is using your microphone.`,
+    detail: (app: string) => `(${app} is using your microphone)`,
     record: 'Record',
     dismiss: 'Dismiss'
   }

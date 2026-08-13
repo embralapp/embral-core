@@ -27,9 +27,13 @@ export const common = {
   resizePanels: 'Resize panels',
   reopenPane: 'Reopen panel',
 
+  // The full-size image overlay every notes surface shares (a click on
+  // an image in the editor opens it; Esc or a click closes it).
+  imageViewer: 'Image viewer',
+
   // The shared press-a-combo hotkey control (settings and onboarding).
   hotkey: {
-    pressCombo: 'Press a combo…',
+    pressCombo: 'Press a combo...',
     notSet: 'Not set',
     clear: 'Clear',
     defaultAria: 'Hotkey'
@@ -50,7 +54,7 @@ export const common = {
   micAccess: {
     ask: 'embral needs the microphone to record meetings and take dictation',
     allow: 'Allow microphone',
-    denied: 'Microphone access is turned off for embral — recordings will be silent until it is allowed in System Settings',
+    denied: 'Microphone access denied; enable in System Settings to record',
     openSettings: 'Open System Settings'
   }
 };

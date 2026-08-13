@@ -27,8 +27,7 @@ mod window_rescue;
 use std::sync::Arc;
 use tauri::Manager;
 
-pub type SharedSession =
-    Arc<tokio::sync::Mutex<Option<Box<dyn transcription::TranscriptionSession>>>>;
+pub use transcription::stream::SharedSlot;
 
 /// Source of truth for the in-progress recording's finalized segments. The
 /// event-forwarder task in `start_recording` appends every `Segment` event to
@@ -39,7 +38,18 @@ pub type SharedSegments = Arc<tokio::sync::Mutex<Vec<embral_types::Transcription
 
 pub struct AppState {
     pub recorder: tokio::sync::Mutex<Option<audio::recorder::Recorder>>,
-    pub session: tokio::sync::Mutex<Option<SharedSession>>,
+    /// The current recording's session slot: what the audio bridge feeds
+    /// (a live session, a buffer while one opens, or nothing). `None`
+    /// outer = no recording.
+    pub session: tokio::sync::Mutex<Option<SharedSlot>>,
+    /// The current recording's stream lane (clock, generation, event
+    /// channel); swapped wholesale at each start. See
+    /// `transcription::stream`.
+    pub lane: std::sync::Mutex<Arc<transcription::stream::StreamLane>>,
+    /// The current recording's event-forwarder task. Stop awaits it
+    /// (bounded) before snapshotting segments, so a draining stream's
+    /// tail always reaches finalize.
+    pub forwarder_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub config: tokio::sync::Mutex<embral_types::AppConfig>,
     pub current_segments: SharedSegments,
     /// Warm local speech engine: recognizers load once per app run and stay
@@ -99,13 +109,22 @@ pub struct AppState {
     /// source, so a window that missed `recording-started` (hidden webviews
     /// get throttled and drop events) can rebuild the timer on focus.
     pub recording_started_at_ms: std::sync::atomic::AtomicU64,
-    /// Epoch-ms of the current recording's last transcribed segment — the
-    /// silence check-in's clock ([detection.md]). Rebaselined at start, on
-    /// resume, and by "Keep recording".
-    pub last_speech_at: std::sync::atomic::AtomicU64,
+    /// Epoch-ms of the current recording's last sign of life — the silence
+    /// check-in's clock ([detection.md]): advanced by transcribed words as
+    /// they arrive (new final tokens in an interim, a segment closing) and
+    /// by notes or title edits reaching `sync_recording_drafts`.
+    /// Rebaselined at start, on resume, by "Keep recording", and by every
+    /// session install (`install_stream`) — a transcription outage is not
+    /// silence.
+    pub last_liveness_at: std::sync::atomic::AtomicU64,
     /// The silence check-in's standing: 0 = none showing, `u64::MAX` =
-    /// stood down until speech resumes, else the epoch-ms it fired.
+    /// stood down until liveness resumes, else the epoch-ms it fired.
     pub silence_notice_at: std::sync::atomic::AtomicU64,
+    /// Which recording the silence watcher belongs to — bumped at every
+    /// start. A watcher whose generation moved on exits instead of racing
+    /// the successor's watcher on the shared check-in state (a stop and
+    /// restart inside one 15 s tick would otherwise leave two running).
+    pub recording_generation: std::sync::atomic::AtomicU64,
     /// The built-in LLM child process (llama-server), started on demand.
     pub llm: llm::LlmSidecar,
     /// The search-index runtime: the embed child process (`embral-mcp
@@ -130,6 +149,8 @@ impl AppState {
         Self {
             recorder: tokio::sync::Mutex::new(None),
             session: tokio::sync::Mutex::new(None),
+            lane: std::sync::Mutex::new(Arc::new(transcription::stream::StreamLane::idle())),
+            forwarder_task: std::sync::Mutex::new(None),
             config: tokio::sync::Mutex::new(config),
             current_segments: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             engine: Arc::new(embral_engine::Engine::new()),
@@ -150,8 +171,9 @@ impl AppState {
             extra_mics: std::sync::Mutex::new(Vec::new()),
             recording_drafts: std::sync::Mutex::new(None),
             recording_started_at_ms: std::sync::atomic::AtomicU64::new(0),
-            last_speech_at: std::sync::atomic::AtomicU64::new(0),
+            last_liveness_at: std::sync::atomic::AtomicU64::new(0),
             silence_notice_at: std::sync::atomic::AtomicU64::new(0),
+            recording_generation: std::sync::atomic::AtomicU64::new(0),
             llm: llm::LlmSidecar::default(),
             search: search_index::SearchRuntime::default(),
             dictation: tokio::sync::Mutex::new(None),
@@ -185,6 +207,15 @@ impl AppState {
         *guard = Some((base, db.clone()));
         Ok(db)
     }
+}
+
+/// Milliseconds since the Unix epoch — the one wall-clock read behind
+/// event timestamps and the check-in's liveness clock.
+pub(crate) fn epoch_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// `%LOCALAPPDATA%/embral/logs` — next to the models dir, not user data.
@@ -278,7 +309,7 @@ pub fn run() {
     let needs_onboarding = !config.onboarding_completed;
     let startup_storage_dir = config.storage_dir.clone();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Registered first, so a second launch bails out before any heavy
         // init: the app lives in the tray, so re-launching the installed
         // shortcut must surface the running window, not stack a new process.
@@ -291,8 +322,16 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init());
+    // Self-updating is cloud-edition-only: the release channel serves
+    // cloud installers, so an offline build carrying a live updater would
+    // replace itself with the cloud edition on update. Source builds
+    // update via git ([cloud-seam.md]). The crate stays a dependency in
+    // both editions so the capability file's `updater:default` grant
+    // stays valid; only the registration is gated.
+    #[cfg(feature = "cloud")]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    builder
         .plugin(tauri_plugin_process::init())
         .plugin({
             use tauri_plugin_window_state::StateFlags;
@@ -461,10 +500,21 @@ pub fn run() {
                     }
                 });
             }
-            // A recording the last run never finished: turn it into an
-            // ordinary meeting, or discard it if it barely started. Runs
-            // before detection can start a new one, which would clear the
-            // scratch it reads ([recording.md] §Crash recovery).
+            // Update leftovers: remove mcp server binaries the installer
+            // renamed aside while a client held them ([release.md]
+            // §Installer hooks); still-locked ones wait for a later boot.
+            #[cfg(windows)]
+            mcp_clients::sweep_stale_servers();
+            // The AppImage counterpart: refresh the stable per-user server
+            // copy registrations point at, so clients spawn the new build
+            // after an update ([integrations.md]).
+            #[cfg(target_os = "linux")]
+            mcp_clients::refresh_appimage_server_copy();
+            // Recordings the last run never finished: turn them into
+            // ordinary meetings, or discard ones that barely started. Its
+            // synchronous part freezes the worklist before this line
+            // returns, so detection (below) and the user cannot race the
+            // rescue's reads ([recording.md] §Crash recovery).
             commands::recover_interrupted_recording(app.handle().clone());
             // Meeting auto-detection poller (policy-gated internally).
             autodetect::spawn(app.handle().clone());
@@ -540,6 +590,8 @@ macro_rules! app_handler_with {
             commands::sync_recording_drafts,
             commands::request_stop_recording,
             commands::recording_status,
+            commands::fixture_state,
+            commands::fixture_show_overlay,
             commands::list_audio_sources,
             commands::set_system_audio_sources,
             commands::set_extra_mics,
@@ -579,6 +631,7 @@ macro_rules! app_handler_with {
             commands::accessibility_permission,
             commands::request_accessibility_permission,
             commands::preview_export_filename,
+            commands::test_webhook,
             commands::open_logs_folder,
             commands::update_guard,
             system_specs::system_specs,

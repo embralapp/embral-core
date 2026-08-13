@@ -17,14 +17,14 @@ export const onboarding = {
   // The persistent aggregate-download line.
   download: {
     active: (n: number, pct: number) =>
-      `Downloading ${n} ${plural(locale, n, { one: 'model', other: 'models' })} · ${pct}%`,
-    failed: (name: string) => `${name} failed to download.`,
+      `Downloading ${n} ${plural(locale, n, { one: 'model', other: 'models' })} (${pct}%)`,
+    failed: (name: string) => `${name} failed to download`,
     retry: 'Retry'
   },
 
   // The small recommended-option marker on the segmented switches.
   segmented: {
-    recommended: 'Recommended for this machine'
+    recommended: 'Recommended for your computer'
   },
 
   // The closing page: the feature grid as a "here's what you have" landing.
@@ -62,7 +62,7 @@ export const onboarding = {
 
   models: {
     title: 'Set up local models',
-    intro: "Based on this machine's specs, here's what we recommend:",
+    intro: "Based on your computer's specs, we recommend:",
     language: 'Language',
     accuracy: 'Accuracy',
     // Keyed by TranscriptionLanguage.
@@ -82,10 +82,10 @@ export const onboarding = {
     units: {
       asrTitle: 'Transcription model',
       asrWhy: 'Transcription',
-      asrWhyMultilingual: 'Transcription — 25 languages',
+      asrWhyMultilingual: 'Transcription (25 languages)',
       punctTitle: 'English punctuation',
       punctWhy: 'Punctuation for the transcript',
-      summariesTitle: 'Summaries on this computer',
+      summariesTitle: 'Local summarization engine',
       summariesWhy: 'Language model and engine',
       speakersTitle: 'Speaker identification',
       speakersWhy: 'Tells speakers apart',
@@ -95,16 +95,16 @@ export const onboarding = {
     downloadNone: 'Download none',
     downloadAll: (size: string) => `Download all (${size})`,
     downloadSelected: (size: string) => `Download selected (${size})`,
-    ready: "Everything's ready.",
-    downloadingBackground: 'Downloading in background - you can keep going.',
-    lowSpace: 'This drive is low on space - downloads may not fit.',
-    checking: 'Checking this computer…'
+    ready: "Everything's ready",
+    downloadingBackground: 'Downloading in background; you can keep going',
+    lowSpace: 'Your drive is low on space; downloads may not fit',
+    checking: 'Checking this computer...'
   },
 
   meetings: {
     title: 'Meetings',
     intro: 'All options can be adjusted later in Settings',
-    autoStart: 'When a call is detected, start recording…',
+    autoStart: 'When a call is detected, start recording...',
     // Keyed by AutoStartPolicy (onboarding offers three of the four).
     autoStartOptions: {
       always: 'Automatically',
@@ -113,16 +113,16 @@ export const onboarding = {
     },
     summarize: 'Summarize meetings',
     engine: 'Write summaries with',
-    llmNudge: 'On-device summaries need the language model.',
+    llmNudge: 'On-device summaries need a language model',
     download: 'Download',
     hotkey: 'Meeting hotkey',
-    hotkeySub: 'Start or stop from anywhere.',
+    hotkeySub: 'Start or stop from anywhere',
     hotkeyAria: 'Meeting hotkey'
   },
 
   dictation: {
     title: 'Dictation',
-    intro: 'Speech to text in any app, with realtime feedback',
+    intro: 'Speech to text in any app, in realtime',
     hotkey: 'Dictation hotkey',
     hotkeyAria: 'Dictation hotkey',
     cleanup: 'Clean up with AI',
@@ -136,8 +136,8 @@ export const onboarding = {
   mcp: {
     title: 'Connect your AI assistants',
     intro: 'Search your meeting notes; other MCP clients can be added in settings',
-    looking: 'Looking for installed clients…',
-    none: 'No supported AI clients found on this machine. Set this up any time in Settings → MCP.',
+    looking: 'Looking for installed clients...',
+    none: 'No supported AI clients found on this machine; set this up later in Settings → MCP',
     clients: {
       claudeDesktop: 'Claude Desktop',
       claudeCode: 'Claude Code',
@@ -150,11 +150,11 @@ export const onboarding = {
     intro: 'Export meeting notes as markdown to a local folder, like an Obsidian vault',
     exportOnEnd: 'Export notes when a recording ends',
     folder: 'Folder',
-    noFolder: 'No folder chosen yet.',
-    browse: 'Browse…',
-    includeSummary: 'Include the AI summary',
-    includeNotes: 'Include your notes',
-    includeTranscript: 'Include the transcript',
+    noFolder: 'No folder chosen yet',
+    browse: 'Browse...',
+    includeSummary: 'Include AI summary',
+    includeNotes: 'Include your typed notes',
+    includeTranscript: 'Include transcript',
     filenameNote: 'Adjust filename format in settings'
   }
 };

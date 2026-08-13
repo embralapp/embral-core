@@ -45,9 +45,39 @@ impl From<&MeetingRecord> for MeetingSummary {
 /// and adopt-by-name must never treat one as an identity: two meetings'
 /// "Speaker 2" are different people.
 pub fn is_generic_speaker_label(label: &str) -> bool {
-    label
-        .strip_prefix("Speaker ")
-        .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+    generic_speaker_number(label).is_some()
+}
+
+/// The number in a session-generated "Speaker N" label, `None` for anything
+/// else (a person's name, or a shape no session produces). A stream opened
+/// mid-recording numbers its speakers after the highest already seen, which
+/// is what needs the number itself rather than the yes/no above.
+pub fn generic_speaker_number(label: &str) -> Option<usize> {
+    let n = label.strip_prefix("Speaker ")?;
+    if n.is_empty() || !n.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    n.parse().ok()
+}
+
+#[cfg(test)]
+mod speaker_label_tests {
+    use super::*;
+
+    #[test]
+    fn generic_labels_carry_their_number() {
+        assert_eq!(generic_speaker_number("Speaker 1"), Some(1));
+        assert_eq!(generic_speaker_number("Speaker 12"), Some(12));
+        assert!(is_generic_speaker_label("Speaker 3"));
+    }
+
+    #[test]
+    fn names_and_malformed_labels_do_not() {
+        for label in ["Alice", "Speaker", "Speaker ", "Speaker one", "speaker 2", "Speaker 2b"] {
+            assert_eq!(generic_speaker_number(label), None, "{label}");
+            assert!(!is_generic_speaker_label(label), "{label}");
+        }
+    }
 }
 
 /// A single transcription segment from a WebSocket streaming session.
@@ -305,6 +335,31 @@ pub enum ExportMetadataFormat {
     Inline,
 }
 
+/// HTTP method for a webhook delivery ([integrations.md] §Webhooks).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WebhookMethod {
+    #[default]
+    Post,
+    Put,
+}
+
+/// One outbound webhook destination ([integrations.md] §Webhooks).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct WebhookDestination {
+    /// Where the meeting-finished payload goes. Rows with an empty URL are
+    /// skipped at fire time (a half-typed settings row is not an error).
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub method: WebhookMethod,
+    /// Full meeting content (summary, the user's notes, transcript) rides
+    /// along only while this is on; the default payload is metadata alone.
+    /// Content leaving the machine wants an explicit gate per destination.
+    #[serde(default)]
+    pub include_content: bool,
+}
+
 /// Whether the post-meeting pass names diarized speakers from the notes
 /// the user typed during the meeting ([speakers.md]).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -420,6 +475,10 @@ pub struct AppConfig {
     /// Absolute path to an Obsidian vault (or any folder) to mirror notes into.
     #[serde(default)]
     pub obsidian_vault_dir: String,
+    /// Outbound webhooks fired when a meeting finalizes
+    /// ([integrations.md] §Webhooks). Empty = off.
+    #[serde(default)]
+    pub webhooks: Vec<WebhookDestination>,
     /// Filename template for exported copies (auto-export/Obsidian), with
     /// tokens {date} {time} {year} {month} {day} {hour} {minute} {title}.
     /// Internal library filenames are unaffected.
@@ -776,6 +835,7 @@ impl Default for AppConfig {
             vocabulary: Vec::new(),
             obsidian_export_enabled: false,
             obsidian_vault_dir: String::new(),
+            webhooks: Vec::new(),
             export_filename_template: default_export_filename_template(),
             export_metadata_format: ExportMetadataFormat::default(),
             export_include_summary: true,
@@ -949,13 +1009,30 @@ mod llm_profile_tests {
         assert_eq!(profiles[1].id, CLOUD_PROFILE_ID);
         assert_eq!(profiles[1].provider, LlmProvider::Custom);
     }
+
+    #[test]
+    fn data_dir_env_overrides_storage_root() {
+        std::env::set_var("EMBRAL_DATA_DIR", "X:\\scratch-library");
+        assert_eq!(default_storage_dir(), "X:\\scratch-library");
+        std::env::remove_var("EMBRAL_DATA_DIR");
+        assert!(default_storage_dir().ends_with("embral"));
+    }
 }
 
 // --- Path helpers ---
 
 /// The OS-native default storage directory (e.g. `C:\Users\you\embral`).
-/// Falls back to the `~` shorthand only when no home dir can be resolved.
+/// `EMBRAL_DATA_DIR` overrides the whole root — a development affordance
+/// for driving a real build against a scratch library (configuration.md);
+/// on Windows the home dir comes from the known-folder API, so an env
+/// override is the only way to redirect a build. Falls back to the `~`
+/// shorthand only when no home dir can be resolved.
 pub fn default_storage_dir() -> String {
+    if let Ok(dir) = std::env::var("EMBRAL_DATA_DIR") {
+        if !dir.trim().is_empty() {
+            return dir;
+        }
+    }
     dirs::home_dir()
         .map(|home| home.join("embral").to_string_lossy().to_string())
         .unwrap_or_else(|| "~/embral".to_string())

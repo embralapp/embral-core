@@ -663,7 +663,8 @@ const OVERLAY_SIZE: (f64, f64) = (440.0, 148.0);
 
 /// Create (once) and show the overlay near the bottom of the current
 /// monitor. Never focused — the paste target must keep focus.
-fn show_overlay(app: &AppHandle) -> Result<(), AppError> {
+/// `pub(crate)` for the dev fixture command (commands/fixture.rs).
+pub(crate) fn show_overlay(app: &AppHandle) -> Result<(), AppError> {
     let (w, h) = OVERLAY_SIZE;
     let window = match app.get_webview_window(OVERLAY) {
         Some(w) => w,

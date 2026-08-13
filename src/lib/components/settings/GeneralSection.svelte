@@ -12,7 +12,7 @@
     import { Switch } from "$lib/components/ui/switch";
     import { Input } from "$lib/components/ui/input";
     import { Button } from "$lib/components/ui/button";
-    import { loadTelemetrySetting } from "$lib/cloud";
+    import { CLOUD_ENABLED, loadTelemetrySetting } from "$lib/cloud";
     import { copy } from "$lib/copy";
 
     let { draft }: { draft: AppConfig } = $props();
@@ -255,9 +255,13 @@
         >
             <Switch bind:checked={draft.notify_call_detected} />
         </SettingRow>
-        <SettingRow title={t.notifications.updateReady.label}>
-            <Switch bind:checked={draft.notify_update_available} />
-        </SettingRow>
+        <!-- Self-updating is cloud-edition-only (cloud-seam.md); without
+             an updater there is no update-ready moment to announce. -->
+        {#if CLOUD_ENABLED}
+            <SettingRow title={t.notifications.updateReady.label}>
+                <Switch bind:checked={draft.notify_update_available} />
+            </SettingRow>
+        {/if}
     </SettingsGroup>
 
     {#if TelemetrySetting}

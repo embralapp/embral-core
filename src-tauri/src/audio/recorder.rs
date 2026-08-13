@@ -25,6 +25,37 @@ const MAX_LOOPBACK_LAG_SECS: usize = 2;
 /// that predates them says the file is empty.
 const FLUSH_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// How long stopping waits for the capture thread. Teardown is normally
+/// milliseconds; the wait exists because the thread's exit ends by
+/// dropping OS audio streams, and a wedged driver can park that call
+/// indefinitely — which must cost a leaked thread, not a stop that never
+/// returns ([recording.md] §Dual-stream capture).
+const CAPTURE_JOIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Join `thread`, giving up after `deadline`. `true` means it exited. On
+/// `false` the thread is left running detached (along with the helper
+/// waiting on it) — the caller carries on, and the leak is the accepted
+/// cost of never hanging on a wedged OS call.
+fn join_with_deadline(thread: std::thread::JoinHandle<()>, deadline: std::time::Duration) -> bool {
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    let waiter = std::thread::Builder::new()
+        .name("capture-join".into())
+        .spawn(move || {
+            let _ = thread.join();
+            let _ = done_tx.send(());
+        });
+    match waiter {
+        Ok(_) => done_rx.recv_timeout(deadline).is_ok(),
+        // The helper failed to spawn (resource exhaustion); its closure —
+        // and the join handle inside it — are gone, so the capture thread
+        // is left detached exactly as on a timeout.
+        Err(e) => {
+            tracing::warn!("no thread for the bounded join ({e}); capture left detached");
+            false
+        }
+    }
+}
+
 /// One secondary source's buffer: resampled 16 kHz mono samples waiting for
 /// the master clock to drain them.
 type Ring = Arc<Mutex<VecDeque<f32>>>;
@@ -428,22 +459,36 @@ impl Recorder {
         self.paused.store(false, Ordering::SeqCst);
     }
 
-    /// Stop every capture and wait for the thread that owns them.
+    /// Stop every capture and wait — bounded — for the thread that owns
+    /// them.
     ///
     /// Dropping the senders *before* the join is the whole point: the
     /// capture thread parks on the extra-microphone channel, so a join that
     /// still held `mic_reconfigure_tx` could never return — stop hung, the
     /// WAV was never finalized, and the next record press stacked a second
-    /// recording on top of the first.
+    /// recording on top of the first. The join itself is bounded too: the
+    /// thread's exit ends by dropping OS audio streams, and a wedged
+    /// driver parking that call must cost a leaked thread (and a mic that
+    /// stays busy until the driver lets go), not a stop that never
+    /// returns.
     fn shutdown(&mut self) {
         self.mic_reconfigure_tx.take();
         self.reconfigure_tx.take();
         if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+            if !join_with_deadline(thread, CAPTURE_JOIN_TIMEOUT) {
+                tracing::error!(
+                    "capture thread still running {CAPTURE_JOIN_TIMEOUT:?} after stop — leaking it; the microphone may stay busy until the audio stack lets go"
+                );
+            }
         }
     }
 
     /// Stop capturing; returns the finalized WAV's path.
+    ///
+    /// The WAV finalizes even when the capture thread had to be leaked:
+    /// taking the writer out under its lock starves any callback still
+    /// running (they skip on `None`), so the header gets its true sample
+    /// count and the meeting stays salvageable.
     pub fn stop(mut self) -> Result<PathBuf> {
         self.shutdown();
         if let Ok(mut guard) = self.wav_writer.lock() {
@@ -778,6 +823,33 @@ mod mix_tests {
         assert_eq!(mix.rings.lock().unwrap().len(), 1);
         drop(second);
         assert!(mix.rings.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_bounded_join_waits_for_a_thread_that_exits() {
+        let thread = std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        });
+        assert!(join_with_deadline(
+            thread,
+            std::time::Duration::from_secs(5)
+        ));
+    }
+
+    #[test]
+    fn the_bounded_join_gives_up_on_a_stuck_thread() {
+        // A thread that never exits — the wedged-driver shape. It leaks
+        // with the test process, which is the same bargain the recorder
+        // makes.
+        let (never_tx, never_rx) = std::sync::mpsc::channel::<()>();
+        std::mem::forget(never_tx);
+        let thread = std::thread::spawn(move || {
+            let _ = never_rx.recv();
+        });
+        assert!(!join_with_deadline(
+            thread,
+            std::time::Duration::from_millis(100)
+        ));
     }
 }
 

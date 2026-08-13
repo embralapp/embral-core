@@ -25,9 +25,10 @@ export const nav = {
     transcription: 'Transcription',
     synthesis: 'Synthesis',
     markdown: 'Markdown',
+    webhooks: 'Webhooks',
     mcp: 'MCP'
   },
 
   /** Shown while the config draft is still loading. */
-  loading: 'Loading…'
+  loading: 'Loading...'
 };

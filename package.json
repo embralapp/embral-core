@@ -1,6 +1,6 @@
 {
   "name": "embral",
-  "version": "26.8.2",
+  "version": "26.8.3",
   "description": "Meeting transcription and notes, on your machine.",
   "type": "module",
   "scripts": {
@@ -26,6 +26,7 @@
     "@tiptap/core": "^2.10.0",
     "@tiptap/extension-image": "2.27.2",
     "@tiptap/extension-link": "2.27.2",
+    "@tiptap/extension-list-item": "2.27.2",
     "@tiptap/extension-table": "2.27.2",
     "@tiptap/extension-table-cell": "2.27.2",
     "@tiptap/extension-table-header": "2.27.2",

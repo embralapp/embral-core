@@ -1,7 +1,13 @@
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import Link from '@tiptap/extension-link';
+import ListItem from '@tiptap/extension-list-item';
 import Image from '@tiptap/extension-image';
+import {
+  defaultMarkdownSerializer,
+  type MarkdownSerializerState
+} from '@tiptap/pm/markdown';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
@@ -51,11 +57,39 @@ export function markdownExtensions(storageRoot = '') {
           })
         }
       };
+    },
+    // The stock image spec (prosemirror-markdown's, re-exported by
+    // tiptap-markdown) writes the token and never closes its block — a
+    // block-level image glued the NEXT paragraph onto the same line.
+    // Delegating keeps upstream's escaping; closeBlock supplies the
+    // separator, and block images round-trip byte-stable.
+    addStorage() {
+      return {
+        markdown: {
+          serialize(
+            state: MarkdownSerializerState,
+            node: PMNode,
+            parent: PMNode,
+            index: number
+          ) {
+            defaultMarkdownSerializer.nodes.image(state, node, parent, index);
+            state.closeBlock(node);
+          }
+        }
+      };
     }
   });
 
+  // The stock list item must open with a paragraph. A pasted image can BE
+  // a bullet here (paste onto an empty bullet replaces it — imagePaste.ts),
+  // so it admits an image as its opening child; the round-trip test proves
+  // `- ![](…)` survives a save. Task items stay paragraph-first: markdown
+  // cannot write an image-only task (`- [ ] ` with its image on the next
+  // line loses the checkbox on re-parse), and the paste falls back to
+  // nesting below instead.
   return [
-    StarterKit,
+    StarterKit.configure({ listItem: false }),
+    ListItem.extend({ content: '(paragraph | image) block*' }),
     Markdown.configure({ transformPastedText: true }),
     Link.configure({
       // The editor is not a browser: a click should place the caret, not
@@ -63,10 +97,11 @@ export function markdownExtensions(storageRoot = '') {
       openOnClick: false,
       autolink: true
     }),
-    // Inline, not block: prosemirror-markdown's image serializer writes
-    // without a trailing block separator, so a block-level image would run
-    // the next paragraph onto its own line.
-    AssetImage.configure({ inline: true, allowBase64: true }),
+    // Block, not inline: a screenshot is block content — a paste lands the
+    // way typed text would and the caret moves below it (imagePaste.ts,
+    // [shell.md] §Writing surface). The serializer above is what makes a
+    // block image safe; see its comment.
+    AssetImage.configure({ inline: false, allowBase64: true }),
     Table.configure({ resizable: false }),
     TableRow,
     TableHeader,

@@ -27,12 +27,32 @@
         actions: NoticeAction[];
         sticky: boolean;
         target?: { kind: string; id?: string } | null;
+        countdown_until_ms?: number | null;
     };
 
     let notice = $state<NoticePayload | null>(null);
     let fading = $state(false);
     let starting = $state(false);
     let unlisteners: UnlistenFn[] = [];
+
+    // The countdown chip's clock — the interval only refreshes `now`, and
+    // runs only while a deadline is on screen. The chip rests at 0 once
+    // the deadline passes: the decision lands on the backend's next tick,
+    // and the card comes down with it (`silence-cleared`).
+    let now = $state(Date.now());
+    const remaining = $derived(
+        notice?.countdown_until_ms != null
+            ? Math.max(0, Math.ceil((notice.countdown_until_ms - now) / 1000))
+            : null,
+    );
+    $effect(() => {
+        if (notice?.countdown_until_ms == null || starting) return;
+        now = Date.now();
+        const interval = setInterval(() => {
+            now = Date.now();
+        }, 1000);
+        return () => clearInterval(interval);
+    });
 
     // Action ids → the commands they run; the answers are the same ones
     // the in-app banners invoke, so telemetry and state ride along.
@@ -68,7 +88,13 @@
         if (fading) return;
         fading = true;
         cancelDismiss();
-        fadeTimer = setTimeout(() => void invoke("hide_notice").catch(() => {}), FADE_MS);
+        fadeTimer = setTimeout(() => {
+            // The window only hides — the page persists. Drop the payload
+            // too, so nothing (like the countdown interval) keeps running
+            // behind a hidden window.
+            notice = null;
+            void invoke("hide_notice").catch(() => {});
+        }, FADE_MS);
     }
 
     function runAction(id: string) {
@@ -161,10 +187,25 @@
 >
     {#if notice}
         <EmbralIcon size={18} />
-        <button class="min-w-0 flex-1 text-left" onclick={openTarget}>
-            <p class="truncate text-sm font-medium">
+        <button
+            class="flex min-w-0 flex-1 items-baseline gap-1.5 text-left"
+            onclick={openTarget}
+        >
+            <p class="min-w-0 truncate text-sm font-medium">
                 {starting ? t.starting : notice.title}
             </p>
+            {#if remaining !== null && !starting}
+                <!-- The decision deadline, as plain ticking text — a ring
+                     would read as a second logo. It rests at 0 until the
+                     backend's next tick lands the decision. -->
+                <span
+                    class="shrink-0 text-xs tabular-nums text-muted-foreground"
+                    role="timer"
+                    aria-label={copy.notifications.os.countdownAria(remaining)}
+                >
+                    {copy.notifications.os.countdown(remaining)}
+                </span>
+            {/if}
         </button>
         {#if !starting}
             {#each notice.actions as action, i (action.id)}

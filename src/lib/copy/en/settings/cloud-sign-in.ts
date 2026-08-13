@@ -6,7 +6,7 @@
 export const cloudSignIn = {
   title: 'Sign in to use embral cloud',
   description:
-    "Cloud transcription and summaries run on embral's servers and need an account. Sign in to turn them on — everything stays on this device until you do.",
+    "Cloud transcription and summaries run on embral's servers; sign in to use them",
   notNow: 'Not now',
   goToAccount: 'Go to Account'
 };

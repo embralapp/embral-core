@@ -166,6 +166,7 @@
         "dictation",
         "about",
         "markdown",
+        "webhooks",
         "mcp",
         "transcription",
         "synthesis",

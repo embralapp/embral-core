@@ -1,16 +1,18 @@
 //! Recording lifecycle commands: start/pause/resume/stop, in-recording
 //! stars and live speaker renames, and the detection prompt responses.
 
-#[cfg(feature = "cloud")]
-use embral_types::AppConfig;
-use embral_types::AppError;
+use embral_types::{AppConfig, AppError};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
 use crate::audio::recorder::Recorder;
-use crate::transcription::{self, TranscriptionEvent, TranscriptionSession};
-use crate::AppState;
+use crate::autodetect::silence::LivenessTracker;
+use crate::transcription::stream::{
+    SessionSlot, SharedSlot, StreamLane, SESSION_FINISH_TIMEOUT,
+};
+use crate::transcription::{self, stream, TranscriptionEvent};
+use crate::{epoch_ms, AppState};
 
 use super::finalize::{finalize_meeting, AudioSource};
 use super::support::*;
@@ -46,6 +48,144 @@ async fn strip_speakers(segments: &crate::SharedSegments) {
         seg.speaker = None;
         seg.speaker_id = None;
     }
+}
+
+/// The label layer for one finalized segment ([speakers.md] §Live labels):
+/// when labeling is off, strip; otherwise count the provider's own label
+/// for the runaway guard — a rename changes the name, not the cluster —
+/// and then apply any user rename. Returns true when this very segment
+/// pushed the distinct-label count past the ceiling; the caller stands
+/// labeling down for the whole recording.
+fn label_segment(
+    seg: &mut embral_types::TranscriptionSegment,
+    labeling_on: bool,
+    seen: &std::sync::Mutex<std::collections::HashSet<String>>,
+    renames: &std::collections::HashMap<String, String>,
+) -> bool {
+    if !labeling_on {
+        seg.speaker = None;
+        seg.speaker_id = None;
+        return false;
+    }
+    let Some(label) = seg.speaker.clone() else {
+        return false;
+    };
+    let distinct = {
+        let mut seen = seen.lock().expect("live speaker labels poisoned");
+        seen.insert(label.clone());
+        seen.len()
+    };
+    if diarization_has_run_away(distinct) {
+        seg.speaker = None;
+        seg.speaker_id = None;
+        return true;
+    }
+    if let Some(new_name) = renames.get(&label) {
+        seg.speaker = Some(new_name.clone());
+    }
+    false
+}
+
+/// The local provider for this recording's settings — the standing local
+/// choice, the signed-out swap, and the mid-recording fallback all build
+/// exactly this.
+fn local_provider(
+    config: &AppConfig,
+    engine: Arc<embral_engine::Engine>,
+) -> transcription::local::LocalProvider {
+    transcription::local::LocalProvider::new(
+        engine,
+        config.meeting_asr_model(),
+        config.vocabulary.clone(),
+        config.diarization_enabled,
+    )
+}
+
+/// Unwind a start that already built its lane but cannot go on: no open
+/// still in flight may install (generation), the forwarder ends (its
+/// channel closes when the lane's sender drops), and any session already
+/// installed is retired.
+async fn abandon_started_lane(lane: &Arc<StreamLane>, slot: &SharedSlot) {
+    lane.bump_generation();
+    lane.take_event_tx();
+    let mut guard = slot.lock().await;
+    if let SessionSlot::Streaming(session) = std::mem::replace(&mut *guard, SessionSlot::Off) {
+        stream::finish_detached(session, "start aborted");
+    }
+}
+
+/// How long a session open may take before it is treated as failed. The
+/// relay handshake normally answers within a couple of seconds; a hung
+/// connect must not leave a recording silently buffering forever with no
+/// banner and no fallback.
+const OPEN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Open a session off the recording's critical path and put it behind the
+/// bridge when it arrives; audio waits in the slot's buffer meanwhile. A
+/// connect failure — or a hang past [`OPEN_TIMEOUT`] — reports through
+/// the recording's event channel like any mid-recording death, but only
+/// while this open is still the current generation's: nobody wants
+/// banners from a stream the recording already moved past.
+fn spawn_stream_open(
+    app: AppHandle,
+    provider: Arc<dyn transcription::TranscriptionProvider>,
+    is_cloud: bool,
+    generation: u64,
+    lane: Arc<StreamLane>,
+    slot: SharedSlot,
+) {
+    tauri::async_runtime::spawn(async move {
+        let (stream_tx, stream_rx) = tokio::sync::mpsc::unbounded_channel::<TranscriptionEvent>();
+        let session = match tokio::time::timeout(OPEN_TIMEOUT, provider.start_session(stream_tx))
+            .await
+        {
+            Ok(Ok(session)) => session,
+            Ok(Err(e)) => {
+                report_stream_failure(&lane, generation, e.to_string());
+                return;
+            }
+            Err(_) => {
+                report_stream_failure(
+                    &lane,
+                    generation,
+                    format!(
+                        "the connection attempt gave up after {} seconds",
+                        OPEN_TIMEOUT.as_secs()
+                    ),
+                );
+                return;
+            }
+        };
+        let state = app.state::<AppState>();
+        stream::install_stream(
+            &lane,
+            &slot,
+            &state.live_speaker_labels,
+            &state.last_liveness_at,
+            session,
+            stream_rx,
+            is_cloud,
+            generation,
+        )
+        .await;
+    });
+}
+
+/// A stream failure — an open that never connected, or a live session the
+/// bridge retired for stalling — reports as `TranscriptionEvent::Failed`
+/// so the forwarder's one failure path handles it — unless the recording
+/// has already moved past the stream, in which case nobody is owed
+/// anything.
+fn report_stream_failure(lane: &StreamLane, generation: u64, message: String) {
+    if lane.current_generation() != generation {
+        tracing::info!("stream failed after the recording moved on: {message}");
+        return;
+    }
+    let Some(tx) = lane.clone_event_tx() else {
+        tracing::info!("stream failed after the recording ended: {message}");
+        return;
+    };
+    let _ = tx.send(TranscriptionEvent::Failed { message });
 }
 
 /// One choke point for every start path (button, hotkey, detection accept,
@@ -128,12 +268,8 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
 
     let provider = if signed_out_cloud {
         tracing::info!("cloud selected but signed out — transcribing on this device");
-        Arc::new(transcription::local::LocalProvider::new(
-            state.engine.clone(),
-            config.meeting_asr_model(),
-            config.vocabulary.clone(),
-            config.diarization_enabled,
-        )) as Arc<dyn transcription::TranscriptionProvider>
+        Arc::new(local_provider(&config, state.engine.clone()))
+            as Arc<dyn transcription::TranscriptionProvider>
     } else {
         transcription::build_provider(&provider_choice, &config, state.engine.clone())
     };
@@ -144,82 +280,54 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
         .labels_authoritative
         .store(capabilities.labels_authoritative, std::sync::atomic::Ordering::Release);
 
+    // The recording's event channel, stream lane, and session slot. Every
+    // session this recording runs — the first, a mid-recording fallback, a
+    // post-pause reopen — reaches the forwarder below through a per-stream
+    // pump on this one channel (`transcription::stream`).
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<TranscriptionEvent>();
+    let lane = Arc::new(StreamLane::new(event_tx));
+    let slot: SharedSlot = Arc::new(Mutex::new(SessionSlot::Buffering(Default::default())));
+    *state.lane.lock().expect("lane poisoned") = lane.clone();
 
-    let session_result = provider.start_session(event_tx.clone()).await;
-    // A cloud refusal at start (out of hours, unreachable) degrades per the
-    // out-of-hours setting — a local session, or no transcription at all —
-    // never a dead record button.
+    // Which kind of stream the open (below, off the critical path) will
+    // produce. The record gate and the signed-out swap already ran, so
+    // this is settled before capture starts.
     #[cfg(feature = "cloud")]
-    let session_result: Result<Option<Box<dyn TranscriptionSession>>, _> = match session_result {
-        Err(e) if provider_choice == embral_types::TranscriptionProvider::Cloud => {
-            match crate::config::on_cloud_failure(
-                config.cloud_out_of_hours,
-                local_model_present(&config),
-            ) {
-                crate::config::CloudFailureAction::DisableTranscription => {
-                    tracing::warn!(
-                        "cloud transcription unavailable ({e}); recording without a transcript"
-                    );
-                    let _ = app.emit(
-                        "transcription-disabled",
-                        &AppError::Internal { detail: e.to_string() },
-                    );
-                    Ok(None)
-                }
-                crate::config::CloudFailureAction::SwitchToLocal => {
-                    tracing::warn!("cloud connect failed ({e}); starting a local session instead");
-                    state
-                        .labels_authoritative
-                        .store(false, std::sync::atomic::Ordering::Release);
-                    let local = transcription::local::LocalProvider::new(
-                        state.engine.clone(),
-                        config.meeting_asr_model(),
-                        config.vocabulary.clone(),
-                        config.diarization_enabled,
-                    );
-                    let result = local.start_session(event_tx.clone()).await;
-                    if result.is_ok() {
-                        let _ = app.emit(
-                            "transcription-fallback",
-                            &AppError::CloudUnreachable,
-                        );
-                    }
-                    result.map(Some)
-                }
-                crate::config::CloudFailureAction::Fail => Err(e),
-            }
-        }
-        other => other.map(Some),
-    };
+    let provider_is_cloud =
+        provider_choice == embral_types::TranscriptionProvider::Cloud && !signed_out_cloud;
     #[cfg(not(feature = "cloud"))]
-    let session_result = session_result.map(Some);
-    let session = session_result.map_err(|e| e.to_string())?;
+    let provider_is_cloud = false;
+    // The lane's kind is settled now, not at install: a pause landing
+    // while the first open is still in flight must already know it is
+    // pausing a cloud lane, or the retired open would never be reopened.
+    lane.stream_is_cloud
+        .store(provider_is_cloud, std::sync::atomic::Ordering::Release);
+    // What a post-pause reopen asks the vendor for — the recording's
+    // start-time choices; only the token is read fresh at reopen.
+    #[cfg(feature = "cloud")]
+    if provider_is_cloud {
+        *lane
+            .cloud_reopen
+            .lock()
+            .expect("cloud reopen request poisoned") = Some(stream::CloudStreamRequest {
+            language_hints: config.language_hints(),
+            diarization: config.diarization_enabled,
+        });
+    }
 
-    // Wrap session in Arc<Mutex<Option<...>>> so both the audio-bridge task
-    // and the main recording state can access it. `None` is a live recording
-    // with transcription disabled.
-    let session_arc: Arc<Mutex<Option<Box<dyn TranscriptionSession>>>> =
-        Arc::new(Mutex::new(session));
-    let session_for_audio = session_arc.clone();
-
-    // Audio bridge: drain audio chunks and call send_audio on the session
+    // Audio bridge: drain audio chunks into whatever holds the slot — a
+    // live session, the buffer in front of a pending one, or nothing.
     let (audio_tx, mut audio_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
-
-    // Samples fed to the session so far = the recording's stream clock.
-    // The mid-recording fallback uses it to shift the replacement local
-    // session's timestamps (which restart at zero) onto this clock.
-    let samples_sent = Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let samples_for_bridge = samples_sent.clone();
+    let slot_for_bridge = slot.clone();
+    let lane_for_bridge = lane.clone();
 
     tokio::spawn(async move {
         tracing::info!("Audio bridge task started");
         let mut chunk_n: usize = 0;
         let mut total_samples: usize = 0;
-        let mut warned_no_session = false;
+        // One line per stretch without a live session, not ten a second.
+        let mut idle_logged = false;
         while let Some(chunk) = audio_rx.recv().await {
-            samples_for_bridge
-                .fetch_add(chunk.len() as u64, std::sync::atomic::Ordering::Relaxed);
             if chunk_n == 0 {
                 tracing::info!(
                     "Audio bridge: first chunk received ({} samples)",
@@ -227,32 +335,54 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                 );
             }
             total_samples += chunk.len();
-            let guard = session_for_audio.lock().await;
-            if let Some(s) = guard.as_ref() {
-                warned_no_session = false;
-                match s.send_audio(&chunk).await {
-                    Ok(()) => {
-                        if chunk_n == 0 {
-                            tracing::info!("Audio bridge: first send_audio call succeeded");
-                        }
+            match stream::deliver_chunk(&lane_for_bridge, &slot_for_bridge, chunk).await {
+                stream::Delivered::Sent => {
+                    if chunk_n == 0 {
+                        tracing::info!("Audio bridge: first send_audio call succeeded");
                     }
-                    Err(e) => {
-                        tracing::error!(
-                            "Audio bridge: send_audio failed at chunk {}: {}",
-                            chunk_n,
-                            e
+                    idle_logged = false;
+                }
+                stream::Delivered::Buffered => {
+                    if !idle_logged {
+                        idle_logged = true;
+                        tracing::info!(
+                            "Audio bridge: buffering from chunk {} while a session opens",
+                            chunk_n
                         );
                     }
                 }
-            } else if !warned_no_session {
-                // Expected steady state when transcription is disabled — the
-                // recorder keeps writing audio, nothing consumes the stream.
-                // Say it once, not ten times a second.
-                warned_no_session = true;
-                tracing::info!(
-                    "Audio bridge: no transcription session from chunk {} — audio continues to disk only",
-                    chunk_n
-                );
+                stream::Delivered::Off => {
+                    // Expected steady state when transcription is off — the
+                    // recorder keeps writing audio, nothing consumes the
+                    // stream.
+                    if !idle_logged {
+                        idle_logged = true;
+                        tracing::info!(
+                            "Audio bridge: no transcription session from chunk {} — audio continues to disk only",
+                            chunk_n
+                        );
+                    }
+                }
+                stream::Delivered::Stalled { session, why } => {
+                    // The session stopped taking audio. Retire it off the
+                    // slot lock and report through the one failure path —
+                    // the forwarder falls back or turns the slot off. The
+                    // slot is buffering again, so this cannot repeat for
+                    // the same corpse. Stop's suppression is the taken
+                    // event channel; a stall concluding just as a pause
+                    // lands reports too, which only hastens the fallback a
+                    // genuinely stalled lane was headed for anyway.
+                    idle_logged = false;
+                    tracing::error!(
+                        "Audio bridge: the live session stopped taking audio at chunk {chunk_n}: {why}"
+                    );
+                    stream::finish_detached(session, "stopped taking audio");
+                    report_stream_failure(
+                        &lane_for_bridge,
+                        lane_for_bridge.current_generation(),
+                        why,
+                    );
+                }
             }
             if (chunk_n + 1) % 50 == 0 {
                 tracing::debug!(
@@ -272,18 +402,25 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
 
     // Event forwarder: emit transcription-{interim,segment} Tauri events AND
     // accumulate Segments into the AppState-owned Vec (source of truth).
+    // It ends when the recording's channel closes: stop takes the lane's
+    // sender, and each stream's pump drops its clone as its stream drains.
     let app_clone = app.clone();
     let segments_acc_for_forwarder = segments_acc.clone();
     let recovery_base = base.clone();
+    // Pinned here: a retired stream's tail segment can arrive while a
+    // successor recording is live, and it must land in *this* meeting's
+    // scratch, not whichever one is current by then.
+    let recovery_meeting_id = meeting_id.clone();
+    let lane_for_forwarder = lane.clone();
     #[cfg(feature = "cloud")]
-    let session_slot_for_fallback = session_arc.clone();
-    #[cfg(feature = "cloud")]
-    let event_tx_for_fallback = event_tx.clone();
-    #[cfg(feature = "cloud")]
-    let samples_for_fallback = samples_sent.clone();
-    tokio::spawn(async move {
+    let slot_for_forwarder = slot.clone();
+    let forwarder = tokio::spawn(async move {
         #[cfg(feature = "cloud")]
         let mut fallen_back = false;
+        // The check-in's word evidence: words count as they arrive on
+        // screen, not only when their utterance closes ([detection.md]
+        // §Auto-stop on silence).
+        let mut liveness = LivenessTracker::default();
         while let Some(event) = event_rx.recv().await {
             match event {
                 TranscriptionEvent::Interim { segment, tentative } => {
@@ -304,81 +441,129 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                         end: segment.end,
                         tentative_text: tentative.as_deref(),
                     };
+                    if liveness.observe_interim(&segment.text) {
+                        app_clone
+                            .state::<AppState>()
+                            .last_liveness_at
+                            .store(epoch_ms(), std::sync::atomic::Ordering::Release);
+                    }
                     let _ = app_clone.emit("transcription-interim", &payload);
                 }
                 TranscriptionEvent::Segment(mut seg) => {
-                    // Apply any live speaker renames so later utterances of a
-                    // renamed cluster carry the user-given name everywhere.
-                    if let Some(label) = seg.speaker.as_ref() {
-                        let state = app_clone.state::<AppState>();
-                        let renames = state.live_label_renames.lock().await;
-                        if let Some(new_name) = renames.get(label) {
-                            seg.speaker = Some(new_name.clone());
-                        }
+                    let state = app_clone.state::<AppState>();
+                    // Track the highest vendor-numbered label even while the
+                    // label layer strips: a stream opened mid-recording
+                    // numbers its speakers after every label already
+                    // produced, seen or not ([speakers.md]).
+                    if let Some(n) = seg
+                        .speaker
+                        .as_deref()
+                        .and_then(embral_types::generic_speaker_number)
+                    {
+                        lane_for_forwarder
+                            .max_speaker_number
+                            .fetch_max(n, std::sync::atomic::Ordering::Relaxed);
                     }
                     // The live label layer. Off — by the header toggle, or
-                    // because the guard below tripped — means no label
-                    // reaches the transcript at all, for local and cloud
-                    // alike ([speakers.md]).
-                    {
+                    // because the guard tripped — means no label reaches
+                    // the transcript at all, for local and cloud alike
+                    // ([speakers.md]).
+                    let tripped = {
                         use std::sync::atomic::Ordering;
-                        let state = app_clone.state::<AppState>();
-                        if !state.live_diarization.load(Ordering::Acquire) {
-                            seg.speaker = None;
-                            seg.speaker_id = None;
-                        } else if let Some(label) = seg.speaker.clone() {
-                            let distinct = {
-                                let mut seen = state
-                                    .live_speaker_labels
-                                    .lock()
-                                    .expect("live speaker labels poisoned");
-                                seen.insert(label);
-                                seen.len()
-                            };
-                            if diarization_has_run_away(distinct) {
-                                // Not a crowd — a clusterer inventing people.
-                                // Stand down exactly as the button does,
-                                // including for what is already on screen.
-                                state.live_diarization.store(false, Ordering::Release);
-                                seg.speaker = None;
-                                seg.speaker_id = None;
-                                strip_speakers(&segments_acc_for_forwarder).await;
-                                tracing::info!(
-                                    distinct,
-                                    "too many speakers — diarization off for this recording"
-                                );
-                                let _ = app_clone.emit(
-                                    "diarization-disabled",
-                                    serde_json::json!({ "speakers": distinct }),
-                                );
-                            }
-                        }
+                        let labeling_on = state.live_diarization.load(Ordering::Acquire);
+                        let renames = state.live_label_renames.lock().await;
+                        label_segment(&mut seg, labeling_on, &state.live_speaker_labels, &renames)
+                    };
+                    if tripped {
+                        // Not a crowd — a clusterer inventing people. Stand
+                        // down exactly as the button does, including for
+                        // what is already on screen.
+                        use std::sync::atomic::Ordering;
+                        state.live_diarization.store(false, Ordering::Release);
+                        strip_speakers(&segments_acc_for_forwarder).await;
+                        let distinct = state
+                            .live_speaker_labels
+                            .lock()
+                            .expect("live speaker labels poisoned")
+                            .len();
+                        tracing::info!(
+                            distinct,
+                            "too many speakers — diarization off for this recording"
+                        );
+                        let _ = app_clone.emit(
+                            "diarization-disabled",
+                            serde_json::json!({ "speakers": distinct }),
+                        );
                     }
                     segments_acc_for_forwarder.lock().await.push(seg.clone());
                     // Straight to the recovery scratch too: until finalize
                     // runs, this Vec is the only copy of the meeting.
-                    crate::recovery::append_segment(&recovery_base, &seg);
-                    // The silence check-in's clock: a transcribed word is
-                    // the proof the meeting is still going.
-                    app_clone
-                        .state::<AppState>()
-                        .last_speech_at
-                        .store(epoch_ms(), std::sync::atomic::Ordering::Release);
+                    crate::recovery::append_segment(&recovery_base, &recovery_meeting_id, &seg);
+                    // The check-in's clock: final words landed, and the
+                    // next utterance's committed text starts from nothing.
+                    if liveness.observe_segment() {
+                        app_clone
+                            .state::<AppState>()
+                            .last_liveness_at
+                            .store(epoch_ms(), std::sync::atomic::Ordering::Release);
+                    }
                     let _ = app_clone.emit("transcription-segment", &seg);
                 }
                 TranscriptionEvent::Failed { message } => {
                     // Mid-recording session death. Cloud builds swap in a
-                    // local session on the same event channel; the offline
-                    // core just ends the stream (local sessions don't emit
-                    // this today).
+                    // local session behind the same slot; the offline core
+                    // just ends the stream (local sessions don't emit this
+                    // today).
                     #[cfg(feature = "cloud")]
                     {
+                        let state = app_clone.state::<AppState>();
                         if fallen_back {
+                            // The replacement died too. Transcription is
+                            // over for this recording; going quiet without
+                            // saying so would read as the app breaking.
                             tracing::error!("transcription failed after fallback: {message}");
+                            let _ = app_clone.emit(
+                                "transcription-failed",
+                                &AppError::Internal { detail: message.clone() },
+                            );
+                            crate::telemetry::track(
+                                &state,
+                                "error",
+                                serde_json::json!({ "category": "transcription_failed" }),
+                            );
                             break;
                         }
                         fallen_back = true;
-                        let state = app_clone.state::<AppState>();
+                        // Whatever happens next, this lane is done with
+                        // cloud: a pause must not reopen a stream that just
+                        // proved itself unreachable (mid-meeting reconnect
+                        // is deliberately not a thing, [transcription.md]).
+                        lane_for_forwarder
+                            .stream_is_cloud
+                            .store(false, std::sync::atomic::Ordering::Release);
+                        // The recording moves past the dead stream before
+                        // anything else: one death can reach this arm twice
+                        // (the bridge retires a stalled session while its
+                        // receive task notices the dropped socket), and a
+                        // second `Failed` from the same corpse would read
+                        // as the *replacement* dying. Stale, the corpse's
+                        // pump filters it; its tail segments still land.
+                        lane_for_forwarder.bump_generation();
+                        // Retire the dead session if it still holds the
+                        // slot — a failed *open* never installed one — and
+                        // buffer audio while the lane decides what's next.
+                        {
+                            let mut guard = slot_for_forwarder.lock().await;
+                            if matches!(&*guard, SessionSlot::Streaming(_)) {
+                                let SessionSlot::Streaming(dead) = std::mem::replace(
+                                    &mut *guard,
+                                    SessionSlot::Buffering(Default::default()),
+                                ) else {
+                                    unreachable!("checked above");
+                                };
+                                stream::finish_detached(dead, "failed");
+                            }
+                        }
                         let config = state.config.lock().await.clone();
                         match crate::config::on_cloud_failure(
                             config.cloud_out_of_hours,
@@ -390,7 +575,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                                 tracing::warn!(
                                     "cloud transcription ended ({message}); recording continues without a transcript"
                                 );
-                                *session_slot_for_fallback.lock().await = None;
+                                *slot_for_forwarder.lock().await = SessionSlot::Off;
                                 let _ = app_clone.emit(
                                     "transcription-disabled",
                                     &AppError::Internal { detail: message.clone() },
@@ -401,6 +586,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                                 tracing::error!(
                                     "cloud transcription failed with no local model to fall back to: {message}"
                                 );
+                                *slot_for_forwarder.lock().await = SessionSlot::Off;
                                 let _ = app_clone.emit(
                                     "transcription-failed",
                                     &AppError::Internal { detail: message.clone() },
@@ -414,63 +600,45 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                             }
                             crate::config::CloudFailureAction::SwitchToLocal => {}
                         }
-                        let offset = samples_for_fallback
-                            .load(std::sync::atomic::Ordering::Relaxed)
-                            as f64
-                            / 16000.0;
-                        let provider = transcription::local::LocalProvider::new(
-                            state.engine.clone(),
-                            config.meeting_asr_model(),
-                            config.vocabulary.clone(),
-                            config.diarization_enabled,
-                        );
-                        let (local_tx, mut local_rx) =
+                        // Local live labels are provisional again.
+                        state
+                            .labels_authoritative
+                            .store(false, std::sync::atomic::Ordering::Release);
+                        let local = local_provider(&config, state.engine.clone());
+                        let (local_tx, local_rx) =
                             tokio::sync::mpsc::unbounded_channel::<TranscriptionEvent>();
-                        match provider.start_session(local_tx).await {
+                        match local.start_session(local_tx).await {
                             Ok(new_session) => {
-                                *session_slot_for_fallback.lock().await = Some(new_session);
-                                // Local live labels are provisional again.
-                                state.labels_authoritative.store(
+                                let installed = stream::install_stream(
+                                    &lane_for_forwarder,
+                                    &slot_for_forwarder,
+                                    &state.live_speaker_labels,
+                                    &state.last_liveness_at,
+                                    new_session,
+                                    local_rx,
                                     false,
-                                    std::sync::atomic::Ordering::Release,
-                                );
-                                // The local session stamps from zero; shift
-                                // onto the recording's stream clock so the
-                                // transcript stays ordered across the swap.
-                                let out_tx = event_tx_for_fallback.clone();
-                                tokio::spawn(async move {
-                                    while let Some(ev) = local_rx.recv().await {
-                                        let shifted = match ev {
-                                            TranscriptionEvent::Interim {
-                                                mut segment,
-                                                tentative,
-                                            } => {
-                                                segment.start += offset;
-                                                segment.end += offset;
-                                                TranscriptionEvent::Interim { segment, tentative }
-                                            }
-                                            TranscriptionEvent::Segment(mut seg) => {
-                                                seg.start += offset;
-                                                seg.end += offset;
-                                                TranscriptionEvent::Segment(seg)
-                                            }
-                                            other => other,
-                                        };
-                                        if out_tx.send(shifted).is_err() {
-                                            break;
-                                        }
-                                    }
-                                });
-                                tracing::warn!(
-                                    "cloud transcription failed; switched to local: {message}"
-                                );
-                                let _ = app_clone.emit(
-                                    "transcription-fallback",
-                                    &AppError::Internal { detail: message.clone() },
-                                );
+                                    lane_for_forwarder.current_generation(),
+                                )
+                                .await;
+                                if installed {
+                                    tracing::warn!(
+                                        "cloud transcription failed; switched to local: {message}"
+                                    );
+                                    let _ = app_clone.emit(
+                                        "transcription-fallback",
+                                        &AppError::Internal { detail: message.clone() },
+                                    );
+                                } else {
+                                    // The recording moved on mid-swap (a
+                                    // pause or stop); nothing to announce.
+                                    tracing::info!(
+                                        "local fallback arrived after the recording moved on"
+                                    );
+                                }
                             }
                             Err(e) => {
                                 tracing::error!("local fallback failed to start: {e}");
+                                *slot_for_forwarder.lock().await = SessionSlot::Off;
                                 let _ = app_clone.emit(
                                     "transcription-failed",
                                     &AppError::Internal { detail: message.clone() },
@@ -503,6 +671,10 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
             }
         }
     });
+    *state
+        .forwarder_task
+        .lock()
+        .expect("forwarder handle poisoned") = Some(forwarder);
 
     // Start recorder (this also writes WAV to disk)
     let mic = Some(config.mic_device.as_str()).filter(|s| !s.trim().is_empty());
@@ -549,7 +721,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
             .expect("extra mics poisoned")
             .clone()
     });
-    let recorder = Recorder::start(
+    let recorder = match Recorder::start(
         wav_path,
         Some(audio_tx),
         mic,
@@ -557,27 +729,39 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
         Some(level_cb),
         wanted,
         extra_mics,
-    )
-    .map_err(|e| e.to_string())?;
+    ) {
+        Ok(recorder) => recorder,
+        Err(e) => {
+            abandon_started_lane(&lane, &slot).await;
+            return Err(e.to_string().into());
+        }
+    };
 
-    // Store meeting ID in session's Arc so stop_recording can derive the path
-    // (we store it as a thread-local state via the meeting_id field below)
     *state.recorder.lock().await = Some(recorder);
-    // Share the session Arc with AppState so stop_recording can take ownership later.
-    // We must NOT .take() the inner Box here â€” that would leave the audio-bridge clone
-    // pointing at a None and silently drop every audio chunk.
-    *state.session.lock().await = Some(session_arc);
+    // Share the slot with AppState so stop_recording can take ownership
+    // later. The bridge holds its own clone; the slot is never swapped out
+    // from under it — only its contents change hands.
+    *state.session.lock().await = Some(slot.clone());
 
     // Fresh recording, fresh draft mirror.
     *state.recording_drafts.lock().expect("drafts poisoned") = None;
-    // Arm the silence check-in for this recording.
+    // Arm the silence check-in for this recording. The order is the
+    // safety here: the clock rebaselines and the generation moves on
+    // before the watcher spawns, and the slot cannot turn Streaming until
+    // the open below — so a straggler watcher from a recording stopped
+    // moments ago exits on the generation check, or at worst reads this
+    // fresh clock and stays quiet.
     state
-        .last_speech_at
+        .last_liveness_at
         .store(epoch_ms(), std::sync::atomic::Ordering::Release);
     state
         .silence_notice_at
         .store(0, std::sync::atomic::Ordering::Release);
-    spawn_silence_watcher(app.clone());
+    let generation = state
+        .recording_generation
+        .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+        + 1;
+    spawn_silence_watcher(app.clone(), generation);
 
     // Open the recovery scratch: which meeting is in flight (the stop path
     // reads it back), and from here on its segments, notes, and stars as
@@ -601,6 +785,22 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
         tracing::warn!("failed to update tray icon: {e}");
     }
 
+    // Capture is already rolling; the session opens beside it, with audio
+    // waiting in the slot's buffer — the record button is instant and the
+    // first words still reach the transcript. A connect failure or
+    // timeout lands in the forwarder's `Failed` machinery exactly like a
+    // mid-recording death; the record gate has already refused the
+    // configurations that would leave that machinery nothing to do
+    // ([transcription.md]).
+    spawn_stream_open(
+        app.clone(),
+        provider,
+        provider_is_cloud,
+        lane.current_generation(),
+        lane.clone(),
+        slot.clone(),
+    );
+
     // Say so: cloud was chosen, this recording is on-device. The same
     // banner a mid-recording fallback raises — silently downgrading would
     // leave the user believing they got cloud quality.
@@ -615,6 +815,18 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
 pub async fn pause_recording(app: AppHandle, state: State<'_, AppState>) -> Result<(), AppError> {
     if let Some(recorder) = state.recorder.lock().await.as_ref() {
         recorder.pause();
+        tracing::info!("recording paused");
+    }
+    // A cloud stream held open across a pause meters the whole pause
+    // against the account's hours (the vendor bills stream duration; the
+    // relay keeps silent streams alive with keepalives). End it instead;
+    // resume opens a fresh one ([transcription.md]).
+    {
+        let lane = state.lane.lock().expect("lane poisoned").clone();
+        let slot = state.session.lock().await.clone();
+        if let Some(slot) = slot {
+            stream::pause_stream(&lane, &slot).await;
+        }
     }
     // Pausing is an answer: take any silence check-in down (the watcher
     // itself skips paused ticks).
@@ -632,11 +844,50 @@ pub async fn pause_recording(app: AppHandle, state: State<'_, AppState>) -> Resu
 pub async fn resume_recording(app: AppHandle, state: State<'_, AppState>) -> Result<(), AppError> {
     if let Some(recorder) = state.recorder.lock().await.as_ref() {
         recorder.resume();
+        tracing::info!("recording resumed — silence clock rebaselined");
+    }
+    // Reopen the stream the pause ended: fresh socket, fresh clustering
+    // (numbered past the labels already seen), the recording's start-time
+    // hints, today's token. A reopen failure lands in the forwarder's
+    // `Failed` machinery like any mid-recording death — resume itself
+    // cannot fail ([transcription.md]).
+    #[cfg(feature = "cloud")]
+    {
+        use std::sync::atomic::Ordering;
+        let lane = state.lane.lock().expect("lane poisoned").clone();
+        let slot = state.session.lock().await.clone();
+        let request = lane
+            .cloud_reopen
+            .lock()
+            .expect("cloud reopen request poisoned")
+            .clone();
+        if let (Some(slot), Some(request)) = (slot, request) {
+            let waiting = lane.stream_is_cloud.load(Ordering::Acquire)
+                && matches!(&*slot.lock().await, SessionSlot::Buffering(_));
+            if waiting {
+                let config = state.config.lock().await.clone();
+                let provider = Arc::new(crate::cloud::transcription::RelayProvider::new(
+                    config.cloud_session_token.clone(),
+                    config.cloud_url(),
+                    request.language_hints,
+                    request.diarization,
+                    lane.max_speaker_number.load(Ordering::Acquire),
+                )) as Arc<dyn transcription::TranscriptionProvider>;
+                spawn_stream_open(
+                    app.clone(),
+                    provider,
+                    true,
+                    lane.current_generation(),
+                    lane.clone(),
+                    slot,
+                );
+            }
+        }
     }
     // A paused span is intentional quiet, not silence — the check-in's
     // clock restarts here.
     state
-        .last_speech_at
+        .last_liveness_at
         .store(epoch_ms(), std::sync::atomic::Ordering::Release);
     state
         .silence_notice_at
@@ -662,18 +913,16 @@ pub async fn star_moment(state: State<'_, AppState>, seconds: f64) -> Result<f64
         return Err(AppError::NoActiveRecording);
     }
 
-    // Take the reply handle without holding the session locks across the
-    // await (the audio bridge needs them).
-    let reply = {
-        let outer = state.session.lock().await;
-        match outer.as_ref() {
-            Some(shared) => shared
-                .lock()
-                .await
-                .as_ref()
-                .and_then(|session| session.split_utterance()),
-            None => None,
-        }
+    // Take the reply handle without holding the outer session lock across
+    // the inner await: the bridge can hold the slot for seconds around a
+    // stalling send, and the outer lock is what start and stop queue on.
+    let slot = state.session.lock().await.clone();
+    let reply = match slot {
+        Some(shared) => match &*shared.lock().await {
+            SessionSlot::Streaming(session) => session.split_utterance(),
+            _ => None,
+        },
+        None => None,
     };
 
     let mut star_secs = seconds.max(0.0);
@@ -787,20 +1036,14 @@ pub async fn rename_live_speaker(
     Ok(())
 }
 
-fn epoch_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
-
 /// The silence check-in ([detection.md] §Auto-stop on silence): watches
-/// the current recording for a configured stretch with no transcribed
-/// word, raises "Still recording?", and acts on the setting when the
-/// fixed grace runs out unanswered. One task per recording; exits with
-/// the recorder. Paused spans and transcription-less recordings never
-/// count as silence.
-fn spawn_silence_watcher(app: AppHandle) {
+/// the current recording for a configured stretch with no sign of life —
+/// no words arriving, no notes activity — raises "Still recording?", and
+/// acts on the setting when the fixed grace runs out unanswered. One task
+/// per recording, tied to it by `generation`: it exits with the recorder,
+/// or the moment a successor recording arms its own watcher. Paused spans
+/// and transcription-less recordings never count as silence.
+fn spawn_silence_watcher(app: AppHandle, generation: u64) {
     use crate::autodetect::silence::{self, Notice, Verdict};
     use std::sync::atomic::Ordering;
 
@@ -808,17 +1051,36 @@ fn spawn_silence_watcher(app: AppHandle) {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(15)).await;
             let state = app.state::<AppState>();
+            // Identity first: a stop and restart inside one tick leaves
+            // no recorder-less moment for this watcher to exit on, and
+            // two watchers would race on the shared check-in state.
+            if state.recording_generation.load(Ordering::Acquire) != generation {
+                tracing::info!("silence watcher retired: a newer recording owns the check-in");
+                break;
+            }
             let Some(paused) = state.recorder.lock().await.as_ref().map(|r| r.is_paused()) else {
                 break; // the recording ended
             };
             let config = state.config.lock().await.clone();
             let threshold_secs = u64::from(config.silence_stop_minutes) * 60;
-            if threshold_secs == 0 || paused || state.session.lock().await.is_none() {
+            // Only a live session can produce the words this clock counts:
+            // transcription off — or an open still pending — must not run
+            // a word-based clock against a wordless recording
+            // ([detection.md]). Two statements on purpose: the outer lock
+            // (which start and stop queue on) must be released before the
+            // inner slot is awaited — the bridge can hold the slot for
+            // seconds around a stalling send.
+            let slot = state.session.lock().await.clone();
+            let streaming = match slot {
+                Some(slot) => matches!(&*slot.lock().await, SessionSlot::Streaming(_)),
+                None => false,
+            };
+            if threshold_secs == 0 || paused || !streaming {
                 continue;
             }
             let now = epoch_ms();
             let silence_secs =
-                now.saturating_sub(state.last_speech_at.load(Ordering::Acquire)) / 1000;
+                now.saturating_sub(state.last_liveness_at.load(Ordering::Acquire)) / 1000;
             let notice = match state.silence_notice_at.load(Ordering::Acquire) {
                 0 => Notice::None,
                 u64::MAX => Notice::StoodDown,
@@ -828,13 +1090,26 @@ fn spawn_silence_watcher(app: AppHandle) {
                 Verdict::Quiet | Verdict::Waiting => {}
                 Verdict::Notify => {
                     state.silence_notice_at.store(now, Ordering::Release);
+                    // The decision deadline, anchored on the same instant
+                    // the grace is measured from, so the notice's countdown
+                    // and the Unanswered verdict share one clock. Only when
+                    // unanswered means stop: under `keep` the check-in just
+                    // stands down, and a countdown to a non-event misleads.
+                    let stops_at_ms = matches!(
+                        config.silence_stop_unanswered,
+                        embral_types::SilenceUnanswered::Stop
+                    )
+                    .then(|| now + silence::GRACE_SECS * 1000);
                     tracing::info!(
                         minutes = config.silence_stop_minutes,
                         "silence check-in raised"
                     );
                     let _ = app.emit(
                         "silence-notice",
-                        serde_json::json!({ "minutes": config.silence_stop_minutes }),
+                        serde_json::json!({
+                            "minutes": config.silence_stop_minutes,
+                            "stops_at_ms": stops_at_ms,
+                        }),
                     );
                 }
                 Verdict::Cleared => {
@@ -877,6 +1152,16 @@ pub async fn sync_recording_drafts(
     let stars = state.stars.lock().await.clone();
     crate::recovery::write_drafts(&base, &notes, &meeting_title, &stars);
     *state.recording_drafts.lock().expect("drafts poisoned") = Some((notes, meeting_title));
+    // The notes-activity half of the check-in's liveness clock: typing or
+    // pasting proves the user is working, even in a meeting the mic can't
+    // hear ([detection.md] §Auto-stop on silence). Gated on a live
+    // recorder because the caller's trailing debounce can land just after
+    // a stop.
+    if state.recorder.lock().await.is_some() {
+        state
+            .last_liveness_at
+            .store(epoch_ms(), std::sync::atomic::Ordering::Release);
+    }
     Ok(())
 }
 
@@ -984,59 +1269,90 @@ pub async fn silence_keep_recording(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     use std::sync::atomic::Ordering;
-    state.last_speech_at.store(epoch_ms(), Ordering::Release);
+    state.last_liveness_at.store(epoch_ms(), Ordering::Release);
     state.silence_notice_at.store(0, Ordering::Release);
     app.emit("silence-cleared", ()).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-/// Finish a recording the last run never stopped ([recording.md] §Crash
-/// recovery). Called once from `setup()`; it takes the scratch (so a
-/// second launch cannot try again), then runs the ordinary finalize
-/// pipeline in the background — the recovered meeting is just a meeting.
+/// Finish the recordings the last run never stopped ([recording.md]
+/// §Crash recovery). Called once from `setup()`; the rescued meetings run
+/// the ordinary finalize pipeline in the background — a recovered meeting
+/// is just a meeting.
 ///
 /// Silent by design. Approving your own recording is a chore, and after a
 /// crash the user may not remember there was one; the threshold in
 /// `recovery::worth_recovering` is what keeps two-second orphans out of
 /// the list instead of a prompt.
 pub fn recover_interrupted_recording(app: AppHandle) {
+    // The synchronous part is the point: the worklist is frozen and the
+    // dead process's current-marker retired before this returns, so
+    // nothing this run starts — detection is spawned right after, the
+    // user a moment later — can race the rescue's reads.
+    let config = match crate::config::load_config() {
+        Ok(config) => config,
+        Err(e) => {
+            tracing::warn!("cannot look for an interrupted recording: {e}");
+            return;
+        }
+    };
+    let base = crate::storage::storage_base(&config.storage_dir);
+    crate::recovery::clear_stale_current(&base);
+    let worklist = crate::recovery::pending(&base);
+    if worklist.is_empty() {
+        // The usual launch: the last recording stopped normally. Said out
+        // loud so a recovery that should have happened is diagnosable.
+        tracing::info!("no interrupted recording to recover");
+        return;
+    }
     tauri::async_runtime::spawn(async move {
         let state = app.state::<AppState>();
         let config = state.config.lock().await.clone();
-        let base = crate::storage::storage_base(&config.storage_dir);
-        let audio_dir = base.join("audio");
-        let Some(found) = crate::recovery::take(&base, |id| audio_dir.join(format!("{id}.wav")))
-        else {
-            return;
-        };
         let db = match state.db().await {
             Ok(db) => db,
             Err(e) => {
-                tracing::warn!("cannot recover the interrupted recording: {e}");
+                // The scratches stay put; the next launch tries again.
+                tracing::warn!("cannot recover the interrupted recordings: {e}");
                 return;
             }
         };
-        let wav_path = audio_dir.join(format!("{}.wav", found.meeting_id));
-        let started_at = meeting_start_time(&found.meeting_id);
-        // Labels are never authoritative here: a cloud session that died
-        // mid-recording left partial diarization at best, so the finalize
-        // pipeline re-derives speakers from the audio it has.
-        finalize_meeting(
-            app.clone(),
-            db,
-            base,
-            config,
-            found.meeting_id,
-            started_at,
-            found.segments,
-            AudioSource::Wav(wav_path),
-            false,
-            found.stars,
-            found.user_notes,
-            found.user_title,
-            Vec::new(),
-        )
-        .await;
+        let audio_dir = base.join("audio");
+        for meeting_id in worklist {
+            let wav_path = audio_dir.join(format!("{meeting_id}.wav"));
+            // The attempt is counted before finalize runs, so a rescue
+            // that crashes the app still counts toward the three-strike
+            // cap; past it the scratch is dropped and the audio kept.
+            let found = match crate::recovery::plan_rescue(&base, &meeting_id, &wav_path) {
+                crate::recovery::RescuePlan::Rescue(found) => found,
+                crate::recovery::RescuePlan::Nothing
+                | crate::recovery::RescuePlan::GaveUp => continue,
+            };
+            let started_at = meeting_start_time(&found.meeting_id);
+            // Labels are never authoritative here: a cloud session that died
+            // mid-recording left partial diarization at best, so the finalize
+            // pipeline re-derives speakers from the audio it has.
+            finalize_meeting(
+                app.clone(),
+                db.clone(),
+                base.clone(),
+                config.clone(),
+                found.meeting_id,
+                started_at,
+                found.segments,
+                AudioSource::Wav(wav_path),
+                false,
+                found.stars,
+                found.user_notes,
+                found.user_title,
+                Vec::new(),
+            )
+            .await;
+            // Committed (or the save failed and said so — the stop path's
+            // exact semantics). Cleared only now: a crash anywhere above
+            // retries at the next launch instead of losing the meeting.
+            tracing::info!(meeting_id, "recovered meeting committed");
+            crate::recovery::clear_for(&base, &meeting_id);
+        }
     });
 }
 
@@ -1060,17 +1376,37 @@ pub fn request_stop(app: &AppHandle) {
     });
 }
 
-/// Time we're willing to block in the post-stop pipeline waiting for the
-/// transcription session to finalize tail audio. A streaming provider can
-/// keep its socket open for ~60s post-stop with empty heartbeats while
-/// internally processing a backlog — but no NEW tokens arrive during that
-/// window. Waiting past ~5–10s buys nothing.
-const SESSION_FINISH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
-
+/// One choke point for every stop path (button, palette, silence stop,
+/// tray, handshake fallback): a failed stop is logged and counted once,
+/// whatever refused it — the mirror of `start_recording`'s wrapper.
 #[tauri::command]
 pub async fn stop_recording(
     app: AppHandle,
     state: State<'_, AppState>,
+    user_notes: Option<String>,
+    meeting_title: Option<String>,
+) -> Result<(), AppError> {
+    let result = stop_recording_inner(app, &state, user_notes, meeting_title).await;
+    if let Err(e) = &result {
+        // A stop with nothing to stop is an expected race (a double-press,
+        // a hotkey landing after an auto-stop); anything else failing
+        // mid-stop is not.
+        match e {
+            AppError::NoActiveRecording => tracing::warn!("stop refused: {e}"),
+            _ => tracing::error!("stop failed: {e}"),
+        }
+        crate::telemetry::track(
+            &state,
+            "error",
+            serde_json::json!({ "category": "recording_stop_failed" }),
+        );
+    }
+    result
+}
+
+async fn stop_recording_inner(
+    app: AppHandle,
+    state: &State<'_, AppState>,
     user_notes: Option<String>,
     meeting_title: Option<String>,
 ) -> Result<(), AppError> {
@@ -1105,7 +1441,7 @@ pub async fn stop_recording(
     // next launch something to re-run from. The background task below
     // clears it once the meeting is committed.
     let meeting_id =
-        crate::recovery::active_meeting_id(&base).ok_or_else(|| "No active recording".to_string())?;
+        crate::recovery::active_meeting_id(&base).ok_or(AppError::NoActiveRecording)?;
 
     // --- Foreground (fast path): stop recorder, hand off to background. ---
     let recorder = state
@@ -1114,14 +1450,45 @@ pub async fn stop_recording(
         .await
         .take()
         .ok_or_else(|| AppError::internal("No active recorder"))?;
-    let wav_path = recorder.stop().map_err(AppError::internal)?;
-
-    let session_arc = state
-        .session
-        .lock()
+    // Blocking work (a bounded thread join, the WAV finalize) goes to the
+    // blocking pool: the async workers stay free for the commands and
+    // events a stop fans out.
+    let wav_path = tauri::async_runtime::spawn_blocking(move || recorder.stop())
         .await
-        .take()
-        .ok_or_else(|| AppError::internal("No active session"))?;
+        .map_err(|e| AppError::internal(format!("recorder stop task died: {e}")))?
+        .map_err(AppError::internal)?;
+
+    // Bounded, not because anyone is expected to hold the outer lock for
+    // long — nobody may — but because a stop that cannot have it must
+    // surface as a failed stop (logged, counted, shown on screen) instead
+    // of a command that never returns. The 2026-08 hang was exactly this
+    // lock, held by a watcher that was itself stuck behind a wedged
+    // socket send.
+    let session_arc = match tokio::time::timeout(SESSION_FINISH_TIMEOUT, state.session.lock()).await
+    {
+        Ok(mut outer) => outer
+            .take()
+            .ok_or_else(|| AppError::internal("No active session"))?,
+        Err(_) => {
+            return Err(AppError::internal(
+                "the recording session did not respond in time",
+            ))
+        }
+    };
+
+    // The recording is moving past whatever stream is running: no open
+    // resolving from here on may install, and dropping the lane's sender
+    // lets the forwarder end on channel close once the last stream drains
+    // — which is what the background task below waits on before it
+    // snapshots the segments.
+    let lane = state.lane.lock().expect("lane poisoned").clone();
+    lane.bump_generation();
+    lane.take_event_tx();
+    let forwarder = state
+        .forwarder_task
+        .lock()
+        .expect("forwarder handle poisoned")
+        .take();
 
     let segments_acc = state.current_segments.clone();
 
@@ -1153,28 +1520,35 @@ pub async fn stop_recording(
     // --- Background: bounded finish, encode, refine, write notes. ---
     let app_bg = app.clone();
     tokio::spawn(async move {
-        // 1. Wait briefly for the transcription session to finalize tail audio.
-        //    Source of truth for segments is `segments_acc`, populated by the
-        //    event forwarder during recording; we don't use finish()'s return.
-        if let Some(session) = session_arc.lock().await.take() {
-            match tokio::time::timeout(SESSION_FINISH_TIMEOUT, session.finish()).await {
-                Ok(Ok(_)) => {
-                    tracing::info!("Transcription session finished cleanly");
-                }
-                Ok(Err(e)) => {
-                    tracing::warn!("Transcription session finish errored: {}", e);
-                }
-                Err(_) => {
-                    tracing::warn!(
-                        "Transcription session finish timed out after {:?} â€” using segments accumulated so far",
-                        SESSION_FINISH_TIMEOUT
-                    );
-                }
+        // 1. End the current stream, every part under a deadline — the
+        //    slot take included, because a stalled bridge send can hold
+        //    the lock for a few seconds and finalize must not bet the
+        //    meeting on it clearing ([recording.md] §Lifecycle). Source of
+        //    truth for segments is `segments_acc`, populated by the event
+        //    forwarder during recording; finish()'s return is unused.
+        stream::finish_current_stream(&session_arc, SESSION_FINISH_TIMEOUT).await;
+        // 2. Wait for the forwarder: it ends once every stream's pump has
+        //    drained (a retired stream's tail can still be arriving), and
+        //    only then is the accumulator complete.
+        if let Some(handle) = forwarder {
+            if tokio::time::timeout(SESSION_FINISH_TIMEOUT, handle).await.is_err() {
+                tracing::warn!(
+                    "event forwarder still draining after {:?} — snapshotting what has landed",
+                    SESSION_FINISH_TIMEOUT
+                );
             }
         }
 
         // Snapshot accumulated segments and hand off to the shared pipeline.
-        let segments = segments_acc.lock().await.clone();
+        let mut segments = segments_acc.lock().await.clone();
+        // Streams hand over out of order only at the seams (a retired
+        // stream's tail vs. its successor's first words); readers get time
+        // order.
+        segments.sort_by(|a, b| {
+            a.start
+                .partial_cmp(&b.start)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let started_at = meeting_start_time(&meeting_id);
 
         // The *configured* provider: neither the power policy's per-meeting
@@ -1218,6 +1592,7 @@ pub async fn stop_recording(
                     .and_then(|a| a.note_block),
             })
             .collect();
+        let finalized_id = meeting_id.clone();
         finalize_meeting(
             app_bg,
             db,
@@ -1236,8 +1611,10 @@ pub async fn stop_recording(
         .await;
         // The meeting is committed (or its save failed and said so): the
         // scratch has nothing left to protect. Until this line, a crash
-        // anywhere in finalize is recoverable at the next launch.
-        crate::recovery::clear(&base);
+        // anywhere in finalize is recoverable at the next launch. Scoped
+        // to this meeting's id: a successor recording may already be live
+        // with its own scratch, and a slow finalize must not touch it.
+        crate::recovery::clear_for(&base, &finalized_id);
     });
 
     Ok(())
@@ -1306,5 +1683,58 @@ mod diarization_tests {
         // stopped being evidence of anything.
         assert!(diarization_has_run_away(MAX_LIVE_SPEAKERS + 1));
         assert!(diarization_has_run_away(40));
+    }
+
+    fn labeled(speaker: &str) -> embral_types::TranscriptionSegment {
+        embral_types::TranscriptionSegment {
+            speaker: Some(speaker.to_string()),
+            speaker_id: None,
+            text: "words".to_string(),
+            start: 0.0,
+            end: 1.0,
+        }
+    }
+
+    #[test]
+    fn a_rename_does_not_double_count_its_cluster() {
+        // The guard counts the provider's own labels: renaming Speaker 2
+        // to Alice must not leave both in the distinct set, or six real
+        // renames would trip a guard meant for a runaway clusterer.
+        let seen = std::sync::Mutex::new(std::collections::HashSet::new());
+        let renames =
+            std::collections::HashMap::from([("Speaker 2".to_string(), "Alice".to_string())]);
+        let mut seg = labeled("Speaker 2");
+        assert!(!label_segment(&mut seg, true, &seen, &renames));
+        assert_eq!(seg.speaker.as_deref(), Some("Alice"));
+        let mut again = labeled("Speaker 2");
+        assert!(!label_segment(&mut again, true, &seen, &renames));
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert!(seen.contains("Speaker 2"));
+    }
+
+    #[test]
+    fn labeling_off_strips_and_counts_nothing() {
+        let seen = std::sync::Mutex::new(std::collections::HashSet::new());
+        let renames = std::collections::HashMap::new();
+        let mut seg = labeled("Speaker 1");
+        assert!(!label_segment(&mut seg, false, &seen, &renames));
+        assert_eq!(seg.speaker, None);
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_label_past_the_ceiling_trips_the_guard() {
+        let seen = std::sync::Mutex::new(std::collections::HashSet::new());
+        let renames = std::collections::HashMap::new();
+        for n in 1..=MAX_LIVE_SPEAKERS {
+            let mut seg = labeled(&format!("Speaker {n}"));
+            assert!(!label_segment(&mut seg, true, &seen, &renames), "{n}");
+            assert!(seg.speaker.is_some());
+        }
+        let mut one_too_many = labeled("Speaker 7");
+        assert!(label_segment(&mut one_too_many, true, &seen, &renames));
+        // The tripping segment itself comes back bare.
+        assert_eq!(one_too_many.speaker, None);
     }
 }

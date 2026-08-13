@@ -213,20 +213,24 @@ pub fn prune_old_meetings(db: &Db, base: &Path, days: u32) -> Result<usize> {
 /// **The live recording's directory is skipped**, and that guard is the
 /// whole subtlety: a recording in flight has images on disk and no row yet,
 /// so a sweep that only asked the database would delete the user's
-/// screenshots mid-meeting.
+/// screenshots mid-meeting. A meeting with a recovery scratch still
+/// pending is skipped for the same reason — its rescue has not run yet
+/// (or is between attempts), and its images belong to the meeting the
+/// rescue will commit.
 pub fn prune_orphan_assets(db: &Db, base: &Path) -> Result<usize> {
     let dir = base.join("assets");
     if !dir.is_dir() {
         return Ok(0);
     }
     let live = crate::recovery::active_meeting_id(base);
+    let waiting = crate::recovery::pending(base);
     let mut pruned = 0usize;
     for entry in std::fs::read_dir(&dir)?.flatten() {
         if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
-        if live.as_deref() == Some(name.as_str()) {
+        if live.as_deref() == Some(name.as_str()) || waiting.iter().any(|w| *w == name) {
             continue;
         }
         if db.get_meeting(&name)?.is_some() {

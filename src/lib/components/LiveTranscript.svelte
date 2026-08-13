@@ -6,6 +6,7 @@
     import { speakersStore } from "$lib/stores/speakers.svelte";
     import { formatTime } from "$lib/utils/meetingFormat";
     import { nameClass } from "$lib/utils/speakerColors";
+    import { startsNewParagraph } from "$lib/utils/transcriptBreaks";
     import SpeakerNameInput from "./SpeakerNameInput.svelte";
     import Tip from "./Tip.svelte";
     import { copy } from "$lib/copy";
@@ -17,28 +18,6 @@
         speaker: string | null;
         texts: string[];
         start: number;
-    }
-
-    // Paragraph segmentation: keep in sync with the Rust counterpart in
-    // src-tauri/src/commands.rs (`starts_new_paragraph`).
-    const STRONG_GAP = 4.0;
-    const SOFT_GAP = 2.0;
-    const MAX_PARAGRAPH_CHARS = 800;
-    const SENTENCE_END = /[.!?]$/;
-
-    function startsNewParagraph(
-        prev: TranscriptionSegment,
-        curr: TranscriptionSegment,
-        runningLen: number,
-    ): boolean {
-        if (prev.speaker !== curr.speaker) return true;
-        const gap = curr.start - prev.end;
-        if (gap >= STRONG_GAP) return true;
-        if (gap >= SOFT_GAP && SENTENCE_END.test(prev.text.trimEnd()))
-            return true;
-        if (runningLen + curr.text.length + 1 > MAX_PARAGRAPH_CHARS)
-            return true;
-        return false;
     }
 
     let starSeconds = $derived(
@@ -200,6 +179,10 @@
     // the app having lost track. The backend is the source of truth, so we
     // re-read its segments rather than editing ours.
     async function toggleDiarization() {
+        // After a runaway trip the control is disabled; this is the belt.
+        // Re-enabling would re-trip on the kept label set, and the
+        // stripped labels would not come back ([speakers.md]).
+        if (appState.diarizationRunaway) return;
         const next = !appState.liveDiarization;
         await invoke("set_live_diarization", { enabled: next }).catch(() => {});
         appState.setLiveDiarization(next);
@@ -210,6 +193,17 @@
         pinned = true;
         scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
     }
+
+    // Leaving shadow mode lands on the latest line ([shell.md]
+    // §Recording): the zero-width span invalidated whatever place the
+    // reader had, so the live edge is the one honest position — the same
+    // answer the pill gives. Entering shadow changes nothing here.
+    let wasShadowed = false;
+    $effect(() => {
+        const shadowed = appState.shadowMode;
+        if (wasShadowed && !shadowed) jumpToLatest();
+        wasShadowed = shadowed;
+    });
 
     $effect(() => {
         // Re-run when segments, the interim preview, or the stars change.
@@ -276,21 +270,31 @@
                 {/each}
             </div>
 
+            <!-- After a runaway trip the toggle stands down for the rest of
+                 the recording, wearing the reason; the next recording
+                 re-enables it ([speakers.md] §The runaway guard). -->
             <Tip
-                text={appState.liveDiarization
-                    ? t.diarizationOff
-                    : t.diarizationOn}
+                text={appState.diarizationRunaway
+                    ? t.diarizationRunawayNote
+                    : appState.liveDiarization
+                      ? t.diarizationOff
+                      : t.diarizationOn}
             >
                 {#snippet children({ props })}
                     <button
                         {...props}
-                        class="-my-0.5 -mr-1 shrink-0 rounded-md p-1 transition-colors hover:bg-accent {appState.liveDiarization
-                            ? 'text-foreground'
-                            : 'text-muted-foreground'}"
+                        class="-my-0.5 -mr-1 shrink-0 rounded-md p-1 transition-colors {appState.diarizationRunaway
+                            ? 'cursor-not-allowed text-muted-foreground/50'
+                            : appState.liveDiarization
+                              ? 'text-foreground hover:bg-accent'
+                              : 'text-muted-foreground hover:bg-accent'}"
                         aria-pressed={appState.liveDiarization}
-                        aria-label={appState.liveDiarization
-                            ? t.diarizationOff
-                            : t.diarizationOn}
+                        aria-label={appState.diarizationRunaway
+                            ? t.diarizationRunawayNote
+                            : appState.liveDiarization
+                              ? t.diarizationOff
+                              : t.diarizationOn}
+                        disabled={appState.diarizationRunaway}
                         onclick={toggleDiarization}
                     >
                         {#if appState.liveDiarization}

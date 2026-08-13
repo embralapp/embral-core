@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { Eye, EyeOff, Pause, Play, Square, Star } from 'lucide-svelte';
   import { appState } from '$lib/stores/app-state.svelte';
+  import { errorMessage } from '$lib/copy/errors';
   import { formatTime } from '$lib/utils/meetingFormat';
   import LevelRibbon from './LevelRibbon.svelte';
   import SourcePicker from './SourcePicker.svelte';
@@ -34,12 +35,16 @@
 
 
   async function togglePause() {
-    if (appState.isPaused) {
-      await invoke('resume_recording');
-      appState.setPaused(false);
-    } else {
-      await invoke('pause_recording');
-      appState.setPaused(true);
+    try {
+      if (appState.isPaused) {
+        await invoke('resume_recording');
+        appState.setPaused(false);
+      } else {
+        await invoke('pause_recording');
+        appState.setPaused(true);
+      }
+    } catch (e) {
+      appState.setError(errorMessage(e));
     }
   }
 
@@ -50,10 +55,14 @@
     // Strings always, empty included: a null arg means "use the backend's
     // mirror" and is reserved for the handshake fallback.
     appState.setPendingTitleHint(meetingTitle);
-    await invoke('stop_recording', {
-      userNotes,
-      meetingTitle
-    });
+    try {
+      await invoke('stop_recording', {
+        userNotes,
+        meetingTitle
+      });
+    } catch (e) {
+      appState.setError(errorMessage(e));
+    }
   }
 </script>
 
@@ -101,8 +110,15 @@
          room is not the same request as asking the screen to stop
          announcing the recording. Stays visible while active — it is the
          way back. The name holds still across the toggle; `aria-pressed`
-         and the icon carry the state. -->
-    <Tip text={t.shadowMode}>
+         and the icon carry the state. While shadow is on, the hover tip
+         also names where Stop went — hover never shows on the shared
+         screen, and the moment someone wonders is the moment they hover
+         the one control left. -->
+    <Tip
+      text={appState.shadowMode
+        ? t.shadowStopHint(copy.shell.titleBar.commandBar.shortcut)
+        : t.shadowMode}
+    >
       {#snippet children({ props })}
         <button
           {...props}
@@ -119,33 +135,39 @@
         </button>
       {/snippet}
     </Tip>
-    <Tip text={appState.isPaused ? t.resume : t.pause}>
-      {#snippet children({ props })}
-        <button
-          {...props}
-          onclick={togglePause}
-          class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          aria-label={appState.isPaused ? t.resumeAria : t.pauseAria}
-        >
-          {#if appState.isPaused}
-            <Play size={16} />
-          {:else}
-            <Pause size={16} />
-          {/if}
-        </button>
-      {/snippet}
-    </Tip>
-    <Tip text={t.stop}>
-      {#snippet children({ props })}
-        <button
-          {...props}
-          onclick={stop}
-          class="rounded-md p-2 text-destructive transition-colors hover:bg-destructive/10"
-          aria-label={t.stop}
-        >
-          <Square size={16} fill="currentColor" />
-        </button>
-      {/snippet}
-    </Tip>
+    <!-- Pause and the red stop square are tells after all — together they
+         read as recording controls on a shared screen, which is the one
+         thing shadow mode exists to prevent. The command palette keeps
+         "Stop recording" as the way out ([shell.md] §Recording). -->
+    {#if !appState.shadowMode}
+      <Tip text={appState.isPaused ? t.resume : t.pause}>
+        {#snippet children({ props })}
+          <button
+            {...props}
+            onclick={togglePause}
+            class="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label={appState.isPaused ? t.resumeAria : t.pauseAria}
+          >
+            {#if appState.isPaused}
+              <Play size={16} />
+            {:else}
+              <Pause size={16} />
+            {/if}
+          </button>
+        {/snippet}
+      </Tip>
+      <Tip text={t.stop}>
+        {#snippet children({ props })}
+          <button
+            {...props}
+            onclick={stop}
+            class="rounded-md p-2 text-destructive transition-colors hover:bg-destructive/10"
+            aria-label={t.stop}
+          >
+            <Square size={16} fill="currentColor" />
+          </button>
+        {/snippet}
+      </Tip>
+    {/if}
   </div>
 </div>

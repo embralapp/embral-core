@@ -8,7 +8,8 @@
 //! - [`providers`]  — the OpenAI-protocol transport (sidecar + custom).
 //! - [`text`]       — title extraction/replacement + filename sanitization.
 //! - [`matching`]   — naming diarized speakers from the user's typed notes.
-//! - [`integrations`] — the post-meeting Obsidian/Markdown export.
+//! - [`integrations`] — the post-meeting Obsidian/Markdown export and the
+//!   meeting-finished webhook payload.
 //!
 //! The Tauri crate builds a [`providers::NotesConfig`] from its `AppConfig` and
 //! calls [`refine_notes`]; everything else stays here.

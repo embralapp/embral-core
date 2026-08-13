@@ -96,6 +96,13 @@ export type SegmentEdit =
   | { kind: 'split'; index: number; char_offset: number }
   | { kind: 'delete'; index: number }
   | { kind: 'reassign'; index: number; speaker: string; speaker_id?: string | null }
+  | {
+      kind: 'reassign_range';
+      from_index: number;
+      to_index: number;
+      speaker: string;
+      speaker_id?: string | null;
+    }
   | { kind: 'relabel_all'; from: string; to: string; speaker_id?: string | null }
   | { kind: 'clear_label'; label: string };
 
@@ -243,6 +250,16 @@ export interface DictationRow {
 }
 export type ExportMetadataFormat = 'frontmatter' | 'inline';
 
+export type WebhookMethod = 'post' | 'put';
+
+/** One meeting-finished webhook destination (integrations.md §Webhooks). */
+export interface WebhookDestination {
+  url: string;
+  method: WebhookMethod;
+  /** Full content rides along only when true; metadata-only otherwise. */
+  include_content: boolean;
+}
+
 // Device names reported by list_audio_devices.
 export interface AudioDevices {
   inputs: string[];
@@ -268,6 +285,7 @@ export interface AppConfig {
   // Post-meeting integrations
   obsidian_export_enabled: boolean;
   obsidian_vault_dir: string;
+  webhooks: WebhookDestination[];
   export_filename_template: string;
   export_metadata_format: ExportMetadataFormat;
   export_include_summary: boolean;

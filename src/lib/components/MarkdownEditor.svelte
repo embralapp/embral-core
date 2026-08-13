@@ -7,6 +7,8 @@
   import { flashNodeAt, landingFlash } from '$lib/editor/landingFlash';
   import { afterScrollTo } from '$lib/utils/flash';
   import { storageRoot } from '$lib/stores/storageRoot.svelte';
+  import { toDisplaySrc } from '$lib/editor/assetSrc';
+  import { copy } from '$lib/copy';
   import {
     starAnchors,
     starAtCursor as starAtCursorIn,
@@ -50,12 +52,25 @@
 
   const isEmpty = $derived(value.trim().length === 0);
 
+  // The full-size viewer, opened by clicking any image on this surface
+  // ([shell.md] §Writing surface). Display src only — the stored form is
+  // storage-relative and no webview can load it.
+  let lightbox = $state<{ src: string; alt: string } | null>(null);
+
+  function onLightboxKeydown(e: KeyboardEvent) {
+    if (!lightbox) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      lightbox = null;
+    }
+  }
+
   // One writing surface everywhere (live notes, saved notes, the raw
   // transcript fallback): borderless — the pane *is* the editor — with
-  // flat, small margins (owner call: text hugs the left; no centering
+  // flat, small margins, and text that fills the pane's width (owner
+  // call: no measure cap, a wide window gives wide lines). No centering
   // math, which also guarantees the placeholder can't drift — `ch`-based
-  // padding resolved differently on the two elements). Long lines stay
-  // readable via a measure cap on the blocks themselves.
+  // padding resolved differently on the two elements.
   const surfacePadding = 'padding: 1.25rem 1.5rem 3rem;';
 
   onMount(() => {
@@ -74,6 +89,26 @@
       editable: !readonly,
       autofocus: autofocus ? 'end' : false,
       editorProps: {
+        // The caret keeps breathing room while typing: the view starts
+        // following ~2 lines before the caret reaches the edge and lands
+        // it with ~2 line boxes of air (24.75px lines), instead of
+        // ProseMirror's default flush-to-the-edge scroll.
+        scrollThreshold: 40,
+        scrollMargin: 56,
+        // A click on an image opens the viewer — on every surface, the
+        // readonly ones included (mousedown is not an edit handler, so
+        // this fires with editable off). Returning false leaves
+        // ProseMirror's own node selection in place, which is how an
+        // editable surface still deletes an image with Backspace.
+        handleClickOn: (_view, _pos, node) => {
+          if (node.type.name === 'image' && node.attrs.src) {
+            lightbox = {
+              src: toDisplaySrc(storageRoot.value, node.attrs.src as string),
+              alt: (node.attrs.alt as string) ?? ''
+            };
+          }
+          return false;
+        },
         attributes: {
           class: `note-prose h-full overflow-y-auto focus:outline-none${
             readonly ? ' note-prose-readonly' : ''
@@ -241,6 +276,31 @@
   <div bind:this={editorEl} class="h-full"></div>
 </div>
 
+<svelte:window onkeydown={onLightboxKeydown} />
+
+{#if lightbox}
+  <!-- The ConfirmDialog overlay pattern, not the vendored dialog (its
+       scroll lock is unwanted here too). One dismissal everywhere:
+       click, Esc. -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions
+       -- Escape is handled on the window; the whole surface is one
+       dismiss target. -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+    role="dialog"
+    aria-modal="true"
+    aria-label={copy.common.imageViewer}
+    tabindex="-1"
+    onclick={() => (lightbox = null)}
+  >
+    <img
+      src={lightbox.src}
+      alt={lightbox.alt}
+      class="max-h-[92vh] max-w-[92vw] rounded-md object-contain shadow-2xl"
+    />
+  </div>
+{/if}
+
 <style>
   /* The note type system — matches the transcript's reading style (15px/1.65)
      with the display face carrying headings, and everything else kept quiet. */
@@ -271,15 +331,56 @@
     color: var(--muted-foreground);
     cursor: pointer;
   }
-  /* Readable line length on wide panes; the element itself stays
-     full-width so the whole pane is clickable. */
-  :global(.note-prose > *) {
-    max-width: 72ch;
-  }
   .note-prose-placeholder {
     font-size: 15px;
     line-height: 1.65;
     color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+  }
+
+  /* Pasted images: bounded so a screenshot never eats the pane (bytes
+     stay full-resolution on disk — display only), with the viewer a
+     click away. Radius matches the code blocks'. */
+  :global(.note-prose img) {
+    display: block;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    max-height: min(420px, 50vh);
+    border-radius: 0.375rem;
+    cursor: zoom-in;
+  }
+  :global(.note-prose li > img) {
+    margin-top: 0.25em;
+  }
+  /* A selected block node (click an image, then Backspace deletes it). */
+  :global(.note-prose .ProseMirror-selectednode) {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* The gap cursor: the only caret position after a document-ending
+     image. StarterKit ships the plugin; this is its standard CSS, which
+     nothing else in the app provides. */
+  :global(.ProseMirror-gapcursor) {
+    display: none;
+    pointer-events: none;
+    position: absolute;
+  }
+  :global(.ProseMirror-gapcursor::after) {
+    content: '';
+    display: block;
+    position: absolute;
+    top: -2px;
+    width: 20px;
+    border-top: 1px solid var(--foreground);
+    animation: gapcursor-blink 1.1s steps(2, start) infinite;
+  }
+  @keyframes gapcursor-blink {
+    to {
+      visibility: hidden;
+    }
+  }
+  :global(.ProseMirror-focused .ProseMirror-gapcursor) {
+    display: block;
   }
 
   /* Stack rhythm: spacing between top-level blocks only, so the first line

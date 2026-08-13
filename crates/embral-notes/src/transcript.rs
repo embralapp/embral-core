@@ -153,6 +153,23 @@ pub fn reassign_speaker(segments: &mut [TranscriptionSegment], index: usize, spe
     }
 }
 
+/// Reassign a whole inclusive range — a turn renamed in one edit, however
+/// long. Bounds are clamped; an inverted range does nothing.
+pub fn reassign_speaker_range(
+    segments: &mut [TranscriptionSegment],
+    from: usize,
+    to: usize,
+    speaker: &str,
+) {
+    if from > to {
+        return;
+    }
+    let end = to.min(segments.len().saturating_sub(1));
+    for index in from..=end {
+        reassign_speaker(segments, index, speaker);
+    }
+}
+
 /// Split the segment at `index` into two at a UTF-8 character boundary
 /// `char_offset`. Both halves keep the original speaker; timing is interpolated
 /// by character ratio so ordering stays monotonic. No-op if the split point is
@@ -304,6 +321,33 @@ mod tests {
         assert_eq!(s[0].speaker.as_deref(), Some("Dana"));
         reassign_speaker(&mut s, 0, "  ");
         assert_eq!(s[0].speaker, None);
+    }
+
+    #[test]
+    fn a_range_reassigns_only_its_rows() {
+        let mut s = vec![
+            seg(None, "a", 0.0, 1.0),
+            seg(None, "b", 1.0, 2.0),
+            seg(None, "c", 2.0, 3.0),
+            seg(None, "d", 3.0, 4.0),
+        ];
+        reassign_speaker_range(&mut s, 1, 2, "Dana");
+        assert_eq!(s[0].speaker, None);
+        assert_eq!(s[1].speaker.as_deref(), Some("Dana"));
+        assert_eq!(s[2].speaker.as_deref(), Some("Dana"));
+        assert_eq!(s[3].speaker, None);
+    }
+
+    #[test]
+    fn a_range_clamps_and_an_inverted_one_does_nothing() {
+        let mut s = vec![seg(None, "a", 0.0, 1.0), seg(None, "b", 1.0, 2.0)];
+        reassign_speaker_range(&mut s, 1, 99, "Dana");
+        assert_eq!(s[1].speaker.as_deref(), Some("Dana"));
+        reassign_speaker_range(&mut s, 1, 0, "Nobody");
+        assert_eq!(s[0].speaker, None);
+        assert_eq!(s[1].speaker.as_deref(), Some("Dana"));
+        // An empty slice is a no-op, not a panic.
+        reassign_speaker_range(&mut [], 0, 0, "Dana");
     }
 
     #[test]

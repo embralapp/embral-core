@@ -37,6 +37,12 @@ pub struct NoticePayload {
     /// Sticky notices never auto-dismiss and outrank transient ones.
     #[serde(default)]
     pub sticky: bool,
+    /// When present, the page renders a countdown to this epoch-ms instant
+    /// beside the title — a decision deadline. Chrome only: what the
+    /// deadline means is the sender's business; this module still never
+    /// words.
+    #[serde(default)]
+    pub countdown_until_ms: Option<u64>,
     /// Where a click on the text lands (`open_from_notice`); absent = the app.
     #[serde(default)]
     pub target: Option<serde_json::Value>,
@@ -193,6 +199,20 @@ fn show_notice(app: &AppHandle, payload: NoticePayload) -> Result<(), AppError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_payload_without_a_countdown_still_parses() {
+        // Six of the seven senders predate the field and never send it.
+        let bare: NoticePayload =
+            serde_json::from_str(r#"{"kind":"notes_ready","title":"Meeting notes ready"}"#)
+                .expect("parses without the field");
+        assert_eq!(bare.countdown_until_ms, None);
+        let with: NoticePayload = serde_json::from_str(
+            r#"{"kind":"silence","title":"Still recording?","countdown_until_ms":123}"#,
+        )
+        .expect("parses with the field");
+        assert_eq!(with.countdown_until_ms, Some(123));
+    }
 
     #[test]
     fn transients_never_clobber_a_live_sticky_notice() {

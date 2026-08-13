@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { CloudOff, X } from "lucide-svelte";
     import { configStore } from "$lib/stores/config.svelte";
@@ -8,6 +8,7 @@
     import { displayAppName } from "$lib/utils/detectedApp";
     import { themeStore } from "$lib/stores/theme.svelte";
     import { setupEventListeners } from "$lib/events";
+    import { applyRecordingFixture, loadFixture } from "$lib/fixture";
     import TitleBar from "$lib/components/shell/TitleBar.svelte";
     import Sidebar from "$lib/components/shell/Sidebar.svelte";
     import SearchPalette from "$lib/components/shell/SearchPalette.svelte";
@@ -22,6 +23,7 @@
     import SpeakersPage from "$lib/components/speakers/SpeakersPage.svelte";
     import DictationHome from "$lib/components/dictation/DictationHome.svelte";
     import { copy } from "$lib/copy";
+    import { errorMessage } from "$lib/copy/errors";
 
     const banner = $derived(copy.shell.detectionBanner);
     const silenceBanner = $derived(copy.meetings.silence);
@@ -137,7 +139,7 @@
         try {
             await invoke("silence_keep_recording");
         } catch (e) {
-            appState.setError(e instanceof Error ? e.message : String(e));
+            appState.setError(errorMessage(e));
         }
     }
 
@@ -152,7 +154,7 @@
                 meetingTitle,
             });
         } catch (e) {
-            appState.setError(e instanceof Error ? e.message : String(e));
+            appState.setError(errorMessage(e));
         }
     }
 
@@ -161,7 +163,7 @@
         try {
             await invoke("accept_detected_meeting");
         } catch (e) {
-            appState.setError(e instanceof Error ? e.message : String(e));
+            appState.setError(errorMessage(e));
         }
     }
 
@@ -200,6 +202,15 @@
             !configStore.isConfigured
         ) {
             appState.setView("settings");
+        }
+        // Staged screenshot moment (dev sandboxes only — $lib/fixture).
+        // The drafts land after a tick, past the fresh-recording clear.
+        const fixture = await loadFixture();
+        if (fixture?.recording) {
+            applyRecordingFixture(fixture.recording);
+            await tick();
+            userNotes = fixture.recording.notes_markdown ?? "";
+            meetingTitle = fixture.recording.title ?? "";
         }
     });
 

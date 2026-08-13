@@ -12,7 +12,7 @@ export const markdown = {
       label: 'Export folder',
       placeholder: 'Path to your vault or notes folder'
     },
-    browse: 'Browse…'
+    browse: 'Browse...'
   },
 
   include: {

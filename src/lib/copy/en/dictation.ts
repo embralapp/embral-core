@@ -6,12 +6,12 @@ export const dictation = {
   home: {
     title: 'Dictation',
     hotkeyTip: 'Change in dictation settings',
-    hotkeyAria: 'Dictation hotkey — change in settings',
+    hotkeyAria: 'Change dictation hotkey in settings',
     setHotkey: 'Set a hotkey',
     stop: 'Stop',
     dictate: 'Dictate',
     emptyTitle: 'Speak instead of typing',
-    emptyBody: 'Dictations are transcribed on this computer, optionally cleaned up by AI, pasted where your cursor is, and kept here.',
+    emptyBody: 'Record your first dictation to begin',
     openSettings: 'Open dictation settings',
     // The per-entry toggle between the cleaned and raw text.
     raw: 'raw',
@@ -24,6 +24,6 @@ export const dictation = {
   // The overlay pill's status line.
   overlay: {
     listening: 'Listening',
-    finishing: 'Finishing up…'
+    finishing: 'Finishing up...'
   }
 };

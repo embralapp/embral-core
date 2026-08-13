@@ -9,8 +9,8 @@ export const synthesis = {
   performance: {
     _group: 'Performance',
     keepWarm: {
-      label: 'Keep the built-in model loaded',
-      sub: 'Responds instantly but holds ~3 GB of memory. Applies while summaries or dictation cleanup run on this device.'
+      label: 'Keep built-in model loaded',
+      sub: 'Responds instantly when summaries or dictation cleanup are needed, but holds ~3 GB of memory'
     },
     unloadIdle: {
       label: 'Unload after idle',

@@ -5,6 +5,7 @@
 mod assets;
 mod dictation;
 mod finalize;
+mod fixture;
 mod import;
 mod meetings;
 mod models;
@@ -15,6 +16,7 @@ mod support;
 
 pub use assets::*;
 pub use dictation::*;
+pub use fixture::*;
 pub use import::*;
 pub use meetings::*;
 pub use models::*;

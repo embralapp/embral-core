@@ -1,60 +1,78 @@
+![embral: local, private meeting notes and dictation](assets/banner.png)
+
 # embral
 
-Embral is a Windows desktop app for recording meetings, transcribing them
-live, and turning the conversation into structured notes — entirely on your
-machine.
+A desktop app for realtime transcription and voice dictation, designed for how you actually take and use notes.
 
-It lives in the system tray, records microphone and system audio (so it
-works even when you're on a call with headphones in), shows a live
-transcript, and writes polished meeting notes when the recording ends. No
-account, no API key, and no network connection are needed: speech models
-are downloaded on first run and everything after that happens on-device.
+Embral respects your privacy, and can be configured for use fully offline with no data egress.
 
-## What it does
+Learn more & try out the demo on [embral.app](https://embral.app).
 
-- Records meetings from both microphone input and system audio, with
-  automatic call detection.
-- Transcribes live, on the machine, with optional speaker labels that
-  recognize saved voices across meetings.
-- Generates structured meeting notes with an on-device language model.
-- Dictation into any Windows app via a global hotkey, with AI cleanup.
-- Searches everything — by keyword, and by meaning once the optional
-  semantic-search model is downloaded.
-- Mirrors finished notes into an Obsidian vault.
-- Includes an MCP server so Claude, Codex, and other MCP clients can list,
-  search, and read your meetings.
+## Download and setup
+
+Download the latest release for your platform: [Windows](https://github.com/embralapp/embral-core/releases/latest), [macOS](https://github.com/embralapp/embral-core/releases/latest), or [Linux](https://github.com/embralapp/embral-core/releases/latest).
+
+In onboarding:
+- Set up local models for transcription & summarization, or login to a cloud account for higher quality and more battery life
+- Configure how you want to trigger meetings and dictation
+- Connect to your AI tools (Claude, ChatGPT/Codex, or any other MCP client)
+- Connect to your existing notes or workflows (Markdown export, webhooks)
+
+Embral is designed to be highly configurable - explore the Settings tab to make it work better for you.
+
+## Screenshots
+
+![Recording a meeting: your notes on the left, the live transcript with speaker labels on the right](assets/app-recording.png)
+
+https://github.com/user-attachments/assets/a4371557-6510-4220-a434-d395f38235c1
+
+<details>
+<summary>View more screenshots</summary>
+
+| | |
+|---|---|
+| ![Meeting summary](assets/app-meetings.png) *Meeting summary* | ![Transcript](assets/app-transcript.png) *Transcript with speaker labels* |
+| ![Speaker profiles](assets/app-profiles.png) *Speaker profiles* | ![Dictation history](assets/app-dictation.png) *Dictation history* |
+| ![Settings](assets/app-settings.png) *Settings* | ![Dictation overlay](assets/app-overlay.png) *The dictation overlay* |
+
+</details>
+
+## What you can do with embral
+
+- Record & transcribe meetings with configurable audio sources, automatic call detection, and optional best-effort speaker labeling
+- Type your own notes and paste in screenshots for later reference & use by integrations
+- Generate structured meeting notes with an on-device (or cloud) language model
+- Dictate into any app via global hotkey, with on-device or cloud AI cleanup
+- Leverage workflow integrations so your notes actually save you time
+  - Chat with your notes in any MCP client (Claude, ChatGPT/Codex, etc.)
+  - Mirror your finished notes as Markdown (e.g., into an Obsidian vault)
+  - Trigger post-meeting workflows via webhook
 
 ## This repository
 
-This is the **offline core** of embral — the complete source of the
-on-device edition. The packaged app distributed on the
-[releases page](https://github.com/embralapp/embral-core/releases) is the same
-app plus an optional paid cloud tier (faster transcription, cloud
-summaries); its cloud code is not part of this repository.
+This codebase is an **offline core** of embral, and can be built for a local-only version without any cloud capabilities or telemetry. The full app distributed via the [releases page](https://github.com/embralapp/embral-core/releases) adds optional paid cloud functionality (faster and more accurate transcription, cloud summaries).
 
-## Building the offline edition
+Prerequisites:
 
-Prerequisites (Windows):
-
-- Rust (stable, MSVC toolchain)
+- [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+- Rust
 - Node.js 22+ and pnpm
-- The [Tauri 2 Windows prerequisites](https://tauri.app/start/prerequisites/)
-  (WebView2, Visual Studio Build Tools)
 
-```powershell
+### Building the offline-only version
+
+```bash
 pnpm install
 pnpm tauri build
 ```
 
-The installer lands in `target/release/bundle/nsis/`. For development:
+### Contributing to development
 
-```powershell
+```bash
 pnpm tauri dev
 ```
 
-Transcription, speaker, and language models are downloaded from within the
-app (Settings → Models) on first use; nothing is bundled.
+Feedback is highly appreciated and can be submitted using Issues in this repo.
 
 ## License
 
-[MIT](./LICENSE).
+[MIT](./LICENSE)

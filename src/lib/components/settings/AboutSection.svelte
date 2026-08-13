@@ -19,6 +19,7 @@
     import { dictationStore } from "$lib/stores/dictation.svelte";
     import { modelsStore } from "$lib/stores/models.svelte";
     import { updaterStore } from "$lib/stores/updater.svelte";
+    import { CLOUD_ENABLED } from "$lib/cloud";
     import { copy } from "$lib/copy";
 
     const t = $derived(copy.settings.about);
@@ -177,6 +178,9 @@
         </div>
     </div>
 
+    <!-- Self-updating is cloud-edition-only: the release channel serves
+         cloud installers; source builds update via git (cloud-seam.md). -->
+    {#if CLOUD_ENABLED}
     <SettingsGroup label={t.updates._group}>
         <SettingRow
             title={updaterStore.available
@@ -220,6 +224,7 @@
             <p class="px-4 pb-3 text-xs text-destructive">{updaterStore.error}</p>
         {/if}
     </SettingsGroup>
+    {/if}
 
     <SettingsGroup label={t.diagnostics._group}>
         <SettingRow

@@ -10,7 +10,7 @@ export const mac = {
   shell: {
     titleBar: {
       commandBar: { shortcut: '⌘K' },
-      close: 'Keep running in the menu bar'
+      close: 'Close to menu bar'
     }
   },
   meetings: {

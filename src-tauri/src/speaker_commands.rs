@@ -59,6 +59,16 @@ pub enum SegmentEdit {
         speaker: String,
         speaker_id: Option<String>,
     },
+    /// Set a whole inclusive index range's speaker in one edit — renaming a
+    /// turn, however long, costs one regeneration instead of one per
+    /// sentence. The range form exists because a stripped meeting has no
+    /// label for `relabel_all` to key on ([speakers.md]).
+    ReassignRange {
+        from_index: usize,
+        to_index: usize,
+        speaker: String,
+        speaker_id: Option<String>,
+    },
     /// Rename/merge a label across the whole meeting.
     RelabelAll {
         from: String,
@@ -473,6 +483,7 @@ pub async fn edit_segments(
         SegmentEdit::Split { .. } => "split",
         SegmentEdit::Delete { .. } => "delete",
         SegmentEdit::Reassign { .. } => "reassign",
+        SegmentEdit::ReassignRange { .. } => "reassign_range",
         SegmentEdit::RelabelAll { .. } => "relabel_all",
         SegmentEdit::ClearLabel { .. } => "clear_label",
     };
@@ -509,6 +520,26 @@ pub async fn edit_segments(
             transcript::reassign_speaker(&mut segments, index, &speaker);
             if let Some(seg) = segments.get_mut(index) {
                 seg.speaker_id = speaker_id.filter(|id| !id.is_empty());
+            }
+        }
+        SegmentEdit::ReassignRange {
+            from_index,
+            to_index,
+            speaker,
+            speaker_id,
+        } => {
+            transcript::reassign_speaker_range(&mut segments, from_index, to_index, &speaker);
+            let link = speaker_id.filter(|id| !id.is_empty());
+            if from_index <= to_index {
+                let end = to_index.min(segments.len().saturating_sub(1));
+                for seg in segments
+                    .iter_mut()
+                    .take(end + 1)
+                    .skip(from_index)
+                    .filter(|seg| seg.speaker.is_some())
+                {
+                    seg.speaker_id = link.clone();
+                }
             }
         }
         SegmentEdit::RelabelAll {

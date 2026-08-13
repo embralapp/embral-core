@@ -12,22 +12,22 @@ import type { AppErrorCode } from '../errors';
 
 export const errors = {
   notConfigured:
-    "Transcription isn't set up yet — download the speech model or sign in from Settings.",
-  busyDictating: "Can't record during a dictation — finish it first.",
+    "Transcription isn't set up yet - download a speech model or sign in from Settings",
+  busyDictating: "Can't record during an active dictation",
   noActiveRecording: 'No active recording',
   alreadyRecording: 'A recording is already running',
-  cantImportWhileRecording: "Can't import while a recording is in progress.",
-  importAlreadyRunning: 'An import is already in progress.',
+  cantImportWhileRecording: "Can't import while a recording is in progress",
+  importAlreadyRunning: 'An import is already in progress',
   needsLocalModel:
-    'Importing needs a local speech model — download one in Settings → Transcription.',
+    'Local model required for importing; download one in Settings → Transcription',
   fileNotFound: (path: string) => `File not found: ${path}`,
-  alreadyDownloading: 'This model is already downloading.',
-  stopRecordingBeforeReset: 'Stop the recording before resetting',
-  stopDictatingBeforeReset: 'Stop dictating before resetting',
-  cantDictateWhileRecording: "Can't dictate during a meeting recording",
+  alreadyDownloading: 'This model is already downloading',
+  stopRecordingBeforeReset: "Can't reset during active recording",
+  stopDictatingBeforeReset: "Can't reset during active dictation",
+  cantDictateWhileRecording: "Can't dictate during active recording",
   dictationAlreadyRunning: 'Dictation is already running',
   dictationModelMissing: (modelId: string) =>
-    `The dictation speech model isn't downloaded (${modelId}) — check Settings → Transcription`,
+    `Dictation speech model is missing (${modelId}); check Settings → Transcription`,
   cloudSignInRequired: 'Sign in on the Account page to dictate with embral cloud',
   noDictationRunning: 'No dictation running',
   recordingInProgress: 'A recording is in progress',
@@ -38,11 +38,12 @@ export const errors = {
   suggestionNotPending: 'That suggestion is no longer pending',
   noStructuredTranscript: 'This meeting has no structured transcript to edit',
   meetingNotFound: (id: string) => `Meeting ${id} not found`,
-  encodeFailed: (detail: string) => `encode failed: ${detail}`,
+  encodeFailed: (detail: string) => `Encode failed: ${detail}`,
   importFailed: (detail: string) => `Import failed: ${detail}`,
   dictationStartFailed: (detail: string) => `Dictation couldn't start: ${detail}`,
   cloudUnreachable: 'embral cloud is unreachable',
   cloudSignedOut: 'no embral cloud account is signed in',
+  webhookTestFailed: (detail: string) => `Test delivery failed: ${detail}`,
   // The generic tail: the backend detail, shown as-is (never a stray code).
   internal: (detail: string) => detail
 } satisfies Record<AppErrorCode, string | ((arg: string) => string)>;

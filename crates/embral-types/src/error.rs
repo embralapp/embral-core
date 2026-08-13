@@ -63,6 +63,11 @@ pub enum AppError {
     /// a handshake that cannot succeed.
     CloudSignedOut,
 
+    /// A webhook test delivery failed; `detail` is the transport's own
+    /// words (a refused connection, a status code) — the diagnostic the
+    /// settings row exists to show.
+    WebhookTestFailed { detail: String },
+
     /// Everything currently `.map_err(|e| e.to_string())?` — a DB/IO/serde
     /// failure or a "shouldn't happen" race. Shown as a generic sentence; the
     /// `detail` is for the log, not the screen.
@@ -111,6 +116,7 @@ impl AppError {
             AppError::DictationStartFailed { .. } => "dictationStartFailed",
             AppError::CloudUnreachable => "cloudUnreachable",
             AppError::CloudSignedOut => "cloudSignedOut",
+            AppError::WebhookTestFailed { .. } => "webhookTestFailed",
             AppError::Internal { .. } => "internal",
         }
     }
@@ -169,6 +175,9 @@ impl fmt::Display for AppError {
             }
             AppError::CloudUnreachable => f.write_str("embral cloud is unreachable"),
             AppError::CloudSignedOut => f.write_str("no embral cloud account is signed in"),
+            AppError::WebhookTestFailed { detail } => {
+                write!(f, "Test delivery failed: {detail}")
+            }
             AppError::Internal { detail } => f.write_str(detail),
         }
     }
@@ -235,6 +244,7 @@ mod tests {
             DictationStartFailed { detail: sample() },
             CloudUnreachable,
             CloudSignedOut,
+            WebhookTestFailed { detail: sample() },
             Internal { detail: sample() },
         ]
     }

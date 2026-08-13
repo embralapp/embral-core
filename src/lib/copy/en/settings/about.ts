@@ -11,13 +11,13 @@ export const about = {
     upToDate: 'Up to date',
     // The reason is a backend string; this keeps the English tail attached to
     // it until Phase 3 turns backend errors into codes (docs/copy.md).
-    blocked: (reason: string) => `${reason} — finish it, then update.`,
-    installing: 'Installing…',
+    blocked: (reason: string) => `${reason} - finish, then update.`,
+    installing: 'Installing...',
     restartAndUpdate: 'Restart and update',
     // Shown only where installing the update runs the package manager, so
     // the authentication dialog isn't a surprise (Linux .deb/.rpm; an
     // AppImage swaps itself in place and asks nothing).
-    needsPassword: 'Your system will ask for your password to install this.',
+    needsPassword: 'Your system will ask for your password to install this',
     checkForUpdates: 'Check for updates'
   },
 
@@ -25,7 +25,7 @@ export const about = {
     _group: 'Diagnostics',
     logs: {
       label: 'Logs',
-      sub: 'Attach the latest file when reporting a problem.',
+      sub: 'Attach the latest file when reporting a problem',
       button: 'Open logs folder'
     },
     notesFolder: {
@@ -34,7 +34,7 @@ export const about = {
     },
     reset: {
       label: 'Reset app',
-      button: 'Reset…'
+      button: 'Reset...'
     }
   },
 
@@ -56,7 +56,7 @@ export const about = {
 
   resetDialog: {
     title: 'Reset embral',
-    description: 'Pick what to erase. None of it can be brought back.',
+    description: 'Selected items will be irreversibly reset',
     // The erasable scopes, keyed by the ScopeKey union.
     scopes: {
       settings: 'Settings',
@@ -66,7 +66,7 @@ export const about = {
       models: 'Models'
     },
     cancel: 'Cancel',
-    resetting: 'Resetting…',
+    resetting: 'Resetting...',
     reset: 'Reset'
   }
 };

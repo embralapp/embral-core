@@ -41,6 +41,7 @@ export type AppErrorCode =
   | 'dictationStartFailed'
   | 'cloudUnreachable'
   | 'cloudSignedOut'
+  | 'webhookTestFailed'
   | 'internal';
 
 type AppErrorPayload = { code: AppErrorCode } & Record<string, unknown>;
@@ -72,6 +73,8 @@ export function errorMessage(e: unknown): string {
         return t.importFailed(str(e.detail));
       case 'dictationStartFailed':
         return t.dictationStartFailed(str(e.detail));
+      case 'webhookTestFailed':
+        return t.webhookTestFailed(str(e.detail));
       case 'internal':
         return t.internal(str(e.detail));
       default: {
@@ -86,5 +89,11 @@ export function errorMessage(e: unknown): string {
   }
   if (typeof e === 'string') return e;
   if (e instanceof Error) return e.message;
-  return String(e);
+  // A shape nobody typed (a foreign rejection, a bare object): show its
+  // contents, never "[object Object]".
+  try {
+    return copy.errors.internal(JSON.stringify(e) ?? String(e));
+  } catch {
+    return copy.errors.internal(String(e));
+  }
 }

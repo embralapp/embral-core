@@ -7,13 +7,13 @@ export const meetings = {
     _group: 'Transcription',
     // Passed to the shared TranscriptionBlock as this page's provider prompt.
     providerLabel: 'Transcribe meetings with',
-    disabledNote: 'Recording and notes continue; no transcript is written.'
+    disabledNote: 'Transcription disabled; recording and notes will still be saved'
   },
 
   autoStart: {
     _group: 'Auto-start',
     prompt: {
-      label: 'When a call is detected, auto-start…',
+      label: 'When a call is detected, auto-start...',
       // Keyed by the AutoStartPolicy union.
       options: {
         always: 'Always',
@@ -59,8 +59,8 @@ export const meetings = {
       }
     },
     silence: {
-      label: 'Ask after silence',
-      sub: 'Check in when no speech has been transcribed for this long; 0 never asks',
+      label: 'Check in after silence',
+      sub: 'Check in when no words have been transcribed and the notes are untouched for this long; 0 to disable',
       unit: 'minutes'
     },
     silenceUnanswered: {
@@ -110,8 +110,8 @@ export const meetings = {
     engine: { label: 'Write summaries with' },
     prompt: {
       label: 'Summary prompt',
-      customized: 'Customized.',
-      edit: 'Edit prompt…'
+      customized: 'Customized',
+      edit: 'Edit prompt...'
     },
     openOn: {
       label: 'Open meetings on',
@@ -127,23 +127,18 @@ export const meetings = {
   audio: {
     _group: 'Audio recordings',
     keep: { label: 'Keep audio files' },
+    // Retention is a plain day count — the backend and the janitor already
+    // take any value; the old presets only constrained the UI. Same input
+    // idiom as the dictation page's history rows.
     deleteAudio: {
       label: 'Delete audio automatically',
-      options: {
-        never: 'Never',
-        d7: 'After 7 days',
-        d30: 'After 30 days',
-        d90: 'After 90 days'
-      }
+      sub: 'Days to keep audio files; 0 keeps them forever',
+      unit: 'days'
     },
     deleteMeetings: {
       label: 'Delete meetings automatically',
-      options: {
-        never: 'Never',
-        d90: 'After 90 days',
-        y1: 'After 1 year',
-        y2: 'After 2 years'
-      }
+      sub: 'Days to keep whole meetings; 0 keeps them forever',
+      unit: 'days'
     }
   },
 
@@ -151,7 +146,7 @@ export const meetings = {
   promptDialog: {
     title: 'Summary prompt',
     description:
-      'The full prompt sent with every meeting. Edit anything; the required output format is appended automatically.',
+      'Required output format automatically appended to this meeting prompt',
     // A verb-swap in the original ("{Hide|Show} the enforced output format");
     // two complete strings so a translator isn't handed a sentence with a
     // hole in it.

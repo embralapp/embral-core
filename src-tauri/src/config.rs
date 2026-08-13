@@ -5,6 +5,13 @@ use std::path::PathBuf;
 use crate::platform::types::PowerSource;
 
 pub fn config_file_path() -> PathBuf {
+    // EMBRAL_DATA_DIR redirects the whole {home}/embral root — a development
+    // affordance for scratch libraries (configuration.md).
+    if let Ok(dir) = std::env::var("EMBRAL_DATA_DIR") {
+        if !dir.trim().is_empty() {
+            return PathBuf::from(dir).join("config.json");
+        }
+    }
     dirs::home_dir()
         .expect("cannot find home dir")
         .join("embral")

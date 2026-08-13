@@ -21,8 +21,8 @@ export const transcription = {
   // provider labels themselves are common.providers.
   block: {
     powerPolicy: {
-      label: 'Follow the power source',
-      sub: 'Transcribe in the cloud on battery, and on this device when plugged in.'
+      label: 'Choose by power source',
+      sub: 'Cloud transcription when on battery, local transcription when plugged in'
     },
     outOfHours: {
       label: 'When cloud hours run out',
@@ -47,7 +47,7 @@ export const transcription = {
       balanced: 'Balanced',
       accurate: 'Accurate'
     },
-    downloading: (pct: number) => `Downloading the model… ${pct}%`,
+    downloading: (pct: number) => `Downloading the model... ${pct}%`,
     needsDownload: 'This level needs a one-time model download.',
     download: (size: string) => `Download (~${size})`
   }

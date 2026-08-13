@@ -212,6 +212,44 @@ pub async fn preview_export_filename(template: String) -> Result<String, AppErro
     Ok(format!("{stem}.md"))
 }
 
+/// Send a sample payload to one webhook destination so users can verify an
+/// endpoint without recording a meeting. Takes the row's values directly —
+/// race-free against the settings autosave debounce, and testable before
+/// the row is ever saved.
+#[tauri::command]
+pub async fn test_webhook(
+    url: String,
+    method: embral_types::WebhookMethod,
+    include_content: bool,
+) -> Result<(), AppError> {
+    let url = url.trim().to_string();
+    if url.is_empty() {
+        return Err(AppError::WebhookTestFailed {
+            detail: "the URL is empty".to_string(),
+        });
+    }
+    let record = embral_types::MeetingRecord {
+        id: "000000T000000_sample".to_string(),
+        title: "Webhook test from embral".to_string(),
+        date: chrono::Utc::now(),
+        duration_seconds: 60,
+        chunks: 1,
+        audio_path: String::new(),
+    };
+    let content = embral_notes::integrations::WebhookContent {
+        summary_markdown: "# Webhook test\n\nA sample summary sent from embral settings.",
+        notes_markdown: "Sample notes taken during the meeting.",
+        transcript_markdown: "Sample transcript content.",
+    };
+    let payload =
+        embral_notes::integrations::webhook_payload(&record, include_content.then_some(&content));
+    embral_notes::integrations::send_webhook(&url, method, &payload)
+        .await
+        .map_err(|e| AppError::WebhookTestFailed {
+            detail: format!("{e:#}"),
+        })
+}
+
 /// Names of the machine's audio devices, for the Settings pickers. An empty
 /// selection in config means "system default", so these lists are additive.
 #[derive(serde::Serialize)]

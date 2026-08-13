@@ -9,6 +9,42 @@
 /// still save the hours the feature exists to save.
 pub const GRACE_SECS: u64 = 120;
 
+/// Liveness evidence from the transcription stream, kept by the event
+/// forwarder. The check-in must count words as they arrive on screen, not
+/// only utterances that close — a segment can stay open for minutes of
+/// live speech. Interims carry the in-flight utterance's committed (final)
+/// text beside a tentative tail; only the committed part counts, because a
+/// tentative hypothesis can be noise that never becomes a word.
+#[derive(Debug, Default)]
+pub struct LivenessTracker {
+    /// The committed text of the last interim seen. Empty at rest and
+    /// after every segment close — an utterance starts from nothing.
+    last_committed: String,
+}
+
+impl LivenessTracker {
+    /// A live preview arrived; true when it proves new final tokens:
+    /// committed text that is non-empty and not what it was. Growth is the
+    /// common case; any revision still shows live decoding. Empty never
+    /// counts — after a close, tentative-only flicker arrives with no
+    /// committed text at all.
+    pub fn observe_interim(&mut self, committed: &str) -> bool {
+        let advanced = !committed.is_empty() && committed != self.last_committed;
+        if committed != self.last_committed {
+            self.last_committed.clear();
+            self.last_committed.push_str(committed);
+        }
+        advanced
+    }
+
+    /// An utterance closed: always liveness (final words landed), and the
+    /// next utterance's committed text starts from nothing again.
+    pub fn observe_segment(&mut self) -> bool {
+        self.last_committed.clear();
+        true
+    }
+}
+
 /// The check-in's current standing, as the watcher tracks it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Notice {
@@ -106,5 +142,58 @@ mod tests {
             check(9999, 0, Notice::Pending { age_secs: 10 }),
             Verdict::Cleared
         );
+    }
+
+    #[test]
+    fn final_tokens_arriving_are_liveness() {
+        let mut t = LivenessTracker::default();
+        assert!(t.observe_interim("hello"));
+        assert!(t.observe_interim("hello world"));
+    }
+
+    #[test]
+    fn tentative_only_flicker_is_not() {
+        // The same committed text again means only the tentative tail
+        // moved — a hypothesis, not a word.
+        let mut t = LivenessTracker::default();
+        assert!(t.observe_interim("hello"));
+        assert!(!t.observe_interim("hello"));
+    }
+
+    #[test]
+    fn an_utterance_opens_from_nothing_without_counting() {
+        // Both providers' first interim of an utterance can carry no
+        // committed text yet (local always, cloud on a tentative-only
+        // response) — nothing final has arrived.
+        let mut t = LivenessTracker::default();
+        assert!(!t.observe_interim(""));
+    }
+
+    #[test]
+    fn noise_after_a_close_is_not_liveness() {
+        // After a segment closes, tentative-only interims arrive with
+        // empty committed text; they must not keep a dead room alive.
+        let mut t = LivenessTracker::default();
+        assert!(t.observe_interim("see you tomorrow"));
+        assert!(t.observe_segment());
+        assert!(!t.observe_interim(""));
+        assert!(!t.observe_interim(""));
+    }
+
+    #[test]
+    fn a_close_resets_so_the_next_words_count() {
+        let mut t = LivenessTracker::default();
+        assert!(t.observe_interim("first thought"));
+        assert!(t.observe_segment());
+        assert!(t.observe_interim("second thought"));
+    }
+
+    #[test]
+    fn a_revision_still_shows_live_decoding() {
+        // The local engine's committed part is the agreed prefix of two
+        // consecutive decodes — it can shrink while words keep arriving.
+        let mut t = LivenessTracker::default();
+        assert!(t.observe_interim("hello world"));
+        assert!(t.observe_interim("hello"));
     }
 }

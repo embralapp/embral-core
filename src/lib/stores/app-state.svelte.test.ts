@@ -51,11 +51,31 @@ describe('speaker labeling standing', () => {
     expect(appState.diarizationRunaway).toBe(true);
   });
 
-  it('drops the guard reason when labeling is set deliberately', () => {
-    // Turning labeling back on, and the focus-time reconcile adopting the
-    // backend's flag, both leave "too many speakers" untrue.
+  it('drops the guard reason when the standing actually changes', () => {
+    // Turning labeling back on is a real flip; "too many speakers" is no
+    // longer why it is off.
     appState.standDownDiarization();
     appState.setLiveDiarization(true);
+    expect(appState.diarizationRunaway).toBe(false);
+  });
+
+  it('keeps the guard reason through a no-op reconcile', () => {
+    // Regression (#19): the focus-time reconcile adopts the backend's
+    // flag even when nothing changed, and it used to launder the guard's
+    // reason into the user-choice wording.
+    appState.standDownDiarization();
+    appState.setLiveDiarization(false);
+    expect(appState.liveDiarization).toBe(false);
+    expect(appState.diarizationRunaway).toBe(true);
+  });
+
+  it('a fresh start carries no guard history', () => {
+    appState.standDownDiarization();
+    appState.clearDiarizationRunaway();
+    expect(appState.diarizationRunaway).toBe(false);
+
+    appState.standDownDiarization();
+    appState.resetToIdle();
     expect(appState.diarizationRunaway).toBe(false);
   });
 });

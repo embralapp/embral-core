@@ -1,15 +1,19 @@
-//! The post-meeting Markdown export: mirror notes into an Obsidian vault (or
-//! any folder). A best-effort side effect the Tauri app fires after a
-//! meeting's index entry is written; it may not block or fail the core save
-//! (mirroring the existing non-fatal MP3/LLM handling).
+//! Post-meeting integrations: mirror notes into an Obsidian vault (or any
+//! folder) and deliver the meeting-finished webhook payload. Best-effort
+//! side effects the Tauri app fires after a meeting's index entry is
+//! written; neither may block or fail the core save (mirroring the
+//! existing non-fatal MP3/LLM handling).
 //!
 //! Wire concerns are kept pure where possible: [`render_filename`],
-//! [`compose_export`], and [`to_inline_metadata`] are unit-tested; the IO
-//! wrapper ([`export_to_obsidian`]) is thin.
+//! [`compose_export`], [`to_inline_metadata`], and [`webhook_payload`] are
+//! unit-tested; the IO/network wrappers ([`export_to_obsidian`],
+//! [`send_webhook`]) are thin — retries and failure surfacing belong to
+//! the caller.
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use embral_types::{ExportMetadataFormat, MeetingRecord};
+use embral_types::{ExportMetadataFormat, MeetingRecord, WebhookMethod};
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 use crate::text::sanitize_filename;
@@ -75,6 +79,26 @@ fn strip_leading_h1(markdown: &str) -> &str {
     .trim_start_matches('\n')
 }
 
+/// Drop one leading `---`-fenced frontmatter block. The summary contract
+/// makes the model open with its own block ([prompt.rs] OUTPUT_CONTRACT);
+/// the export composes the canonical one, and two YAML blocks make every
+/// reader render the second as body text. The close must sit at a line
+/// boundary; with no valid close this is a document that happens to open
+/// with a horizontal rule, and it passes through untouched.
+fn strip_leading_frontmatter(markdown: &str) -> &str {
+    let trimmed = markdown.trim_start();
+    let Some(after_open) = trimmed.strip_prefix("---\n") else {
+        return trimmed;
+    };
+    for (idx, _) in after_open.match_indices("\n---") {
+        let after = &after_open[idx + "\n---".len()..];
+        if after.is_empty() || after.starts_with('\n') {
+            return after.trim_start_matches('\n');
+        }
+    }
+    trimmed
+}
+
 /// The document that leaves the app: what the meeting produced, filtered by
 /// the user's include switches ([configuration.md]). Each content argument is
 /// `None` when its switch is off — no section at all — and `Some` when
@@ -104,7 +128,9 @@ pub fn compose_export(
     out.push_str(&format!("# {title}\n"));
 
     if let Some(body) = summary_body {
-        let summary = strip_leading_h1(body).trim();
+        // Fence first: the model's H1 sits below its frontmatter, so the
+        // H1 strip only sees it once the fence is gone.
+        let summary = strip_leading_h1(strip_leading_frontmatter(body)).trim();
         if !summary.is_empty() {
             out.push_str(&format!("\n{summary}\n"));
         }
@@ -258,6 +284,56 @@ pub fn export_to_obsidian(
     Ok(path)
 }
 
+/// The full-content half of a webhook payload, present only for
+/// destinations that opted in ([integrations.md] §Webhooks).
+pub struct WebhookContent<'a> {
+    /// The meeting summary; empty when summaries are off.
+    pub summary_markdown: &'a str,
+    /// The user's own notes.
+    pub notes_markdown: &'a str,
+    pub transcript_markdown: &'a str,
+}
+
+/// The JSON body sent to a webhook destination when a meeting finishes.
+/// Stable, self-describing shape so downstream automations (Zapier, n8n, a
+/// homelab script) can consume it without scraping files. Metadata always;
+/// the content fields exist only when the destination opted in — absent
+/// rather than empty, so a consumer can tell "not sent" from "empty".
+pub fn webhook_payload(record: &MeetingRecord, content: Option<&WebhookContent>) -> Value {
+    let mut payload = json!({
+        "event": "meeting.finished",
+        "meeting": {
+            "id": record.id,
+            "title": record.title,
+            "date": record.date,
+            "duration_seconds": record.duration_seconds,
+        },
+    });
+    if let Some(content) = content {
+        payload["summary_markdown"] = content.summary_markdown.into();
+        payload["notes_markdown"] = content.notes_markdown.into();
+        payload["transcript_markdown"] = content.transcript_markdown.into();
+    }
+    payload
+}
+
+/// How long one delivery attempt may take end to end; a hung endpoint must
+/// not pin the caller's retry task.
+const SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Send one webhook delivery. Thin on purpose — retries and failure
+/// surfacing are the caller's; a non-2xx answer is an error here so the
+/// caller can retry it.
+pub async fn send_webhook(url: &str, method: WebhookMethod, payload: &Value) -> Result<()> {
+    let client = reqwest::Client::builder().timeout(SEND_TIMEOUT).build()?;
+    let request = match method {
+        WebhookMethod::Post => client.post(url),
+        WebhookMethod::Put => client.put(url),
+    };
+    request.json(payload).send().await?.error_for_status()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +348,34 @@ mod tests {
             chunks: 1,
             audio_path: "audio/x.mp3".into(),
         }
+    }
+
+    #[test]
+    fn webhook_metadata_payload_has_stable_shape() {
+        let p = webhook_payload(&record(), None);
+        assert_eq!(p["event"], "meeting.finished");
+        assert_eq!(p["meeting"]["id"], "260326T143000_a3f9b2");
+        assert_eq!(p["meeting"]["title"], "Q3: Pipeline Review");
+        assert_eq!(p["meeting"]["duration_seconds"], 3480);
+        // Metadata only: no content field exists until a destination opts
+        // in — absent, not empty.
+        assert!(p.get("summary_markdown").is_none());
+        assert!(p.get("notes_markdown").is_none());
+        assert!(p.get("transcript_markdown").is_none());
+    }
+
+    #[test]
+    fn webhook_content_rides_only_when_opted_in() {
+        let content = WebhookContent {
+            summary_markdown: "# S",
+            notes_markdown: "my notes",
+            transcript_markdown: "T",
+        };
+        let p = webhook_payload(&record(), Some(&content));
+        assert_eq!(p["event"], "meeting.finished");
+        assert_eq!(p["summary_markdown"], "# S");
+        assert_eq!(p["notes_markdown"], "my notes");
+        assert_eq!(p["transcript_markdown"], "T");
     }
 
     #[test]
@@ -383,6 +487,68 @@ mod tests {
     }
 
     const FRONTMATTER: &str = "---\nstart_time: 2026-03-26T14:30:00Z\n---\n";
+
+    /// What the LLM actually returns: the contract's own frontmatter and
+    /// title, which the export must not duplicate.
+    const CONTRACT_SUMMARY: &str = "---\nstart_time: 2026-03-26T14:30:00Z\nduration_minutes: 45\nmeeting_id: m1\nattendees: [\"Alice\", \"Bob\"]\n---\n\n# Weekly Sync\n\n## Key Takeaways\n\n- Ship it.\n\n## Next Steps\n\n- **Alice** ships it.";
+
+    #[test]
+    fn a_contract_shaped_summary_exports_one_frontmatter_and_one_title() {
+        let out = compose_export(
+            FRONTMATTER,
+            "Weekly Sync",
+            Some(CONTRACT_SUMMARY),
+            None,
+            None,
+        );
+        // Exactly the canonical block and title; the model's copies gone.
+        assert!(out.starts_with("---\nstart_time:"));
+        assert_eq!(out.matches("---\n").count(), 2, "one fence pair: {out}");
+        assert_eq!(out.matches("# Weekly Sync").count(), 1, "{out}");
+        assert_eq!(out.matches("duration_minutes").count(), 0, "{out}");
+        // The body survived whole.
+        assert!(out.contains("## Key Takeaways"));
+        assert!(out.contains("**Alice** ships it."));
+    }
+
+    #[test]
+    fn inline_metadata_mode_carries_no_fence_at_all() {
+        // The canonical metadata rides inline elsewhere; the composer gets
+        // an empty frontmatter argument, and the model's block must not
+        // slip through as body text.
+        let out = compose_export("", "Weekly Sync", Some(CONTRACT_SUMMARY), None, None);
+        assert!(!out.contains("---\n"), "{out}");
+        assert_eq!(out.matches("# Weekly Sync").count(), 1);
+        assert!(out.contains("## Key Takeaways"));
+    }
+
+    #[test]
+    fn a_summary_opening_with_a_horizontal_rule_is_left_alone() {
+        // `---` with no closing fence is content, not metadata.
+        let out = compose_export(FRONTMATTER, "T", Some("---\n\njust a rule up top"), None, None);
+        assert!(out.contains("just a rule up top"));
+        assert_eq!(out.matches("---").count(), 3, "canonical pair + the rule: {out}");
+    }
+
+    #[test]
+    fn the_frontmatter_strip_handles_the_edges() {
+        // Close at end-of-text.
+        assert_eq!(strip_leading_frontmatter("---\na: 1\n---"), "");
+        // Leading whitespace before the fence.
+        assert_eq!(strip_leading_frontmatter("\n\n---\na: 1\n---\nbody"), "body");
+        // Four dashes open a rule, not a fence.
+        assert_eq!(
+            strip_leading_frontmatter("----\nnot frontmatter"),
+            "----\nnot frontmatter"
+        );
+        // A four-dash line does not close a fence; the real close does.
+        assert_eq!(
+            strip_leading_frontmatter("---\na: 1\n----\nb: 2\n---\nbody"),
+            "body"
+        );
+        // No fence at all.
+        assert_eq!(strip_leading_frontmatter("plain"), "plain");
+    }
 
     #[test]
     fn export_carries_summary_notes_and_transcript() {

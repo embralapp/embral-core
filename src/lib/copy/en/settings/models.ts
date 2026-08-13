@@ -6,6 +6,6 @@ export const models = {
     download: 'Download',
     redownload: 'Re-download',
     remove: 'Remove',
-    downloading: (pct: number) => `Downloading… ${pct}%`
+    downloading: (pct: number) => `Downloading... ${pct}%`
   }
 };

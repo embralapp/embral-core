@@ -48,6 +48,9 @@ class UpdaterStore {
    * `notify` sends the update-ready notification when the window is hidden.
    */
   async checkNow(opts: { silent?: boolean; notify?: boolean } = {}): Promise<void> {
+    // Self-updating is cloud-edition-only; the offline build registers no
+    // updater plugin, and source builds update via git (cloud-seam.md).
+    if (!CLOUD_ENABLED) return;
     if (this._checking || this._installing) return;
     this._checking = true;
     this._error = null;

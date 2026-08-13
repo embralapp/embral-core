@@ -34,7 +34,7 @@ export const dictation = {
     _group: 'History',
     autoDelete: {
       label: 'Auto-delete history',
-      sub: 'Use 0 to ignore a criterion.'
+      sub: 'Use 0 to ignore a criterion'
     },
     deleteAfter: {
       label: 'Delete after',
@@ -51,23 +51,23 @@ export const dictation = {
   cleanupDialog: {
     title: 'What cleanup does',
     description:
-      'Your dictation goes to the model as-is; what comes back is what gets pasted. A failure of any kind delivers the raw transcription instead — cleanup never loses your words.',
+      'Send raw dictation to a language model for cleanup; your original speech will still be available in the Dictations tab',
     fillers: {
       heading: 'Punctuation and fillers',
       input: 'um so i think we should uh move the meeting to thursday',
-      output: '→ I think we should move the meeting to Thursday.'
+      output: '→ I think we should move the meeting to Thursday'
     },
     formatting: {
       heading: 'Spoken formatting',
       input: "first item new line second item new paragraph and that's it",
       // Newlines render as line breaks via whitespace-pre-line; the blank line
       // is the "new paragraph".
-      output: "→ First item\nSecond item\n\nAnd that's it."
+      output: "→ First item\nSecond item\n\nAnd that's it"
     },
     instruction: {
       heading: 'Instruction mode',
       input:
-        'Open with an instruction and it follows it: "make a bulleted list milk eggs flour"',
+        'Lead with an instruction: "make a bulleted list milk eggs flour"',
       // Separators are en-spaces (&ensp; in the original), preserved exactly.
       output: '→ • Milk • Eggs • Flour'
     }

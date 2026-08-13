@@ -39,3 +39,7 @@ docs/.obsidian/
 /release/
 # Local opencore mirror checkout (the .git of the open-core export)
 /opencore/out/
+# Shots pipeline scratch: sandbox library, staged webdriver, captures
+/opencore/readme-assets/library/
+/opencore/readme-assets/msedgedriver/
+/opencore/readme-assets/out/

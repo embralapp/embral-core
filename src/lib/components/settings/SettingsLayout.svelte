@@ -8,6 +8,7 @@
         Network,
         Info,
         FileText,
+        Webhook,
         Speech,
         Brain,
         CircleUser,
@@ -24,6 +25,7 @@
     import DictationSection from "./DictationSection.svelte";
     import AboutSection from "./AboutSection.svelte";
     import MarkdownSection from "./MarkdownSection.svelte";
+    import WebhooksSection from "./WebhooksSection.svelte";
     import McpSection from "./McpSection.svelte";
     import TranscriptionSection from "./TranscriptionSection.svelte";
     import SynthesisSection from "./SynthesisSection.svelte";
@@ -36,6 +38,7 @@
         | "dictation"
         | "about"
         | "markdown"
+        | "webhooks"
         | "mcp"
         | "transcription"
         | "synthesis";
@@ -81,6 +84,7 @@
             label: nav.groups.integrations,
             items: [
                 { id: "markdown", label: nav.sections.markdown, icon: FileText },
+                { id: "webhooks", label: nav.sections.webhooks, icon: Webhook },
                 { id: "mcp", label: nav.sections.mcp, icon: Network },
             ],
         },
@@ -183,6 +187,8 @@
                     <AboutSection />
                 {:else if active === "markdown"}
                     <MarkdownSection draft={settingsForm.draft} />
+                {:else if active === "webhooks"}
+                    <WebhooksSection draft={settingsForm.draft} />
                 {:else if active === "mcp"}
                     <McpSection />
                 {:else if active === "transcription"}

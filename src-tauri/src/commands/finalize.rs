@@ -439,9 +439,10 @@ pub(crate) async fn finalize_meeting(
         let _ = std::fs::remove_file(&mp3_path);
     }
 
-    // Best-effort fan-out to the Markdown export. The copy carries what the
-    // include switches say — summary, the user's own notes, transcript, each
-    // defaulting in.
+    // Best-effort fan-out to the Markdown export and the webhooks. The copy
+    // carries what the include switches say — summary, the user's own notes,
+    // transcript, each defaulting in; the webhook payload takes the parts
+    // separately, and only for destinations that opted into content.
     let summary_body = summary.as_deref().unwrap_or("");
     let user_summary = user_notes.as_deref().unwrap_or("");
     let export_document = embral_notes::integrations::compose_export(
@@ -453,7 +454,15 @@ pub(crate) async fn finalize_meeting(
             .export_include_transcript
             .then_some(transcript_text.as_str()),
     );
-    crate::refinement::run_post_meeting_integrations(&config, &record, &export_document);
+    crate::refinement::run_post_meeting_integrations(
+        &app,
+        &config,
+        &record,
+        &export_document,
+        summary_body,
+        user_summary,
+        &transcript_text,
+    );
 
     let _ = app.emit("notes-generation-complete", &record);
 }

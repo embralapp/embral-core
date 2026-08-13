@@ -121,12 +121,20 @@
             <Switch bind:checked={draft.dictation_auto_delete} />
         </SettingRow>
         {#if draft.dictation_auto_delete}
+            <!-- value + clamp, not bind:value: an emptied number input binds
+                 null, and one bad field fails the whole config autosave
+                 against the Rust u32. -->
             <SettingRow title={t.history.deleteAfter.label}>
                 <div class="flex items-center gap-2">
                     <Input
                         type="number"
                         min="0"
-                        bind:value={draft.dictation_retention_days}
+                        value={String(draft.dictation_retention_days)}
+                        oninput={(e) =>
+                            (draft.dictation_retention_days = Math.max(
+                                0,
+                                Math.floor(Number(e.currentTarget.value) || 0),
+                            ))}
                         class="w-16 text-right"
                     />
                     <span class="text-xs text-muted-foreground"
@@ -139,7 +147,12 @@
                     <Input
                         type="number"
                         min="0"
-                        bind:value={draft.dictation_retention_count}
+                        value={String(draft.dictation_retention_count)}
+                        oninput={(e) =>
+                            (draft.dictation_retention_count = Math.max(
+                                0,
+                                Math.floor(Number(e.currentTarget.value) || 0),
+                            ))}
                         class="w-16 text-right"
                     />
                     <span class="text-xs text-muted-foreground"

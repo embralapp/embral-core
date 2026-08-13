@@ -3,6 +3,7 @@
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
     import { configStore } from "$lib/stores/config.svelte";
     import { themeStore } from "$lib/stores/theme.svelte";
+    import { loadFixture } from "$lib/fixture";
     import { copy } from "$lib/copy";
 
     const t = $derived(copy.dictation.overlay);
@@ -59,6 +60,17 @@
     onMount(async () => {
         await configStore.load();
         themeStore.apply(configStore.config?.theme ?? "system");
+        // Staged screenshot moment (dev sandboxes only — $lib/fixture):
+        // render the overlay mid-dictation without a session.
+        const fixture = await loadFixture();
+        if (fixture?.overlay) {
+            phase = fixture.overlay.phase ?? "listening";
+            text = fixture.overlay.text ?? "";
+            tentative = fixture.overlay.tentative ?? "";
+            bands = fixture.overlay.bands ?? [];
+            // Deterministic hydration marker for the capture tooling.
+            document.documentElement.dataset.fixture = "overlay";
+        }
         unlisteners = await Promise.all([
             listen("dictation-started", reset),
             // Clear immediately when a session ends (delivered or cancelled):

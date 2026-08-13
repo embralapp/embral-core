@@ -3,6 +3,7 @@
 //! app closed ([integrations.md](../../../docs/integrations.md)).
 
 mod embed_mode;
+mod images;
 mod queries;
 mod server;
 mod store;

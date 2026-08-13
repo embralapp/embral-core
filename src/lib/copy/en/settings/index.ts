@@ -7,6 +7,7 @@ import { dictation } from './dictation';
 import { general } from './general';
 import { markdown } from './markdown';
 import { mcp } from './mcp';
+import { webhooks } from './webhooks';
 import { meetings } from './meetings';
 import { models } from './models';
 import { nav } from './nav';
@@ -23,6 +24,7 @@ export const settings = {
   transcription,
   synthesis,
   markdown,
+  webhooks,
   mcp,
   models
 };

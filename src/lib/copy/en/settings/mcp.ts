@@ -11,7 +11,7 @@ export const mcp = {
   semanticHint: [
     'Assistants search by keywords only until the ',
     { slot: 'link', text: 'Semantic search' },
-    ' model is downloaded — then they search by meaning too.'
+    ' model is downloaded; then, they search by meaning too.'
   ] as Part[],
 
   clients: {
@@ -29,8 +29,12 @@ export const mcp = {
       instruction: 'Run this once in your terminal:'
     },
     codex: {
-      title: 'Codex',
-      instruction: 'Run this once in your terminal:'
+      // One card for the unified OpenAI app: ChatGPT desktop, the Codex
+      // CLI, and the IDE extension share ~/.codex/config.toml.
+      title: 'ChatGPT & Codex',
+      instruction: 'Run this once in your terminal:',
+      orConfig:
+        'Or add this to ~/.codex/config.toml (shared by ChatGPT desktop, the Codex CLI, and the IDE extension):'
     },
     other: {
       title: 'Other clients',
@@ -47,8 +51,8 @@ export const mcp = {
     registered: 'Registered',
     installed: 'Installed',
     notInstalled: 'Not installed',
-    checking: 'Checking…',
-    working: 'Working…',
+    checking: 'Checking...',
+    working: 'Working...',
     remove: 'Remove',
     register: 'Register'
   }

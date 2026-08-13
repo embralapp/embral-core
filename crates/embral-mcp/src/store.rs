@@ -41,9 +41,12 @@ impl Store {
         self.storage_dir.join("embral.db")
     }
 
-    /// Open the database read-only, refusing schemas older than this build
-    /// (the app migrates on open — running it once catches the library up).
-    /// Newer schemas proceed: migrations have been additive.
+    /// Open the database read-only, refusing any schema this build was
+    /// not compiled against. Older means the app hasn't migrated yet
+    /// (running it once catches the library up). Newer means the app
+    /// moved on while this server kept running — an update landed
+    /// mid-session — and this binary's reads can no longer be trusted;
+    /// the client has to restart to pick up the new server.
     pub fn open(&self) -> Result<Db, ToolError> {
         let db_path = self.db_path();
         if !db_path.is_file() {
@@ -51,11 +54,20 @@ impl Store {
         }
         let db = Db::open_read_only(&db_path).map_err(ToolError::Db)?;
         let found = db.schema_version().map_err(ToolError::Db)?;
-        let expected = embral_db::latest_schema_version();
-        if found < expected {
-            return Err(ToolError::SchemaMismatch { found, expected });
-        }
+        check_schema(found, embral_db::latest_schema_version())?;
         Ok(db)
+    }
+}
+
+/// The schema handshake: this server serves exactly the schema it was
+/// built against, in both directions. A mismatch is always someone else's
+/// move — the app's (migrate by opening it) or the client's (restart to
+/// relaunch the server) — and which one is the message's job to say.
+pub(crate) fn check_schema(found: i64, expected: i64) -> Result<(), ToolError> {
+    if found == expected {
+        Ok(())
+    } else {
+        Err(ToolError::SchemaMismatch { found, expected })
     }
 }
 
@@ -67,6 +79,7 @@ pub enum ToolError {
     StorageNotFound { db_path: PathBuf },
     MeetingNotFound { id: String },
     PassageNotFound { id: i64 },
+    ImageNotFound { meeting_id: String, filename: String },
     InvalidArgument { message: String },
     SchemaMismatch { found: i64, expected: i64 },
     Db(anyhow::Error),
@@ -78,6 +91,7 @@ impl ToolError {
             ToolError::StorageNotFound { .. } => "STORAGE_NOT_FOUND",
             ToolError::MeetingNotFound { .. } => "MEETING_NOT_FOUND",
             ToolError::PassageNotFound { .. } => "PASSAGE_NOT_FOUND",
+            ToolError::ImageNotFound { .. } => "IMAGE_NOT_FOUND",
             ToolError::InvalidArgument { .. } => "INVALID_ARGUMENT",
             ToolError::SchemaMismatch { .. } => "SCHEMA_MISMATCH",
             ToolError::Db(_) => "DB_ERROR",
@@ -98,11 +112,25 @@ impl ToolError {
                 "No passage {id} — re-run search; passage ids change when a \
                  meeting is edited."
             ),
-            ToolError::InvalidArgument { message } => message.clone(),
-            ToolError::SchemaMismatch { found, expected } => format!(
-                "The library's schema is v{found} but this server expects v{expected} — \
-                 open the embral app once to update it, then retry."
+            ToolError::ImageNotFound { meeting_id, filename } => format!(
+                "No image '{filename}' in meeting {meeting_id} — filenames come \
+                 from get_meeting's images list or a search hit's `image` field."
             ),
+            ToolError::InvalidArgument { message } => message.clone(),
+            ToolError::SchemaMismatch { found, expected } => {
+                if found < expected {
+                    format!(
+                        "The library's schema is v{found} but this server expects v{expected} — \
+                         open the embral app once to update it, then retry."
+                    )
+                } else {
+                    format!(
+                        "The library's schema is v{found} but this server expects v{expected} — \
+                         embral was updated while this server kept running. Restart this MCP \
+                         client to relaunch the server, then retry."
+                    )
+                }
+            }
             ToolError::Db(e) => format!("Database error: {e:#}"),
         }
     }
@@ -167,5 +195,68 @@ impl EmbedderSlot {
     /// For `get_storage_status` — whether semantic search is live right now.
     pub fn loaded(&self) -> bool {
         matches!(&*self.0.lock().expect("embedder slot poisoned"), SlotState::Loaded(_))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_guard_refuses_both_directions() {
+        assert!(check_schema(4, 4).is_ok());
+        // Older library: the app hasn't migrated it yet.
+        let older = check_schema(3, 4).expect_err("older must refuse");
+        assert_eq!(older.code(), "SCHEMA_MISMATCH");
+        assert!(older.message().contains("open the embral app once"));
+        // Newer library: this server outlived an app update.
+        let newer = check_schema(5, 4).expect_err("newer must refuse");
+        assert_eq!(newer.code(), "SCHEMA_MISMATCH");
+        assert!(newer.message().contains("Restart this MCP client"));
+    }
+
+    /// The production arrangement in miniature: a real migrated library,
+    /// its version doctored each way, opened through `Store::open`.
+    #[test]
+    fn open_refuses_a_library_from_another_build() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store {
+            storage_dir: dir.path().to_path_buf(),
+        };
+        let latest = embral_db::latest_schema_version();
+        let set_version = |v: i64| {
+            let db = Db::open(&store.db_path()).unwrap();
+            db.with_conn(|conn| {
+                conn.execute(
+                    "UPDATE meta SET value = ?1 WHERE key = 'schema_version'",
+                    [v.to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        };
+
+        // Freshly migrated: opens.
+        drop(Db::open(&store.db_path()).unwrap());
+        assert!(store.open().is_ok());
+
+        // The app moved on past this binary (an update mid-session).
+        set_version(latest + 1);
+        match store.open() {
+            Err(ToolError::SchemaMismatch { found, expected }) => {
+                assert_eq!(found, latest + 1);
+                assert_eq!(expected, latest);
+            }
+            Err(e) => panic!("expected a newer-schema refusal, got {e:?}"),
+            Ok(_) => panic!("a newer library must refuse to open"),
+        }
+
+        // A library the app hasn't migrated yet.
+        set_version(latest - 1);
+        match store.open() {
+            Err(ToolError::SchemaMismatch { found, .. }) => assert_eq!(found, latest - 1),
+            Err(e) => panic!("expected an older-schema refusal, got {e:?}"),
+            Ok(_) => panic!("an older library must refuse to open"),
+        }
     }
 }

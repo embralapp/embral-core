@@ -153,46 +153,6 @@
         }
     });
 
-    // --- Retention -----------------------------------------------------------
-
-    // Values are day counts (config data); labels come from the catalog by key.
-    const retentionOptions: {
-        value: string;
-        key: keyof typeof copy.settings.meetings.audio.deleteAudio.options;
-    }[] = [
-        { value: "0", key: "never" },
-        { value: "7", key: "d7" },
-        { value: "30", key: "d30" },
-        { value: "90", key: "d90" },
-    ];
-
-    let retentionLabel = $derived.by(() => {
-        const found = retentionOptions.find(
-            (o) => o.value === String(draft.audio_retention_days),
-        );
-        return found
-            ? t.audio.deleteAudio.options[found.key]
-            : t.audio.deleteAudio.options.never;
-    });
-
-    const meetingRetentionOptions: {
-        value: string;
-        key: keyof typeof copy.settings.meetings.audio.deleteMeetings.options;
-    }[] = [
-        { value: "0", key: "never" },
-        { value: "90", key: "d90" },
-        { value: "365", key: "y1" },
-        { value: "730", key: "y2" },
-    ];
-
-    let meetingRetentionLabel = $derived.by(() => {
-        const found = meetingRetentionOptions.find(
-            (o) => o.value === String(draft.meeting_retention_days),
-        );
-        return found
-            ? t.audio.deleteMeetings.options[found.key]
-            : t.audio.deleteMeetings.options.never;
-    });
 </script>
 
 <div class="space-y-6">
@@ -523,44 +483,48 @@
             <Switch bind:checked={draft.retain_audio} />
         </SettingRow>
 
-        <SettingRow title={t.audio.deleteAudio.label}>
-            <Select.Root
-                type="single"
-                value={String(draft.audio_retention_days)}
-                onValueChange={(v) =>
-                    (draft.audio_retention_days = Number(v ?? "0"))}
-            >
-                <Select.Trigger class="w-56">{retentionLabel}</Select.Trigger>
-                <Select.Content>
-                    {#each retentionOptions as o (o.value)}
-                        <Select.Item
-                            value={o.value}
-                            label={t.audio.deleteAudio.options[o.key]}
-                        />
-                    {/each}
-                </Select.Content>
-            </Select.Root>
+        <SettingRow
+            title={t.audio.deleteAudio.label}
+            description={t.audio.deleteAudio.sub}
+        >
+            <div class="flex items-center gap-2">
+                <Input
+                    type="number"
+                    min="0"
+                    value={String(draft.audio_retention_days)}
+                    oninput={(e) =>
+                        (draft.audio_retention_days = Math.max(
+                            0,
+                            Math.floor(Number(e.currentTarget.value) || 0),
+                        ))}
+                    class="w-16 text-right"
+                />
+                <span class="text-xs text-muted-foreground"
+                    >{t.audio.deleteAudio.unit}</span
+                >
+            </div>
         </SettingRow>
 
-        <SettingRow title={t.audio.deleteMeetings.label}>
-            <Select.Root
-                type="single"
-                value={String(draft.meeting_retention_days)}
-                onValueChange={(v) =>
-                    (draft.meeting_retention_days = Number(v ?? "0"))}
-            >
-                <Select.Trigger class="w-56"
-                    >{meetingRetentionLabel}</Select.Trigger
+        <SettingRow
+            title={t.audio.deleteMeetings.label}
+            description={t.audio.deleteMeetings.sub}
+        >
+            <div class="flex items-center gap-2">
+                <Input
+                    type="number"
+                    min="0"
+                    value={String(draft.meeting_retention_days)}
+                    oninput={(e) =>
+                        (draft.meeting_retention_days = Math.max(
+                            0,
+                            Math.floor(Number(e.currentTarget.value) || 0),
+                        ))}
+                    class="w-16 text-right"
+                />
+                <span class="text-xs text-muted-foreground"
+                    >{t.audio.deleteMeetings.unit}</span
                 >
-                <Select.Content>
-                    {#each meetingRetentionOptions as o (o.value)}
-                        <Select.Item
-                            value={o.value}
-                            label={t.audio.deleteMeetings.options[o.key]}
-                        />
-                    {/each}
-                </Select.Content>
-            </Select.Root>
+            </div>
         </SettingRow>
     </SettingsGroup>
 </div>
