@@ -33,6 +33,9 @@ export const meetings = {
   // The library list down the left.
   list: {
     loading: 'Loading meetings...',
+    // The row under the oldest loaded meeting, which fetches the next page
+    // of older ones when the user scrolls down to it.
+    loadingMore: 'Loading older meetings...',
     empty: 'No meetings yet...',
     finishingUp: 'Finishing up...',
     import: 'Import a recording',
@@ -91,7 +94,7 @@ export const meetings = {
     transcriptHeading: (title: string) => `${title} Transcript`
   },
 
-  // The pending view — a meeting whose summary is still generating.
+  // The pending view: a meeting whose summary is still generating.
   pending: {
     justNow: 'Just now',
     finalizing: 'Finalizing summary',
@@ -115,7 +118,7 @@ export const meetings = {
     percent: (pct: number) => `— ${pct}%`,
     backToMeetings: 'Back to meetings',
     continueBackground: 'Continue in background',
-    openNotesFolder: 'Open notes folder'
+    openNotesFolder: 'Open storage folder'
   },
 
   // The editable transcript (saved meetings). The name-suggestion sentence

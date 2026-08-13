@@ -1,4 +1,4 @@
-//! `embral-mcp embed` — a piped embedding worker. The app cannot link ort
+//! `embral-mcp embed`: a piped embedding worker. The app cannot link ort
 //! (its /MD objects can't share an exe with sherpa's /MT onnxruntime), so
 //! it spawns this instead and speaks line-delimited JSON over stdio:
 //!
@@ -8,7 +8,7 @@
 //! ```
 //!
 //! One `{"ready": true}` (or `{"error": …}`) line precedes everything.
-//! The process exits when stdin closes — an app crash cleans us up for
+//! The process exits when stdin closes; an app crash cleans us up for
 //! free. All database writes stay in the app; this mode is pure compute.
 
 use std::io::{BufRead, Write};

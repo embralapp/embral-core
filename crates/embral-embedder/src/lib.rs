@@ -1,8 +1,8 @@
 //! Local text embedding: multilingual-e5-small over ONNX Runtime. E5's
-//! contract — `"query: "`/`"passage: "` prefixes, mean pooling over the
-//! attention mask, L2 normalization — lives here so callers just hand over
-//! text. Loading is ~a second and the session is reusable; hold one per
-//! process and evict on idle.
+//! contract (`"query: "`/`"passage: "` prefixes, mean pooling over the
+//! attention mask, L2 normalization) lives here so callers need only hand
+//! over text. Loading is ~a second and the session is reusable; hold one
+//! per process and evict on idle.
 
 use std::path::Path;
 

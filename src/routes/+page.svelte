@@ -36,7 +36,7 @@
     // Star the current moment: the backend splits the in-flight utterance
     // and returns the star's timestamp on the segment timeline (so the
     // marker orders correctly against the words spoken before and after);
-    // then the star lands in the store and the notes gutter. On a line
+    // then the star is added to the store and the notes gutter. On a line
     // that already carries a star, this is a toggle: the existing star is
     // removed everywhere instead.
     let starring = false;
@@ -65,7 +65,7 @@
     // §Recording): the pane renders shut while shadowed, without touching
     // its persisted layout. Reopening it at the divider sticks for the
     // rest of the recording; the flag clears when shadow mode ends (toggle
-    // or stop — appState.shadowMode already gates on isRecording).
+    // or stop; appState.shadowMode already gates on isRecording).
     let shadowReopened = $state(false);
     $effect(() => {
         if (!appState.shadowMode) shadowReopened = false;
@@ -107,7 +107,7 @@
             return;
         }
         // Ctrl+S while recording: star this moment (works mid-typing in the
-        // notes — the keydown bubbles up from the editor).
+        // notes; the keydown bubbles up from the editor).
         if (
             (e.ctrlKey || e.metaKey) &&
             e.key.toLowerCase() === "s" &&
@@ -145,7 +145,7 @@
 
     async function stopFromSilence() {
         // The same stop the header button performs: drafts travel with it
-        // (strings always, empty included — a null arg means "use the
+        // (strings always, empty included; a null arg means "use the
         // backend's mirror" and is reserved for the handshake fallback).
         appState.setPendingTitleHint(meetingTitle);
         try {
@@ -180,7 +180,7 @@
         // The stop path reads the notes text and star anchors before the
         // recording view unmounts; this page owns both.
         appState.setRecordingSnapshotProvider(() => {
-            // A destroyed editor must not take the stop path down with it —
+            // A destroyed editor must not take the stop path down with it:
             // the notes text still delivers even if the anchors don't.
             let starBlocks = new Map<number, number>();
             try {
@@ -191,20 +191,20 @@
             return { notes: userNotes, title: meetingTitle, starBlocks };
         });
         await configStore.load();
-        // Needed before any document with an image renders — it is what
+        // Needed before any document with an image renders: it is what
         // turns a stored `assets/…` link into something the webview loads.
         await storageRoot.load();
         setupEventListeners();
         // First-run goes through onboarding instead of being dropped into
-        // Settings; afterwards, an unconfigured provider still lands there.
+        // Settings; afterwards, an unconfigured provider still ends up there.
         if (
             configStore.config?.onboarding_completed &&
             !configStore.isConfigured
         ) {
             appState.setView("settings");
         }
-        // Staged screenshot moment (dev sandboxes only — $lib/fixture).
-        // The drafts land after a tick, past the fresh-recording clear.
+        // Staged screenshot moment (dev sandboxes only; $lib/fixture).
+        // The drafts are applied after a tick, past the fresh-recording clear.
         const fixture = await loadFixture();
         if (fixture?.recording) {
             applyRecordingFixture(fixture.recording);

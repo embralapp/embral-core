@@ -1,4 +1,4 @@
-//! TCC permission state — Windows never gates these capabilities.
+//! TCC permission state: Windows never gates these capabilities.
 
 use crate::platform::types::PermissionState;
 

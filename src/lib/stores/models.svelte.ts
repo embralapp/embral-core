@@ -7,7 +7,7 @@ function isTauri() {
 }
 
 // Global (module-level) so download progress and status survive the user
-// navigating away from the Settings view mid-download — the SettingsForm
+// navigating away from the Settings view mid-download: the SettingsForm
 // component unmounts, but this store and the backend download keep going.
 // Progress/complete events are routed here from the global listener in
 // events.ts; the form only renders from this store.

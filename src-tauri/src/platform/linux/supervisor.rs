@@ -1,10 +1,10 @@
-//! Children die with this process, however it dies — the reaper pattern
+//! Children die with this process, however it dies: the reaper pattern
 //! ([architecture.md](../../../../docs/architecture.md) §Process/threading).
 //!
 //! Linux has the kernel feature the other two platforms have to emulate:
-//! `PR_SET_PDEATHSIG` asks the kernel to signal *this* process when its
+//! `PR_SET_PDEATHSIG` asks the kernel to signal this process when its
 //! parent goes away. It is set in the child, after `fork` and before `exec`
-//! (a `pre_exec` hook), and it survives the exec — so an unmodifiable
+//! (a `pre_exec` hook), and it survives the exec, so an unmodifiable
 //! third-party binary like `llama-server` needs no cooperation. No reaper
 //! subprocess (macOS), no job object (Windows), and no pid-reuse race.
 //!
@@ -15,14 +15,14 @@
 //!
 //! Two properties of `PR_SET_PDEATHSIG` shape the code:
 //!
-//! 1. **It tracks the parent *thread*, not the parent process.** If the
+//! 1. It tracks the parent thread, not the parent process. If the
 //!    thread that spawned the child exits, the child is signalled even
 //!    though the app is alive and well. Both managed children are spawned
-//!    from `async fn`s — `llm.rs`'s `ensure_running` and
-//!    `search_index.rs`'s `EmbedPipe::spawn` — i.e. from tokio *worker*
+//!    from `async fn`s (`llm.rs`'s `ensure_running` and
+//!    `search_index.rs`'s `EmbedPipe::spawn`), that is, from tokio worker
 //!    threads, which live as long as the runtime. That is what makes this
-//!    correct today. **Moving either spawn onto `tokio::task::spawn_blocking`
-//!    would break it**: blocking-pool threads retire after ~10s idle, and
+//!    correct today. Moving either spawn onto `tokio::task::spawn_blocking`
+//!    would break it: blocking-pool threads retire after ~10s idle, and
 //!    the child would take a SIGTERM mid-request. If that move ever happens,
 //!    this module must move to the macOS pipe-reaper instead.
 //! 2. **It signals only the direct child**, not a whole tree. Both of ours
@@ -59,7 +59,7 @@ pub fn prepare_spawn(cmd: &mut std::process::Command) {
 
 /// [`prepare_spawn`] for tokio-spawned children.
 pub fn prepare_spawn_tokio(cmd: &mut tokio::process::Command) {
-    // SAFETY: as `prepare_spawn` — tokio forwards this to the same
+    // SAFETY: as `prepare_spawn`; tokio forwards this to the same
     // `pre_exec` slot on the underlying std Command.
     unsafe {
         cmd.pre_exec(|| {
@@ -76,7 +76,7 @@ fn arm_pdeathsig() {
     let parent = unsafe { libc::getppid() };
     unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) };
     // If the parent died in the window between fork and prctl, the signal
-    // will never come — getppid() has already been reparented (to init, or
+    // will never come; getppid() has already been reparented (to init, or
     // to a subreaper). Leave now rather than linger as an orphan.
     if unsafe { libc::getppid() } != parent {
         unsafe { libc::_exit(0) };
@@ -88,7 +88,7 @@ fn arm_pdeathsig() {
 /// and reaper-pipe designs, which both accept one).
 pub fn watch_child(_pid: u32) {}
 
-/// The `--child-reaper` subprocess body. Never runs on Linux — the kernel
+/// The `--child-reaper` subprocess body. Never runs on Linux: the kernel
 /// does this job, so the flag is never passed. Present so the caller needs
 /// no `cfg` (`platform/mod.rs`).
 pub fn run_reaper() {}

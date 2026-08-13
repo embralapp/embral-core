@@ -10,7 +10,7 @@
 
 	// Wheel scrolling inside the modal dialog gets swallowed upstream (only
 	// the native scrollbar worked), so scroll the list directly with a
-	// non-passive handler — deterministic regardless of what eats the
+	// non-passive handler; deterministic regardless of what swallows the
 	// default.
 	$effect(() => {
 		const el = ref as HTMLElement | null;

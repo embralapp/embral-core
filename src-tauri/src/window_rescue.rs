@@ -1,10 +1,10 @@
 //! Repairs the main window's geometry after a monitor change.
 //!
-//! `tauri-plugin-window-state` validates a restored *position* against the
-//! connected monitors but applies the saved *size* unconditionally — in
+//! `tauri-plugin-window-state` validates a restored position against the
+//! connected monitors but applies the saved size unconditionally: in
 //! physical pixels, with no scale factor recorded. A size saved on a
 //! 100%-scale external monitor and restored onto a 150–200% laptop panel
-//! lands far below the app minimum, and because closing only hides the
+//! ends up far below the app minimum, and because closing only hides the
 //! window, every later show reuses the broken geometry. The math is pure
 //! and unit-tested here; the real monitor unplug can't run in CI.
 
@@ -36,12 +36,12 @@ fn intersection_area(a: RectPx, b: RectPx) -> u64 {
 }
 
 /// The corrected rect when the window is undersized, oversized, or mostly
-/// off-screen for every connected monitor — `None` when the geometry is
+/// off-screen for every connected monitor; `None` when the geometry is
 /// sane, so callers never move a healthy window.
 pub fn rescue(window: RectPx, monitors: &[MonitorPx]) -> Option<RectPx> {
     let first = monitors.first()?;
-    // The monitor the window mostly lives on; the glue fronts the current
-    // monitor, so a fully off-screen window falls back to it.
+    // The monitor the window mostly lives on; the glue puts the current
+    // monitor first, so a fully off-screen window falls back to it.
     let target = monitors
         .iter()
         .max_by_key(|m| intersection_area(window, m.rect))
@@ -88,8 +88,8 @@ pub fn ensure_on_screen(window: &tauri::WebviewWindow) {
         scale: m.scale_factor(),
     };
     let mut monitors: Vec<MonitorPx> = available.iter().map(as_px).collect();
-    // Front the monitor the OS considers current: it becomes the fallback
-    // anchor when the window intersects nothing.
+    // Put the monitor the OS considers current first: it becomes the
+    // fallback anchor when the window intersects nothing.
     if let Ok(Some(current)) = window.current_monitor() {
         let cur = as_px(&current);
         if let Some(i) = monitors.iter().position(|m| m.rect == cur.rect) {
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn a_cross_dpi_restore_grows_back_to_the_default_size() {
         // The bug: 1100×720 physical saved at 100% scale is 550×360 logical
-        // on a 200% laptop panel — far under the 840×560 minimum.
+        // on a 200% laptop panel, far under the 840×560 minimum.
         let fixed = rescue(RectPx { x: 0, y: 0, w: 1100, h: 720 }, &[LAPTOP_2X]).unwrap();
         assert_eq!((fixed.w, fixed.h), (2200, 1440)); // 1100×720 logical
         assert_eq!((fixed.x, fixed.y), (340, 240)); // centered

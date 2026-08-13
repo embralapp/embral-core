@@ -2,7 +2,7 @@ import { errorMessage } from '$lib/copy/errors';
 // The auto-updater's state, and the two actions the UI exposes: check and
 // install. Checking is cheap and quiet; installing restarts the app, so it
 // first asks the backend's `update_guard` whether anything (recording,
-// dictation, import, enrollment) would die with it — the answer is a
+// dictation, import, enrollment) would die with it; the answer is a
 // human-readable reason to wait, surfaced verbatim.
 //
 // The startup check runs once, delayed, from events.ts. A 404 on the
@@ -44,7 +44,7 @@ class UpdaterStore {
 
   /**
    * Ask the endpoint for a newer version. `silent` swallows errors (the
-   * startup check — the endpoint 404s until a first release exists);
+   * startup check; the endpoint 404s until a first release exists);
    * `notify` sends the update-ready notification when the window is hidden.
    */
   async checkNow(opts: { silent?: boolean; notify?: boolean } = {}): Promise<void> {
@@ -83,7 +83,7 @@ class UpdaterStore {
 
   /**
    * Download, install, and relaunch. Refuses while the backend reports the
-   * app busy — the reason lands in `blocked` for the UI to show. The
+   * app busy; the reason goes in `blocked` for the UI to show. The
    * relaunch exits through RunEvent::Exit, so the LLM and embedding
    * children are shut down like any other quit.
    */
@@ -99,7 +99,7 @@ class UpdaterStore {
     this._installing = true;
     try {
       await this.update.downloadAndInstall();
-      // The closest observable "installed" moment — there is no
+      // The closest observable "installed" moment: there is no
       // post-restart hook, so this fires just before the relaunch
       // ([telemetry.md]). Cloud-edition only, best-effort like all
       // telemetry.

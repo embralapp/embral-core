@@ -1,6 +1,6 @@
 // macOS wording, overlaid onto the shared English catalog at the swap
 // point in ../index.ts (docs/copy.md). Only keys whose Windows wording is
-// wrong on a Mac appear here — the base file stays the single readable
+// wrong on a Mac appear here; the base file stays the single readable
 // document per surface, and this file reads as the diff.
 
 import { en } from './index';

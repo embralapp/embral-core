@@ -40,7 +40,7 @@
   let confirmDelete = $state(false);
   let isDeleting = $state(false);
   let player = $state<AudioPlayer | null>(null);
-  // Playback state mirrored out of the player — drives the transcript
+  // Playback state mirrored out of the player; it drives the transcript
   // tab's current-segment highlight and auto-follow.
   let playbackTime = $state(0);
   let playbackActive = $state(false);
@@ -49,7 +49,7 @@
   let transcriptViewRef = $state<EditorView | null>(null);
   let transcriptRef = $state<TranscriptSegments | null>(null);
   /** Where a search result asked us to land, held until the tab it names has
-   * actually mounted — the `{#key}` blocks below remount per meeting, so the
+   * actually mounted: the `{#key}` blocks below remount per meeting, so the
    * view refs are null for a beat after the detail arrives. */
   let landing = $state<PassageLanding | null>(null);
   let landingAttempts = $state(0);
@@ -76,7 +76,7 @@
     }
   }
 
-  // A debounced save is a promise to write, so it is never *dropped* — it
+  // A debounced save is a promise to write, so it is never dropped: it
   // is either fired by its timer or flushed early. Keeping the work itself
   // (not just the timer) is what makes flushing possible: switching
   // meetings used to clear the timers, so typing and clicking away inside
@@ -104,11 +104,11 @@
       meetingsStore.detailLoadingId === meetingsStore.selectedId
   );
 
-  /** A meeting recorded with summaries off has no summary document — it is its
+  /** A meeting recorded with summaries off has no summary document: it is its
    * notes and its transcript, so it shows no Summary tab rather than an empty
    * one. Meetings summarized before the setting changed keep theirs.
    *
-   * Keyed off the *saved* meeting, not the draft: from the draft, the tab would
+   * Keyed off the saved meeting, not the draft: from the draft, the tab would
    * vanish out from under a user who selected all and hit delete. */
   const hasSummary = $derived((detail?.summary ?? '').trim().length > 0);
   const tabs = $derived(
@@ -130,7 +130,7 @@
     return '';
   });
   // Read-only: speakers are edited through the transcript pills, and this
-  // line just reflects them (frontmatter attendees for legacy meetings).
+  // line reflects them (frontmatter attendees for legacy meetings).
   const attendeeLine = $derived.by(() => {
     if (detail && detail.segments.length > 0) {
       const seen: string[] = [];
@@ -206,7 +206,7 @@
       // The Notes tab needs a draft of its own for the same reason the
       // Summary tab does: it used to render `detail.notes` straight, and
       // the fresh detail returned by a save would push text back into the
-      // live editor — wiping the star attributes and jumping the caret.
+      // live editor, wiping the star attributes and jumping the caret.
       notesDraft = selectedDetail.notes;
       transcriptDraft = transcriptParts.body;
       summaryFrontmatter = notesParts.frontmatter;
@@ -216,7 +216,7 @@
       confirmDelete = false;
       // The config names one of the detail's three tabs directly; a meeting
       // with no summary has no Summary tab to open on, so that one degrades
-      // to Notes. A search result overrides this — see below.
+      // to Notes. A search result overrides this; see below.
       const preferred: DetailTab = configStore.config?.open_meeting_tab ?? 'summary';
       activeTab =
         preferred === 'summary' && !notesParts.body.trim() ? 'notes' : preferred;
@@ -228,7 +228,7 @@
    * landing page.
    *
    * Deliberately its own effect rather than part of the block above, which
-   * only runs when the *meeting* changes — searching for a passage in the
+   * only runs when the meeting changes: searching for a passage in the
    * meeting already on screen is an ordinary thing to do, and it used to do
    * nothing at all. Waiting on `loadedDraftId` keeps the order fixed: the
    * drafts are in place, so this is never overwritten by the config default
@@ -247,20 +247,20 @@
    * has a document to scroll.
    *
    * Two separate waits, and missing the second one is what made this look
-   * broken from a *different* meeting while working on the one already
+   * broken from a different meeting while working on the one already
    * open. The `{#key}` blocks remount per meeting, so first the view ref
-   * has to exist — and then the document inside it, which arrives with the
+   * has to exist, and then the document inside it, which arrives with the
    * draft, a beat later still. Landing at the first of those searched an
    * editor still holding the previous meeting's text, found nothing, and
    * cleared the landing anyway, so nothing retried.
    *
    * So: keep the landing until an attempt succeeds, re-run when a draft
-   * changes, and do the work after `tick()` — this effect runs before the
+   * changes, and do the work after `tick()`: this effect runs before the
    * editor's own, parent before child, so without the wait it would read
    * the document one update too early.
    *
    * A passage that cannot be found once the document is there leaves the
-   * user on the right tab with nothing marked, which is honest — the text
+   * user on the right tab with nothing marked, which is honest: the text
    * may have been edited away since it was indexed. */
   $effect(() => {
     const target = landing;
@@ -313,7 +313,7 @@
         const seconds = match ? match.segment.start : target.start_secs;
         if (seconds !== null) {
           landing = null;
-          // A little way *into* the line, not at its edge: a media element
+          // A little way into the line, not at its edge: a media element
           // snaps a seek to the nearest frame it can decode, and landing
           // even milliseconds short leaves the highlight on the line
           // before. A quarter-second is inaudible inside a spoken line and
@@ -347,7 +347,7 @@
       view?.isReady() &&
       (target.source === 'image_text'
         ? // The matched text is inside the picture, so there is nothing in
-          // the document to search for — the image itself is the target.
+          // the document to search for: the image itself is the target.
           view.scrollToImage(target.image ?? '')
         : view.scrollToPassage(target.query, target.lead));
 
@@ -359,7 +359,7 @@
     if (landed || givingUp) landing = null;
   }
 
-  /** Space toggles playback, ←/→ skip ±10s — unless focus is in an editor
+  /** Space toggles playback, ←/→ skip ±10s, unless focus is in an editor
    * or other input, which owns its keys. */
   function onDetailKeydown(e: KeyboardEvent) {
     if (!detail?.audio_exists || !player) return;
@@ -410,7 +410,7 @@
 
   /** Write anything still sitting in a debounce, now. Called before the
    * selection moves, when the tab changes, when the pane goes away, and
-   * when the window is hidden — every point where the user is done with
+   * when the window is hidden: every point where the user is done with
    * this text even though the timer hasn't fired. */
   function flushSaves(): Promise<unknown> {
     return Promise.all(
@@ -481,7 +481,7 @@
   }
 
   /// Segment edits regenerate the transcript document (and can rename
-  /// attendees) backend-side — pull those fields back into the drafts.
+  /// attendees) backend-side, so pull those fields back into the drafts.
   function syncFromDetail(updated: MeetingDetail) {
     const transcriptParts = splitEditableMarkdown(updated.transcript);
     transcriptDraft = transcriptParts.body;
@@ -502,7 +502,7 @@
   }
 
   // The pane going away, the window being hidden, or the app quitting are
-  // all "the user is done with this text" — write it rather than let the
+  // all "the user is done with this text", so write it rather than let the
   // debounce die with the listener. `visibilitychange` fires with time to
   // spare, unlike `beforeunload`, where an async save would not finish.
   function flushOnHide() {
@@ -565,7 +565,7 @@
         </Tip>
       </div>
 
-      <!-- One muted metadata line: date · duration · speakers (read-only —
+      <!-- One muted metadata line: date · duration · speakers (read-only;
            the transcript pills are where speakers get edited), with the
            save status trailing quietly. -->
       <div class="mt-1 flex items-baseline gap-x-2 text-xs text-muted-foreground">
@@ -584,7 +584,7 @@
       </div>
     </div>
 
-    <!-- Quiet underline tabs — text, a hairline, and an accent edge on the
+    <!-- Quiet underline tabs: text, a hairline, and an accent edge on the
          active one; no boxed segmented control. -->
     <div class="flex shrink-0 items-center gap-5 border-b border-border px-4">
       {#each tabs as [key, label] (key)}

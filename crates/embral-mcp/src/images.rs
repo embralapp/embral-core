@@ -18,7 +18,7 @@ use crate::store::ToolError;
 /// The long-edge cap. Beyond it, vision-capable clients downscale on
 /// their own end; sending more is pure wire weight.
 const MAX_EDGE: u32 = 1568;
-/// Binary budget. Base64 inflates by 4/3, so this is ~1 MB encoded —
+/// Binary budget. Base64 inflates by 4/3, so this is ~1 MB encoded:
 /// the practical ceiling observed across stdio clients.
 const MAX_BYTES: usize = 768 * 1024;
 /// A file bigger than this is refused outright rather than decoded.
@@ -38,13 +38,17 @@ pub struct FetchedImage {
 
 /// One path component, nothing more. Meeting ids and filenames both come
 /// from the model, and either could try to walk out of the assets tree.
-/// `:` is rejected explicitly — `img.png:stream` is a single component to
-/// the path parser and an alternate data stream to NTFS.
+/// Two rejections are spelled out because the component parse is platform
+/// specific: `:` because `img.png:stream` is one component to the parser
+/// and an alternate data stream to NTFS, and `\` because it separates
+/// paths only on Windows, so `a\b` would pass as a bare name everywhere
+/// else.
 fn require_bare_component(name: &str, what: &str) -> Result<(), ToolError> {
     let mut components = Path::new(name).components();
     let sound = matches!(components.next(), Some(Component::Normal(_)))
         && components.next().is_none()
         && !name.contains(':')
+        && !name.contains('\\')
         && !name.contains('\0');
     if sound {
         Ok(())
@@ -65,7 +69,7 @@ fn mime_for(ext: &str) -> &'static str {
     }
 }
 
-/// The image filenames on disk for one meeting, sorted — the inventory
+/// The image filenames on disk for one meeting, sorted: the inventory
 /// `get_meeting` reports (the ocr sweep's `stored_images` shape).
 pub fn list(storage_dir: &Path, meeting_id: &str) -> Vec<String> {
     if require_bare_component(meeting_id, "meeting id").is_err() {
@@ -135,7 +139,8 @@ pub fn fetch(
         .map(|(_, text)| text)
         .filter(|text| embral_notes::ocr::is_usable(text));
 
-    // Header-only dimension read; full decode only when work is owed.
+    // Header-only dimension read; full decode only when the image is over
+    // budget.
     let reader = image::ImageReader::new(std::io::Cursor::new(&bytes))
         .with_guessed_format()
         .map_err(|e| ToolError::InvalidArgument {

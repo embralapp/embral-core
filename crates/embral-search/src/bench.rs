@@ -1,14 +1,14 @@
 //! Where does hybrid search actually spend its time?
 //!
-//! Not a unit test — a measurement, run by hand against a *real* library:
+//! A measurement, not a unit test, run by hand against a real library:
 //!
 //! ```text
 //! EMBRAL_BENCH_DB=C:\Users\you\embral\embral.db \
 //!   cargo test -p embral-search --lib bench -- --ignored --nocapture
 //! ```
 //!
-//! The vector leg is timed with a synthetic query vector — KNN cost doesn't
-//! care where the vector came from. Query-*embedding* latency is measured
+//! The vector leg is timed with a synthetic query vector: KNN cost doesn't
+//! care where the vector came from. Query-embedding latency is measured
 //! by embral-embedder's ignored test; the palette budget (~30 ms per
 //! keystroke) is judged against both numbers together, recorded in
 //! storage.md (measured, not assumed, per the repo's search history).

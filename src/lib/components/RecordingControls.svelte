@@ -50,8 +50,8 @@
 
   async function stop() {
     // The pending meeting on the Meetings page carries this title until the
-    // persisted record replaces it. The notes/title drafts are NOT cleared
-    // here — the pending view still reads them; a new recording clears them.
+    // persisted record replaces it. The notes/title drafts are not cleared
+    // here: the pending view still reads them; a new recording clears them.
     // Strings always, empty included: a null arg means "use the backend's
     // mirror" and is reserved for the handshake fallback.
     appState.setPendingTitleHint(meetingTitle);
@@ -84,7 +84,7 @@
     </Tip>
     <!-- Shadow mode ([shell.md] §Recording): the timer is the loudest
          "this is being recorded" on the page after the meter. Starring
-         stays — it is an action, not a tell. -->
+         stays: it is an action, not a tell. -->
     {#if !appState.shadowMode}
       <span class="text-sm tabular-nums">{formatTime(elapsed)}</span>
     {/if}
@@ -108,10 +108,10 @@
     <!-- Shadow mode ([shell.md] §Recording): its own control, deliberately
          not tied to the transcript being shut. Collapsing a pane to get
          room is not the same request as asking the screen to stop
-         announcing the recording. Stays visible while active — it is the
+         announcing the recording. Stays visible while active; it is the
          way back. The name holds still across the toggle; `aria-pressed`
          and the icon carry the state. While shadow is on, the hover tip
-         also names where Stop went — hover never shows on the shared
+         also names where Stop went: hover never shows on the shared
          screen, and the moment someone wonders is the moment they hover
          the one control left. -->
     <Tip
@@ -135,7 +135,7 @@
         </button>
       {/snippet}
     </Tip>
-    <!-- Pause and the red stop square are tells after all — together they
+    <!-- Pause and the red stop square are tells after all: together they
          read as recording controls on a shared screen, which is the one
          thing shadow mode exists to prevent. The command palette keeps
          "Stop recording" as the way out ([shell.md] §Recording). -->

@@ -25,7 +25,7 @@
 			description?: string;
 			showCloseButton?: boolean;
 			/** Closing a dialog normally returns focus to whatever opened it.
-			 * A palette that *navigates* wants to opt out — see SearchPalette. */
+			 * A palette that navigates wants to opt out; see SearchPalette. */
 			onCloseAutoFocus?: (event: Event) => void;
 			class?: string;
 		} = $props();

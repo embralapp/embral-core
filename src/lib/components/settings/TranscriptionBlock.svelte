@@ -3,8 +3,7 @@
     // out-of-hours behavior, language, and the on-device accuracy tier.
     // Meetings and Dictation each have their own copy of these fields in
     // config, so the block binds through values + onChange props rather
-    // than a draft — one component, two trees. (Dictation uses it today;
-    // the Meetings section migrates onto it in the P3 restyle.)
+    // than a draft: one component, two trees.
     import type {
         CloudOutOfHours,
         PowerPolicy,
@@ -58,16 +57,17 @@
         onAccuracyChange: (id: string) => void;
     } = $props();
 
-    // Whether the cloud is reachable from this configuration at all — the
+    // Whether the cloud is reachable from this configuration at all: the
     // power policy routes to it on battery whatever the provider row says,
     // so the out-of-hours question applies then too.
     let cloudPossible = $derived(
         provider === "cloud" || powerPolicy === "cloud_on_battery",
     );
 
-    // The device transcribes when it is the primary, where an out-of-hours
-    // cloud session lands, or whenever the power policy is on (plugged in is
-    // the device). Only cloud-with-"disable" never needs the accuracy tier.
+    // The device transcribes when it is the primary, when an out-of-hours
+    // cloud session switches to it, or whenever the power policy is on
+    // (plugged in is the device). Only cloud-with-"disable" never needs the
+    // accuracy tier.
     let deviceTranscribes = $derived(
         !CLOUD_ENABLED ||
             provider !== "cloud" ||
@@ -98,7 +98,7 @@
                     : providers.localModel}</Select.Trigger
             >
             <Select.Content>
-                <!-- Cloud first — the one order every engine select shares
+                <!-- Cloud first: the one order every engine select shares
                      ([shell.md](../../../../docs/shell.md)). -->
                 <Select.Item value="cloud" label={providers.cloud} />
                 <Select.Item value="local" label={providers.localModel} />

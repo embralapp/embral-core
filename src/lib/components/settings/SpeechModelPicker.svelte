@@ -1,7 +1,12 @@
 <script lang="ts">
     import { appState } from "$lib/stores/app-state.svelte";
     import { modelsStore } from "$lib/stores/models.svelte";
-    import { MULTILINGUAL_ASR_MODEL } from "$lib/utils/asrModel";
+    import {
+        ASR_ACCURATE,
+        ASR_BALANCED,
+        ASR_FAST,
+        MULTILINGUAL_ASR_MODEL,
+    } from "$lib/utils/asrModel";
     import { formatBytes } from "$lib/utils/bytes";
     import type { TranscriptionLanguage } from "$lib/types";
     import SettingRow from "./SettingRow.svelte";
@@ -28,23 +33,19 @@
     const tierKeys = ["fast", "balanced", "accurate"] as const;
 
     const tier = $derived.by(() => {
-        if (value === "zipformer-en-small") return 0;
-        if (value === "parakeet-tdt-en") return 2;
-        return 1; // zipformer-en and anything unmapped
+        if (value === ASR_FAST) return 0;
+        if (value === ASR_ACCURATE) return 2;
+        return 1; // the balanced model and anything unmapped
     });
 
     // There is exactly one multilingual model in the catalog, so there is no
-    // tier to choose between — the language decides the model outright.
+    // tier to choose between; the language decides the model outright.
     const modelId = $derived(
         language === "multilingual" ? MULTILINGUAL_ASR_MODEL : value,
     );
 
     function modelForTier(t: number): string {
-        return t <= 0
-            ? "zipformer-en-small"
-            : t === 1
-              ? "zipformer-en"
-              : "parakeet-tdt-en";
+        return t <= 0 ? ASR_FAST : t === 1 ? ASR_BALANCED : ASR_ACCURATE;
     }
 
     function setTier(t: number) {
@@ -78,7 +79,7 @@
             aria-label={t.accuracyAria}
         />
         <!-- Fast hugs the bar's left edge, Accurate its right, Balanced sits
-             centered within it — anchored to the bar, not the thumb stops. -->
+             centered within it, anchored to the bar, not the thumb stops. -->
         <div class="relative flex items-baseline justify-between text-[11px]">
             {#each tierKeys as key, i (key)}
                 <button

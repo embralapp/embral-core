@@ -9,15 +9,15 @@
 //! into a scratch directory as they happen, and the next launch turns the
 //! leftovers into an ordinary meeting.
 //!
-//! **One subdirectory per unfinalized meeting.** Each meeting's scratch
+//! One subdirectory per unfinalized meeting. Each meeting's scratch
 //! lives at `in_progress/<meeting_id>/` and is cleared only by its own
-//! id, only after its finalize returns — so a slow finalize can never
+//! id, only after its finalize returns, so a slow finalize can never
 //! destroy a successor recording's live scratch, and a recording that
 //! starts while an orphan waits for rescue leaves the orphan alone.
 //! `current.txt` names the recording in flight; it is what the stop
 //! path, asset paste, and the janitor read.
 //!
-//! The scratch is deliberately *not* the database. Writing segments to
+//! The scratch is deliberately not the database. Writing segments to
 //! SQLite mid-recording would mean creating the meeting row at start, and
 //! an in-progress row leaks into every listing query, the search index,
 //! and the janitor. These files live until their meeting commits
@@ -30,12 +30,12 @@ use embral_types::TranscriptionSegment;
 use crate::commands::Star;
 
 /// Bytes per second of recorded audio: 16 kHz, mono, f32.
-const BYTES_PER_SEC: u64 = 16_000 * 4;
+const BYTES_PER_SEC: u64 = crate::audio::SAMPLE_RATE_HZ as u64 * 4;
 
 /// How much audio an interrupted recording needs before it is worth
 /// keeping. Below this it is a mis-click or a start that crashed
 /// immediately; recovering it would run the whole summarize pipeline over
-/// nothing and leave an empty meeting in the list. The user is not asked —
+/// nothing and leave an empty meeting in the list. The user is not asked:
 /// approving your own meeting is a chore, and after a crash you may not
 /// remember there was one.
 const MIN_RECOVERABLE_SECS: u64 = 10;
@@ -43,8 +43,8 @@ const MIN_RECOVERABLE_SECS: u64 = 10;
 /// How many launches may try to rescue one scratch before giving up. A
 /// rescue that keeps dying is evidence the data itself crashes the
 /// pipeline, and retrying it at every launch would make the app
-/// unusable — but one crash mid-rescue (the app closed during the slow
-/// finalize) must not silently burn the only copy of a meeting.
+/// unusable. But one crash mid-rescue (the app closed during the slow
+/// finalize) must not silently destroy the only copy of a meeting.
 pub const MAX_RESCUE_ATTEMPTS: u32 = 3;
 
 /// Everything the interrupted recording managed to write down.
@@ -92,9 +92,9 @@ fn attempts_file(base: &Path, meeting_id: &str) -> PathBuf {
 
 /// Open the scratch for a recording that is starting: its own
 /// subdirectory, and the current-marker the stop path reads. A leftover
-/// subdirectory under the *same* id is cleared first (ids are
+/// subdirectory under the same id is cleared first (ids are
 /// timestamp-random, so this is paranoia, not policy); anyone else's
-/// scratch is none of this recording's business — an orphan waiting for
+/// scratch is none of this recording's business, so an orphan waiting for
 /// rescue survives every later recording.
 pub fn begin(base: &Path, meeting_id: &str) {
     let own = meeting_dir(base, meeting_id);
@@ -113,8 +113,8 @@ pub fn begin(base: &Path, meeting_id: &str) {
 }
 
 /// Append one finalized segment to its own meeting's scratch. The caller
-/// names the meeting the segment belongs to — the event forwarder pins
-/// the id it was built with, so a retired stream's tail landing while a
+/// names the meeting the segment belongs to: the event forwarder pins
+/// the id it was built with, so a retired stream's tail arriving while a
 /// successor records can never leak into the successor's scratch.
 pub fn append_segment(base: &Path, meeting_id: &str, segment: &TranscriptionSegment) {
     if !meeting_dir(base, meeting_id).is_dir() {
@@ -136,7 +136,7 @@ pub fn append_segment(base: &Path, meeting_id: &str, segment: &TranscriptionSegm
 }
 
 /// Mirror the notes/title draft and the stars for the recording in
-/// flight (drafts are the user's live typing — they always belong to the
+/// flight (drafts are the user's live typing; they always belong to the
 /// current recording). Driven by the frontend's existing debounce, so
 /// this is not a per-keystroke write. No recording, no write.
 pub fn write_drafts(base: &Path, notes: &str, title: &str, stars: &[f64]) {
@@ -161,7 +161,7 @@ pub fn write_drafts(base: &Path, notes: &str, title: &str, stars: &[f64]) {
 
 /// One meeting's scratch is done with (its finalize returned, or its
 /// rescue gave up): remove that subdirectory and nothing else. The
-/// current-marker goes too when it names this id — a *different* id in
+/// current-marker goes too when it names this id; a different id in
 /// the marker means a successor recording already owns it.
 pub fn clear_for(base: &Path, meeting_id: &str) {
     if active_meeting_id(base).as_deref() == Some(meeting_id) {
@@ -179,7 +179,7 @@ pub fn clear_for(base: &Path, meeting_id: &str) {
 
 /// Launch found a current-marker written by a process that is dead (this
 /// runs before anything in this process can record): the marker is
-/// stale — retire it so the id it names is rescuable like any other
+/// stale; retire it so the id it names is rescuable like any other
 /// leftover. Its subdirectory is untouched.
 pub fn clear_stale_current(base: &Path) {
     let marker = current_file(base);
@@ -208,14 +208,14 @@ pub fn pending(base: &Path) -> Vec<String> {
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .map(|e| e.file_name().to_string_lossy().to_string())
         .collect();
-    // Meeting ids sort chronologically, so rescues land oldest-first.
+    // Meeting ids sort chronologically, so rescues run oldest-first.
     ids.sort();
     ids
 }
 
 /// Whether an interrupted recording carries enough audio to be worth
 /// keeping. Pure so the threshold is testable; the caller supplies the
-/// WAV's size on disk, which is the honest measure — the header may be up
+/// WAV's size on disk, which is the honest measure: the header may be up
 /// to one flush interval behind the samples actually written.
 pub fn worth_recovering(wav_bytes: u64) -> bool {
     wav_bytes.saturating_sub(WAV_HEADER_ALLOWANCE) / BYTES_PER_SEC >= MIN_RECOVERABLE_SECS
@@ -226,9 +226,9 @@ pub fn worth_recovering(wav_bytes: u64) -> bool {
 const WAV_HEADER_ALLOWANCE: u64 = 1024;
 
 /// Count one rescue attempt for this scratch and say how many there have
-/// been, this one included. Counted *before* the rescue's finalize runs,
+/// been, this one included. Counted before the rescue's finalize runs,
 /// so an attempt that crashes the app still counts. A missing or torn
-/// counter reads as zero — the error direction that retries rather than
+/// counter reads as zero: the error direction that retries rather than
 /// discards.
 pub fn note_attempt(base: &Path, meeting_id: &str) -> u32 {
     let path = attempts_file(base, meeting_id);
@@ -245,7 +245,7 @@ pub fn note_attempt(base: &Path, meeting_id: &str) -> u32 {
 
 /// What launch should do with one pending scratch.
 pub enum RescuePlan {
-    /// Worth keeping: run finalize, then `clear_for` — in that order, so
+    /// Worth keeping: run finalize, then `clear_for`, in that order, so
     /// the app closing mid-rescue retries at the next launch.
     Rescue(Interrupted),
     /// Nothing to do (too short; already discarded terminally).
@@ -273,11 +273,11 @@ pub fn plan_rescue(base: &Path, meeting_id: &str, wav: &Path) -> RescuePlan {
     }
 }
 
-/// Read what one interrupted recording left, **without clearing it** —
+/// Read what one interrupted recording left, without clearing it:
 /// the scratch outlives the rescue's finalize exactly as it outlives the
 /// stop's, so a crash mid-rescue retries at the next launch. `None` when
 /// there is nothing worth keeping; the too-short case is terminal (the
-/// orphan WAV, pasted images, and scratch are removed — a mis-click
+/// orphan WAV, pasted images, and scratch are removed; a mis-click
 /// needs no retry).
 pub fn peek(base: &Path, meeting_id: &str, wav: &Path) -> Option<Interrupted> {
     let bytes = std::fs::metadata(wav).map(|m| m.len()).unwrap_or(0);
@@ -326,7 +326,7 @@ pub fn peek(base: &Path, meeting_id: &str, wav: &Path) -> Option<Interrupted> {
 }
 
 /// Parse the appended segments, skipping any trailing line a crash cut in
-/// half — the whole point of one JSON object per line.
+/// half: the whole point of one JSON object per line.
 fn read_segments(base: &Path, meeting_id: &str) -> Vec<TranscriptionSegment> {
     let Ok(text) = std::fs::read_to_string(segments_file(base, meeting_id)) else {
         return Vec::new();
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn a_tail_segment_lands_in_its_own_meetings_scratch() {
         // A retired stream's tail can arrive while a successor records; the
-        // forwarder pins its meeting id, so the tail lands with its own
+        // forwarder pins its meeting id, so the tail goes to its own
         // meeting and never contaminates the successor.
         let base = scratch_base("tail");
         begin(&base, "m-old");
@@ -518,7 +518,7 @@ mod tests {
 
     #[test]
     fn a_half_written_segment_line_is_skipped_not_fatal() {
-        // The crash can land mid-write; one JSON object per line means the
+        // The crash can happen mid-write; one JSON object per line means the
         // torn tail is the only casualty.
         let base = scratch_base("torn");
         begin(&base, "m-torn");

@@ -1,6 +1,6 @@
-//! What is playing audio right now — a stub on macOS.
+//! What is playing audio right now: a stub on macOS.
 //!
-//! The Core Audio tap this platform uses is a *global* mixdown (every
+//! The Core Audio tap this platform uses is a global mixdown (every
 //! process except our own), so there is no per-app list to choose from
 //! yet. An empty list means the source picker shows no app rows and the
 //! recording captures everything, which is the tap's behavior anyway.

@@ -1,10 +1,10 @@
 //! Local speech engine for Embral, built on sherpa-onnx.
 //!
-//! - [`catalog`] — model registry, presence probing, managed downloads.
-//! - [`hotwords`] — vocabulary boost: phrases → BPE hotword lines.
-//! - [`Engine`] — warm recognizer cache; hands out sessions.
-//! - [`LocalSession`] / [`SessionEvent`] — one live transcription session.
-//! - [`speakers`] — pure diarization math over [`Engine::diarize`] /
+//! - [`catalog`]: model registry, presence probing, managed downloads.
+//! - [`hotwords`]: vocabulary boost (phrases → BPE hotword lines).
+//! - [`Engine`]: warm recognizer cache; hands out sessions.
+//! - [`LocalSession`] / [`SessionEvent`]: one live transcription session.
+//! - [`speakers`]: pure diarization math over [`Engine::diarize`] /
 //!   [`Engine::embed`] outputs (live clustering, segment labeling).
 //!
 //! The crate is Tauri-free: the app adapts `LocalSession` to its own

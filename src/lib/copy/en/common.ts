@@ -1,4 +1,4 @@
-// Strings shared across surfaces — kept here ONLY where a spec mandates one
+// Strings shared across surfaces, kept here only where a spec mandates one
 // label set, or two components must not drift. Duplicate by default
 // everywhere else (docs/copy.md): the same English word is often two
 // different words in another language, so sharing a key is a claim that they
@@ -6,7 +6,7 @@
 
 export const common = {
   // The cloud-or-device label set that every provider/engine selector uses,
-  // in Settings and onboarding alike — mandated by docs/shell.md so the app
+  // in Settings and onboarding alike; mandated by docs/shell.md so the app
   // never calls the same choice by two names. "embral cloud" always leads.
   providers: {
     cloud: 'embral cloud',

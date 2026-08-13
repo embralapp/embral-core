@@ -1,7 +1,7 @@
 // Kill embral-mcp processes running out of this repo's target directory.
 //
 // MCP clients (Claude Desktop, Claude Code) keep the dev sidecar alive
-// between builds, and Windows refuses to overwrite a running exe — so
+// between builds, and Windows refuses to overwrite a running exe, so
 // tauri-build's sidecar copy dies with "Access is denied" until they're
 // gone. Clients respawn their server on the next call, so this is free.
 // The app itself is deliberately left alone: it may be mid-recording.

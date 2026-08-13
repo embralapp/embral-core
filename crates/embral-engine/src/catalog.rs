@@ -5,10 +5,10 @@
 //! denominators and truncation floors, never as exact-equality gates).
 //!
 //! Two source shapes:
-//! - `Files` — individual files fetched from Hugging Face `resolve/main` URLs
-//!   (streamed to `{name}.tmp`, renamed on completion — a present non-tmp file
+//! - `Files`: individual files fetched from Hugging Face `resolve/main` URLs
+//!   (streamed to `{name}.tmp`, renamed on completion; a present non-tmp file
 //!   is always whole).
-//! - `Archive` — a `.tar.bz2` GitHub release asset from which named members
+//! - `Archive`: a `.tar.bz2` GitHub release asset from which named members
 //!   are extracted (some sherpa-onnx models are published only that way).
 
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use futures_util::StreamExt;
 use serde::Serialize;
 
-/// What a file is *for*, so the engine can find the right path regardless of
+/// What a file is for, so the engine can find the right path regardless of
 /// the file's on-disk name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FileRole {
@@ -48,7 +48,7 @@ pub enum FileRole {
 #[serde(rename_all = "snake_case")]
 pub enum ModelKind {
     StreamingAsr,
-    /// Full-context models decoded per VAD speech segment — highest accuracy,
+    /// Full-context models decoded per VAD speech segment: highest accuracy,
     /// with interims produced by periodic partial decodes.
     OfflineAsr,
     Punctuation,
@@ -89,7 +89,7 @@ pub enum ModelSource {
     ZipAll {
         url: &'static str,
         bytes: u64,
-        /// (role, exe basename) — the file `role_path` resolves to.
+        /// (role, exe basename): the file `role_path` resolves to.
         exe: (FileRole, &'static str),
     },
     /// `ZipAll`'s `.tar.gz` twin (llama.cpp ships tarballs on macOS).
@@ -97,7 +97,7 @@ pub enum ModelSource {
     TarAll {
         url: &'static str,
         bytes: u64,
-        /// (role, exe basename) — the file `role_path` resolves to.
+        /// (role, exe basename): the file `role_path` resolves to.
         exe: (FileRole, &'static str),
     },
 }
@@ -123,7 +123,7 @@ pub struct KnownModel {
 /// size (protects against partials that somehow survived without `.tmp`).
 const MIN_SIZE_FRACTION: f64 = 0.5;
 
-/// Streaming Zipformer transducers use an fp32 decoder deliberately — the
+/// Streaming Zipformer transducers use an fp32 decoder deliberately: the
 /// decoder is tiny and quantizing it costs accuracy (upstream guidance).
 pub const MODELS: &[KnownModel] = &[
     KnownModel {
@@ -320,7 +320,7 @@ pub const MODELS: &[KnownModel] = &[
             url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2",
             bytes: 30_667_839,
             // The archive ships fp32 + int8 variants; we extract only the
-            // int8 one (7.5 MB) — same graph, lighter to load and run.
+            // int8 one (7.5 MB): same graph, lighter to load and run.
             members: &[
                 (FileRole::CnnBilstm, "model.int8.onnx"),
                 (FileRole::BpeVocab, "bpe.vocab"),
@@ -328,7 +328,7 @@ pub const MODELS: &[KnownModel] = &[
         },
     },
     // The llama.cpp runtime is the one per-platform binary in the catalog;
-    // each target carries its own entry (same id, its own artifact —
+    // each target carries its own entry (same id, its own artifact;
     // upstream ships a .zip on Windows and a .tar.gz on macOS and Linux).
     #[cfg(windows)]
     KnownModel {
@@ -362,7 +362,7 @@ pub const MODELS: &[KnownModel] = &[
     },
     // Upstream's ubuntu-x64 build. It is glibc-linked against Ubuntu's, so
     // it runs on the port's declared floor (Debian 12 / Ubuntu 22.04, glibc
-    // 2.35) and newer — but a future catalog bump has to keep checking that,
+    // 2.35) and newer. A future catalog bump has to keep checking that,
     // or this entry moves to a self-built artifact
     // ([260801-linux-port.md](../../../docs/plans/260801-linux-port.md)).
     #[cfg(target_os = "linux")]
@@ -427,7 +427,7 @@ pub fn find(id: &str) -> Option<&'static KnownModel> {
     MODELS.iter().find(|m| m.id == id)
 }
 
-/// `%LOCALAPPDATA%/embral/models` — machine-local replaceable blobs, separate
+/// `%LOCALAPPDATA%/embral/models`: machine-local replaceable blobs, separate
 /// from the user's storage_dir. (The retired Parakeet files lived under
 /// `models/parakeet`; these live under `models/{model_id}`.)
 pub fn models_root() -> PathBuf {
@@ -499,7 +499,7 @@ pub struct ModelStatus {
     pub display_name: String,
     pub kind: ModelKind,
     pub note: String,
-    /// ISO codes, or `["*"]` for language-independent models — the UI's
+    /// ISO codes, or `["*"]` for language-independent models: the UI's
     /// language facet.
     pub languages: Vec<String>,
     pub present: bool,
@@ -693,9 +693,9 @@ fn extract_zip_all(archive: &Path, dir: &Path) -> Result<()> {
 }
 
 /// Extract every file in a `.tar.gz` flat into `dir` (leading archive
-/// folders stripped), each via tmp+rename — `extract_zip_all`'s tarball
+/// folders stripped), each via tmp+rename: `extract_zip_all`'s tarball
 /// twin. Unix mode bits carry over, so executables stay executable, and
-/// symlink entries are recreated after the files land — llama.cpp's
+/// symlink entries are recreated after the files are written; llama.cpp's
 /// dylib version chains (`libggml.0.dylib -> libggml.0.15.3.dylib`) are
 /// symlinks, and the exe links the versioned names.
 fn extract_tar_all(archive: &Path, dir: &Path) -> Result<()> {
@@ -858,7 +858,7 @@ mod tests {
             ] {
                 assert!(roles.contains(&needed), "{} missing {:?}", m.id, needed);
             }
-            // Offline decoding is VAD-segmented; the VAD model rides along.
+            // Offline decoding is VAD-segmented; the VAD model is included.
             if m.kind == ModelKind::OfflineAsr {
                 assert!(roles.contains(&FileRole::Vad), "{} missing Vad", m.id);
             }
@@ -934,7 +934,7 @@ mod tests {
         let runtime = find("llama-server").unwrap();
         assert_eq!(runtime.kind, ModelKind::Llm);
         assert!(!runtime.kind.is_asr());
-        // A tar, like macOS — and the tar path's mode-bit and symlink
+        // A tar, like macOS; the tar path's mode-bit and symlink
         // handling is already `cfg(unix)`, so it carries over unchanged.
         assert!(matches!(runtime.source, ModelSource::TarAll { .. }));
         assert_eq!(
@@ -949,17 +949,17 @@ mod tests {
         assert!(find("qwen3-4b").is_some());
     }
 
-    /// Live probe of the real runtime download + spawn — run manually:
+    /// Live probe of the real runtime download + spawn; run manually:
     /// `cargo test -p embral-engine --lib llama_runtime_downloads -- --ignored --nocapture`.
     /// Proves the tar source end-to-end on this machine: the archive
     /// extracts flat, the exe keeps its mode bits, and its @rpath dylibs
     /// resolve from the flattened dir.
     ///
-    /// The Linux arm below is the same probe and carries more weight there:
-    /// it is the only thing that proves upstream's *ubuntu*-x64 build
-    /// actually runs on the distribution in front of you, glibc floor and
-    /// bundled `.so`s included. A green `cargo test` says nothing about
-    /// that — only spawning the binary does.
+    /// On Linux the same probe carries more weight: it is the only thing
+    /// that proves upstream's ubuntu-x64 build actually runs on the
+    /// distribution in front of you, glibc floor and bundled `.so`s
+    /// included. A green `cargo test` says nothing about that; only
+    /// spawning the binary does.
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[tokio::test]
     #[ignore = "manual probe; downloads the ~11 MB runtime and spawns it"]
@@ -1062,7 +1062,7 @@ mod tests {
 
     #[test]
     fn extract_members_pulls_named_files() -> Result<()> {
-        // Build a tiny tar.bz2 in memory: dir/cnn.onnx + dir/skip.me
+        // Build a tiny tar.bz2 fixture: model-dir/wanted.bin + model-dir/skip.me
         let tmp = tempfile::tempdir()?;
         let archive_path = tmp.path().join("a.tar.bz2");
         {

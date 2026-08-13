@@ -1,19 +1,17 @@
 //! The portable capture pipeline: interleaved device frames in, 16 kHz
 //! mono blocks out ([recording.md](../../../docs/recording.md)).
 //!
-//! Every capture source — the cpal mic stream, the WASAPI loopback trick,
-//! the macOS process tap — feeds this same pipeline, so the mixer only
+//! Every capture source (the cpal mic stream, the WASAPI loopback trick,
+//! the macOS process tap) feeds this same pipeline, so the mixer only
 //! ever sees canonical 16 kHz mono and the platform layer never resamples.
 //! Pure over its inputs: no devices, no OS, unit-tested.
 
 use anyhow::{anyhow, Result};
 use rubato::{FftFixedInOut, Resampler};
 
-/// The canonical rate everything downstream consumes (WAV, transcription,
-/// meters): audio-seconds == samples / 16000 uniformly.
-pub const TARGET_SAMPLE_RATE: u32 = 16000;
+pub use super::SAMPLE_RATE_HZ as TARGET_SAMPLE_RATE;
 /// The resampler's chunking parameter. Emitted block sizes scale with the
-/// rate ratio (48 kHz in → ~342-sample 16 kHz blocks) — fixed per stream,
+/// rate ratio (48 kHz in → ~342-sample 16 kHz blocks), fixed per stream,
 /// not equal to this constant.
 pub const RESAMPLE_CHUNK: usize = 1024;
 
@@ -55,7 +53,7 @@ impl Pipeline {
     }
 
     /// Feed one interleaved f32 block; `emit` receives each completed
-    /// 16 kHz mono chunk (zero or more per call — the remainder waits).
+    /// 16 kHz mono chunk (zero or more per call; the remainder waits).
     pub fn push(&mut self, interleaved: &[f32], emit: &mut dyn FnMut(&[f32])) {
         self.acc.extend(interleaved.chunks(self.channels).map(|frame| {
             let sum: f32 = frame.iter().sum();

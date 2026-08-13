@@ -1,6 +1,6 @@
 // Staged-state fixture for screenshot tooling: `fixture_state` returns a
 // value only when the backend runs with the EMBRAL_DATA_DIR override and
-// the sandbox provides a fixture file (configuration.md) — every normal
+// the sandbox provides a fixture file (configuration.md); every normal
 // launch gets null and none of this runs. The staged moment's data is
 // derived from a real imported meeting by the pipeline that writes the
 // fixture; the components rendering it are the real ones.
@@ -56,10 +56,6 @@ export async function loadFixture(): Promise<FixtureState | null> {
 export function applyRecordingFixture(f: RecordingFixture) {
   appState.setRecording(true);
   appState.startRecordingClock(Date.now() - f.elapsed_seconds * 1000);
-  appState.setProviderCapabilities({
-    labels_authoritative: false,
-    max_session_minutes: 0
-  });
   appState.setLiveDiarization(f.diarization ?? true);
   appState.replaceSegments(f.segments ?? []);
   appState.setInterim(f.interim ?? null);

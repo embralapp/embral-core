@@ -2,7 +2,7 @@
 //!
 //! Telemetry has no separate platform field, so unlike the Windows twin
 //! (a bare build number) and the macOS one (a bare `major.minor.patch`),
-//! this string has to identify Linux *and* the distribution on its own —
+//! this string has to identify Linux and the distribution on its own:
 //! "Debian GNU/Linux 13 (trixie) 6.12.48+deb13-amd64" rather than a version
 //! that could be anything. Distro plus kernel is also the pair that
 //! actually explains a Linux bug report.
@@ -36,7 +36,7 @@ fn pretty_name() -> String {
     "Linux (unknown distribution)".to_string()
 }
 
-/// The kernel release — `uname -r`, read through the syscall rather than by
+/// The kernel release (`uname -r`), read through the syscall rather than by
 /// spawning a process.
 fn kernel_release() -> String {
     // SAFETY: `uname` fills a caller-owned struct and returns 0 on success.
@@ -55,8 +55,8 @@ fn kernel_release() -> String {
 
 #[cfg(test)]
 mod tests {
-    /// The string must name Linux on its own — telemetry has no platform
-    /// field to lean on — and must carry both halves.
+    /// The string must name Linux on its own (telemetry has no platform
+    /// field to lean on) and must carry both halves.
     #[test]
     fn identifies_the_distribution_and_the_kernel() {
         let build = super::os_build();

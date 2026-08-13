@@ -53,7 +53,7 @@
   const isEmpty = $derived(value.trim().length === 0);
 
   // The full-size viewer, opened by clicking any image on this surface
-  // ([shell.md] §Writing surface). Display src only — the stored form is
+  // ([shell.md] §Writing surface). Display src only: the stored form is
   // storage-relative and no webview can load it.
   let lightbox = $state<{ src: string; alt: string } | null>(null);
 
@@ -66,10 +66,10 @@
   }
 
   // One writing surface everywhere (live notes, saved notes, the raw
-  // transcript fallback): borderless — the pane *is* the editor — with
+  // transcript fallback): borderless (the pane is the editor) with
   // flat, small margins, and text that fills the pane's width (owner
   // call: no measure cap, a wide window gives wide lines). No centering
-  // math, which also guarantees the placeholder can't drift — `ch`-based
+  // math, which also guarantees the placeholder can't drift: `ch`-based
   // padding resolved differently on the two elements.
   const surfacePadding = 'padding: 1.25rem 1.5rem 3rem;';
 
@@ -90,12 +90,12 @@
       autofocus: autofocus ? 'end' : false,
       editorProps: {
         // The caret keeps breathing room while typing: the view starts
-        // following ~2 lines before the caret reaches the edge and lands
+        // following ~2 lines before the caret reaches the edge and leaves
         // it with ~2 line boxes of air (24.75px lines), instead of
         // ProseMirror's default flush-to-the-edge scroll.
         scrollThreshold: 40,
         scrollMargin: 56,
-        // A click on an image opens the viewer — on every surface, the
+        // A click on an image opens the viewer on every surface, the
         // readonly ones included (mousedown is not an edit handler, so
         // this fires with editable off). Returning false leaves
         // ProseMirror's own node selection in place, which is how an
@@ -117,9 +117,9 @@
         }
       },
       onUpdate: ({ editor, transaction }) => {
-        // Save only what the user actually did. `onUpdate` fires on *any*
-        // transaction, including programmatic ones — star anchoring on
-        // mount, most notably — and a save triggered by one of those writes
+        // Save only what the user actually did. `onUpdate` fires on any
+        // transaction, including programmatic ones (star anchoring on
+        // mount, most notably), and a save triggered by one of those writes
         // the editor's re-serialized markdown over the stored document
         // without anybody typing. That is how merely opening a tab could
         // destroy something the schema can't model. `docChanged` rules out
@@ -139,12 +139,12 @@
    * doesn't, this editor's schema cannot represent something in the
    * document, and editing here would save the loss (see
    * `editor/extensions.ts`). Once the contract is complete this never
-   * fires — it exists to name whatever we failed to anticipate, in the log,
+   * fires; it exists to name whatever we failed to anticipate, in the log,
    * with the text that went missing. */
   function reportFidelity(incoming: string, reparsed: string) {
     if (incoming.trim().length === 0) return;
     // Normalization is expected and fine (bullet markers, spacing, escapes),
-    // so compare what markdown is *about*: links, images, and table rows.
+    // so compare what markdown is about: links, images, and table rows.
     const shapes = [/!\[[^\]]*\]\([^)]*\)/g, /(?<!!)\[[^\]]*\]\([^)]*\)/g, /^\|.*\|$/gm];
     for (const shape of shapes) {
       const before = incoming.match(shape)?.length ?? 0;
@@ -174,7 +174,7 @@
   }
 
   /** Anchor a gutter star on the caret's line (the last line when the
-   * editor isn't focused — the user may be mid-call elsewhere). */
+   * editor isn't focused; the user may be mid-call elsewhere). */
   export function addStar(id: number) {
     if (editor) anchorStarAtCursor(editor, id);
   }
@@ -184,7 +184,7 @@
     if (editor) clearStarAnchor(editor, id);
   }
 
-  /** The textblock index each star currently sits on — persisted at stop
+  /** The textblock index each star currently sits on, persisted at stop
    * so the saved notes can re-anchor them. */
   export function getStarBlocks(): Map<number, number> {
     return editor ? starBlockIndexes(editor) : new Map();
@@ -209,7 +209,7 @@
    *
    * The mark is a ProseMirror decoration rather than a class on the element:
    * ProseMirror rebuilds the DOM it owns from document state, so a class set
-   * by hand vanishes at the next redraw — which for a document the user is
+   * by hand vanishes at the next redraw, which for a document the user is
    * about to type in is right away. */
   function reveal(pos: number | null): boolean {
     if (!editor || pos === null || !editor.state.doc.nodeAt(pos)) return false;
@@ -222,7 +222,7 @@
     }
     // Arm the wait before scrolling: it measures where the target is now,
     // and marks it once the scroll has arrived rather than while it is
-    // still travelling — over a long document the highlight would be over
+    // still travelling. Over a long document the highlight would be over
     // before the reader could see it.
     afterScrollTo(view.dom, el, () => flashNodeAt(view, pos));
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -233,7 +233,7 @@
    * Land inside the passage a search result matched: on the query, looked
    * for from where the passage begins.
    *
-   * Bounding it matters for a common word — searching "north" would
+   * Bounding it matters for a common word: searching "north" would
    * otherwise stop at the first "North Carolina" rather than the
    * "Northstar" the palette showed. When the query is nowhere in the
    * passage (a semantic hit) the passage's own opening line is the answer.
@@ -246,7 +246,7 @@
     return reveal(target);
   }
 
-  /** Scroll to a pasted image by filename — how an `image_text` hit lands,
+  /** Scroll to a pasted image by filename: how an `image_text` hit arrives,
    * since the text it matched is inside the picture. */
   export function scrollToImage(filename: string): boolean {
     return editor ? reveal(findImagePos(editor.state.doc, filename)) : false;
@@ -254,7 +254,7 @@
 
   /** Whether there is a document to look in yet. The editor is built in
    * `onMount`, so a caller that reacts to this component appearing can
-   * arrive a beat too early — and "no editor" has to be told apart from
+   * arrive a beat too early, and "no editor" has to be told apart from
    * "searched and found nothing", which is a real answer. */
   export function isReady(): boolean {
     return editor !== undefined;
@@ -302,7 +302,7 @@
 {/if}
 
 <style>
-  /* The note type system — matches the transcript's reading style (15px/1.65)
+  /* The note type system: matches the transcript's reading style (15px/1.65)
      with the display face carrying headings, and everything else kept quiet. */
   :global(.note-prose) {
     font-size: 15px;
@@ -320,8 +320,8 @@
   /* A gutter star: a pseudo-element on the starred textblock (each bullet's
      own paragraph included), absolutely positioned into the surface's left
      padding at its line's top. Pseudo-elements are outside the DOM
-     selection, so Ctrl+A copies only the notes text; clicks land via the
-     extension's gutter hit-test. */
+     selection, so Ctrl+A copies only the notes text; clicks are handled by
+     the extension's gutter hit-test. */
   :global(.note-prose [data-star-id]::before) {
     content: '★';
     position: absolute;
@@ -337,8 +337,8 @@
     color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
   }
 
-  /* Pasted images: bounded so a screenshot never eats the pane (bytes
-     stay full-resolution on disk — display only), with the viewer a
+  /* Pasted images: bounded so a screenshot never takes over the pane (bytes
+     stay full-resolution on disk; display only), with the viewer a
      click away. Radius matches the code blocks'. */
   :global(.note-prose img) {
     display: block;

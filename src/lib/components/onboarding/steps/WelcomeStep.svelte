@@ -1,5 +1,5 @@
 <script lang="ts">
-    // The feature grid: six things embral does, few words each. Greyscale —
+    // The feature grid: six things embral does, few words each. Greyscale;
     // emphasis is contrast, not color ([shell.md](../../../../../docs/shell.md)).
     import { onMount } from "svelte";
     import type { Component } from "svelte";

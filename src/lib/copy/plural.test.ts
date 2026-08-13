@@ -8,7 +8,7 @@ const meetings: PluralForms = {
 
 describe('plural', () => {
   it('picks English one/other, and zero counts as other', () => {
-    // English has no `zero` category — 0 selects `other`, which is why
+    // English has no `zero` category: 0 selects `other`, which is why
     // "0 meetings" reads correctly without a special case.
     expect(plural('en', 1, meetings)).toBe('Delete meeting?');
     expect(plural('en', 2, meetings)).toBe('Delete meetings?');
@@ -17,7 +17,7 @@ describe('plural', () => {
 
   it('ignores categories English never selects', () => {
     // A translator may leave `few` in place when adapting a form from another
-    // locale. Under `en` it must simply never win.
+    // locale. Under `en` it must never win.
     const withFew: PluralForms = { ...meetings, few: 'WRONG', zero: 'WRONG' };
     expect(plural('en', 0, withFew)).toBe('Delete meetings?');
     expect(plural('en', 3, withFew)).toBe('Delete meetings?');

@@ -3,7 +3,7 @@
 //! fails a save), while embeddings run in a background worker. The app
 //! cannot link ort (sherpa's /MT onnxruntime is already in this exe), so
 //! inference happens in a spawned `embral-mcp embed` child speaking JSON
-//! lines over stdio — all database writes stay here.
+//! lines over stdio; all database writes stay here.
 
 use std::time::{Duration, Instant};
 
@@ -80,7 +80,7 @@ impl SearchRuntime {
     }
 
     /// Whether the embed child is currently alive (the palette uses this to
-    /// decide "warm enough to wait for" vs "kick a warm-up, answer FTS-only").
+    /// decide "warm enough to wait for" vs "start a warm-up, answer FTS-only").
     pub async fn is_warm(&self) -> bool {
         self.pipe.lock().await.is_some()
     }
@@ -113,7 +113,7 @@ impl SearchRuntime {
         match pipe.request(&body).await {
             Ok(reply) => Ok(reply),
             Err(e) => {
-                // A broken pipe stays broken — drop it so the next call
+                // A broken pipe stays broken; drop it so the next call
                 // starts fresh.
                 if let Some(mut dead) = guard.take() {
                     let _ = dead.child.start_kill();
@@ -280,7 +280,7 @@ pub fn spawn_worker(handle: tauri::AppHandle) {
             // OCR first: an image read this pass becomes chunks that the
             // embedding drain below picks up without waiting for another
             // wake-up. It runs whether or not the embedding model is
-            // present — FTS alone already makes the text findable.
+            // present; FTS alone already makes the text findable.
             drain_ocr(&state).await;
 
             if !embral_search::model::present() {

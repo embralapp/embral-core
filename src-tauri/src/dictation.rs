@@ -1,12 +1,12 @@
 //! Dictation: hotkey-driven mic-only speech-to-text into any app.
 //!
 //! Flow: global hotkey → mic stream into a transcription session from the
-//! provider seam (dictation's own provider tree — on-device or the cloud
+//! provider interface (dictation's own provider tree: on-device or the cloud
 //! relay) → on stop: optional AI cleanup → clipboard (+ optional paste into
 //! the focused app) → history row in the DB. The overlay window shows the
 //! words in ~realtime over a mic level visualizer ([dictation.md]).
 //!
-//! Dictation and meeting recording are mutually exclusive — both need the
+//! Dictation and meeting recording are mutually exclusive: both need the
 //! microphone and the transcription engine's attention.
 
 use std::sync::atomic::Ordering;
@@ -31,7 +31,7 @@ const OVERLAY: &str = "dictation";
 /// How long stop() waits for the session to flush its tail. Short on
 /// purpose: the fallback now delivers everything that was on screen
 /// (finalized segments plus the interim tail), so timing out costs nothing
-/// visible — a healthy cloud end takes ~150 ms, a healthy local one less.
+/// visible. A healthy cloud end takes ~150 ms, a healthy local one less.
 const FINISH_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// How long the concurrent session connect may take before the degrade
@@ -42,14 +42,14 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub struct ActiveDictation {
     mic: Option<MicStream>,
     /// Shared with the audio bridge; stop() takes it to call finish(). The
-    /// session connects concurrently with the mic — `None` until then.
+    /// session connects concurrently with the mic (`None` until then).
     session: Arc<Mutex<Option<Box<dyn TranscriptionSession>>>>,
     bridge: tokio::task::JoinHandle<()>,
     /// The concurrent session connect; stop() and cancel() await it so an
     /// instant press-release can't race the connection (and no session is
     /// ever left behind unfinished).
     connect: tokio::task::JoinHandle<()>,
-    /// Segment texts mirrored by the event consumer — the fallback when
+    /// Segment texts mirrored by the event consumer: the fallback when
     /// finish() errors or times out, so a flaky session still delivers what
     /// was heard.
     heard: Arc<std::sync::Mutex<Vec<String>>>,
@@ -57,7 +57,7 @@ pub struct ActiveDictation {
     /// mirrored segments by the fallback: the words on the screen are the
     /// floor of what gets delivered, tentative or not.
     last_interim: Arc<std::sync::Mutex<String>>,
-    /// When the session started — telemetry's duration bucket.
+    /// When the session started, used for telemetry's duration bucket.
     started: std::time::Instant,
 }
 
@@ -89,8 +89,8 @@ pub fn on_release(active: bool, held: Duration) -> HotkeyAction {
 
 /// Whether this dictation configuration requires the on-device model on
 /// disk before starting: the device is the primary, or it is where an
-/// out-of-hours cloud session lands. Cloud with "disabled" needs nothing
-/// local — failing without a fallback is what the user asked for.
+/// out-of-hours cloud session falls back to. Cloud with "disabled" needs
+/// nothing local: failing without a fallback is what the user asked for.
 fn needs_local_model(config: &AppConfig) -> bool {
     match config.dictation_provider {
         embral_types::TranscriptionProvider::Local => true,
@@ -102,7 +102,7 @@ fn needs_local_model(config: &AppConfig) -> bool {
 }
 
 /// Start a dictation session: a transcription session from the provider
-/// seam, the overlay indicator, the mic streaming into it.
+/// interface, the overlay indicator, the mic streaming into it.
 pub async fn start(app: &AppHandle) -> Result<(), AppError> {
     let state = app.state::<AppState>();
     if state.recorder.lock().await.is_some() {
@@ -127,9 +127,9 @@ pub async fn start(app: &AppHandle) -> Result<(), AppError> {
         return Err(AppError::CloudSignInRequired);
     }
 
-    // The overlay and the mic come first — the hotkey must respond
-    // instantly, and the first words must be captured even while weights
-    // come up or the relay connects. The session connects concurrently; the
+    // The overlay and the mic come first: the hotkey must respond
+    // instantly, and the first words must be captured even while the model
+    // loads or the relay connects. The session connects concurrently; the
     // bridge buffers mic audio until it's up. (The synchronous checks above
     // still fail before anything shows, so a refused start leaves no stuck
     // indicator; an async connect failure tears the overlay down.)
@@ -207,9 +207,9 @@ pub async fn start(app: &AppHandle) -> Result<(), AppError> {
 
     // Audio bridge: mic chunks into the session, whoever the provider is.
     // Chunks that arrive before the session is connected are held and
-    // flushed once it is — nothing said from the first instant is lost.
-    // A LevelTap (the meeting meter's band-spectrum helper, mic-only) rides
-    // along, feeding the overlay's visualizer at ~10 Hz.
+    // flushed once it is; nothing said from the first instant is lost.
+    // A LevelTap (the meeting meter's band-spectrum helper, mic-only) runs
+    // here too, feeding the overlay's visualizer at ~10 Hz.
     let session_for_bridge = session_arc.clone();
     let app_for_levels = app.clone();
     let bridge = tokio::spawn(async move {
@@ -250,11 +250,11 @@ pub async fn start(app: &AppHandle) -> Result<(), AppError> {
 
     // Event consumer: finish() is the source of truth for the text; Segments
     // are mirrored (the finish-timeout fallback) and the latest Interim kept
-    // beside them (the fallback's fallback — a short session may end before
+    // beside them (the fallback's fallback: a short session may end before
     // any segment finalizes). `Failed` mid-session means the session is
-    // gone — deliver what was heard instead of dictating into the void
-    // (cloud cut off, connection drop; dictations are seconds long, there
-    // is no mid-session swap).
+    // gone; deliver what was heard instead of leaving the user talking with
+    // nothing listening (cloud cut off, connection drop; dictations are
+    // seconds long, there is no mid-session swap).
     let heard: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
     let last_interim: Arc<std::sync::Mutex<String>> =
         Arc::new(std::sync::Mutex::new(String::new()));
@@ -303,7 +303,7 @@ pub async fn start(app: &AppHandle) -> Result<(), AppError> {
                 TranscriptionEvent::Interim { segment, tentative } => {
                     let committed = segment.text.trim().to_string();
                     // The tail's leading space (or absence) is the word
-                    // boundary — a spaceless tail continues the committed
+                    // boundary: a spaceless tail continues the committed
                     // text's last word. Concatenate verbatim, never insert.
                     let tail = tentative.as_deref().unwrap_or("").trim_end().to_string();
                     {
@@ -344,11 +344,13 @@ pub async fn start(app: &AppHandle) -> Result<(), AppError> {
         started: std::time::Instant::now(),
     });
     state.dictating.store(true, Ordering::Release);
+    // Escape now cancels, for as long as this session runs.
+    crate::hotkey::arm_cancel(app);
     let _ = app.emit_to(OVERLAY, "dictation-started", ());
     let _ = app.emit("dictation-active", true);
 
     // When cleanup will run on the built-in model, start loading it now and
-    // prime its prompt cache — by stop time cleanup pays generation time
+    // prime its prompt cache, so by stop time cleanup pays generation time
     // only, instead of a cold llama-server start (~5 s) plus processing the
     // constant cleanup prompt (~3 s) inside "Finishing up…".
     if crate::llm::cleanup_uses_builtin(&config) {
@@ -374,8 +376,8 @@ pub async fn start(app: &AppHandle) -> Result<(), AppError> {
 /// Tear down a dictation whose session never connected: the mic, the
 /// overlay, the flags. Runs on the connect task; the slot lock serializes it
 /// against start() (which holds the lock until the slot is filled) and
-/// stop() (which may have already taken the dictation — then there is
-/// nothing left to tear down here).
+/// stop() (which may have already taken the dictation, in which case there
+/// is nothing left to tear down here).
 async fn abort_start(app: &AppHandle, message: String) {
     tracing::warn!("dictation start failed: {message}");
     let state = app.state::<AppState>();
@@ -384,6 +386,7 @@ async fn abort_start(app: &AppHandle, message: String) {
         let _ = active.bridge.await;
     }
     state.dictating.store(false, Ordering::Release);
+    crate::hotkey::disarm_cancel(app);
     hide_overlay(app);
     let _ = app.emit("dictation-active", false);
     let _ = app.emit("processing-error", &AppError::DictationStartFailed { detail: message.to_string() });
@@ -396,18 +399,19 @@ pub async fn stop(app: &AppHandle) -> Result<String, AppError> {
         return Err(AppError::NoDictationRunning);
     };
     state.dictating.store(false, Ordering::Release);
+    crate::hotkey::disarm_cancel(app);
     let _ = app.emit_to(OVERLAY, "dictation-finishing", ());
 
     // An instant press-release can beat the session connect; wait for it to
-    // settle (it is internally bounded) so the buffered audio still lands.
+    // settle (it is internally bounded) so the buffered audio is still sent.
     let _ = active.connect.await;
     // Dropping the mic ends the stream; the bridge drains the last chunks
     // into the session, then finish() flushes the tail and returns every
-    // finalized segment (the seam's contract).
+    // finalized segment (the provider interface's contract).
     active.mic.take();
     let _ = active.bridge.await;
     // The fallback when finish() errors or times out: the mirrored segments
-    // plus the last interim (committed + tentative) — everything that was on
+    // plus the last interim (committed + tentative). Everything that was on
     // screen gets delivered, locked as-is, rather than waiting on a stream
     // that isn't answering.
     let heard_mirror = active.heard.clone();
@@ -439,7 +443,7 @@ pub async fn stop(app: &AppHandle) -> Result<String, AppError> {
     };
 
     let config = state.config.lock().await.clone();
-    // The overlay stays up — "Finishing up…" — until the text is actually
+    // The overlay stays up ("Finishing up…") until the text is actually
     // delivered; cleanup can take seconds and a vanished overlay with no
     // text yet reads as a lost dictation.
     let _ = app.emit("dictation-active", false);
@@ -453,7 +457,7 @@ pub async fn stop(app: &AppHandle) -> Result<String, AppError> {
     let focused = crate::platform::focused_app().map(|a| a.label().to_string());
 
     // Cleanup per the configured tier; every failure shape delivers the raw
-    // text rather than losing the dictation. The *resolved* tier (cloud
+    // text rather than losing the dictation. The resolved tier (cloud
     // degrades to on-device while signed out) feeds telemetry.
     let cleanup_cfg = crate::llm::resolved_cleanup_config(&state.llm, &config).await;
     let cleanup_tier = match &cleanup_cfg {
@@ -500,7 +504,7 @@ pub async fn stop(app: &AppHandle) -> Result<String, AppError> {
         }),
     );
 
-    // History first — losing the paste is recoverable, losing the text isn't.
+    // History first: losing the paste is recoverable, losing the text isn't.
     if let Ok(db) = state.db().await {
         match db.add_dictation(&raw, cleaned.as_deref(), focused.as_deref()) {
             Ok(id) => crate::search_index::sync_dictation(&db, &state.search, id),
@@ -533,6 +537,7 @@ pub async fn cancel(app: &AppHandle) -> Result<(), AppError> {
         return Ok(());
     };
     state.dictating.store(false, Ordering::Release);
+    crate::hotkey::disarm_cancel(app);
     crate::telemetry::track(&state, "dictation_cancelled", serde_json::json!({}));
     active.mic.take();
     // Wait for an in-flight connect so a just-created session still gets its
@@ -561,7 +566,7 @@ fn join_segments<'a>(texts: impl Iterator<Item = &'a str>) -> String {
 }
 
 /// What the fallback delivers: the mirrored finalized segments with the
-/// last interim (committed + tentative) joined on the end — exactly the
+/// last interim (committed + tentative) joined on the end, exactly the
 /// text that was on the overlay. The two never overlap: a finalized
 /// Segment clears the interim mirror, and the interim's committed part
 /// only holds text not yet flushed as a segment.
@@ -576,7 +581,7 @@ fn fallback_text(heard: &[String], interim: &str) -> String {
 
 /// Hand the finished text to the user per the two output switches. Pasting
 /// always stages the text on the clipboard (that is how Ctrl+V works); with
-/// the clipboard switch *off*, the previous contents come back once the
+/// the clipboard switch off, the previous contents come back once the
 /// target app has read it. With it on, the text stays. Neither switch: the
 /// text lives only in history.
 fn deliver(text: &str, copy: bool, paste: bool) {
@@ -607,12 +612,12 @@ fn deliver(text: &str, copy: bool, paste: bool) {
     // below wants the same lock.
     drop(guard);
     if let Err(e) = crate::platform::paste_keystroke() {
-        // The text is still on the clipboard and in history — a failed
-        // paste degrades, it doesn't lose the dictation.
+        // The text is still on the clipboard and in history, so a failed
+        // paste degrades without losing the dictation.
         tracing::warn!("paste keystroke failed: {e}");
     }
     // Give the target app a moment to read the clipboard, then put the
-    // user's old contents back — only when they didn't ask to keep the
+    // user's old contents back, but only when they didn't ask to keep the
     // text there.
     if !copy {
         if let Some(prev) = previous {
@@ -630,20 +635,20 @@ fn deliver(text: &str, copy: bool, paste: bool) {
 
 /// The app's one clipboard handle, alive for the whole process.
 ///
-/// **On X11 this is a correctness requirement, not an optimisation.** The
+/// On X11 this is a correctness requirement, not an optimisation. The
 /// clipboard there is an ownership protocol, not a buffer: the owning client
-/// serves the bytes when a target asks for them, which happens *after* the
+/// serves the bytes when a target asks for them, which happens after the
 /// paste chord is delivered. arboard's `Drop` destroys its selection window
-/// and hands off to a clipboard manager if one is running — so a
+/// and hands off to a clipboard manager if one is running. So a
 /// per-call handle meant the window was already gone by the time the target
 /// asked, and the paste arrived empty (measured on Cinnamon, which runs no
 /// such manager: dictation pasted nothing at all while reporting success).
-/// Plain "copy to clipboard" had the same hole — the text would vanish the
+/// Plain "copy to clipboard" had the same hole: the text would vanish the
 /// moment `deliver` returned.
 ///
 /// Holding one handle for the process fixes both, and matches what a user
 /// means by "it's on my clipboard": ours until they copy something else.
-/// Inert on Windows and macOS, whose clipboards really are buffers — the
+/// Inert on Windows and macOS, whose clipboards really are buffers; the
 /// handle there is a cheap wrapper with no OS-level lock held.
 fn clipboard() -> &'static std::sync::Mutex<Option<arboard::Clipboard>> {
     static CLIPBOARD: std::sync::OnceLock<std::sync::Mutex<Option<arboard::Clipboard>>> =
@@ -662,7 +667,7 @@ fn clipboard() -> &'static std::sync::Mutex<Option<arboard::Clipboard>> {
 const OVERLAY_SIZE: (f64, f64) = (440.0, 148.0);
 
 /// Create (once) and show the overlay near the bottom of the current
-/// monitor. Never focused — the paste target must keep focus.
+/// monitor. Never focused: the paste target must keep focus.
 /// `pub(crate)` for the dev fixture command (commands/fixture.rs).
 pub(crate) fn show_overlay(app: &AppHandle) -> Result<(), AppError> {
     let (w, h) = OVERLAY_SIZE;
@@ -684,7 +689,7 @@ pub(crate) fn show_overlay(app: &AppHandle) -> Result<(), AppError> {
             .visible(false)
             .build()
             .map_err(|e| format!("overlay window failed: {e}"))?;
-            // Platform panel behaviors (macOS: join every Space, ride
+            // Platform panel behaviors (macOS: join every Space, show over
             // full-screen apps). Native-window access is main-thread work.
             {
                 let styled = window.clone();
@@ -710,8 +715,8 @@ pub(crate) fn show_overlay(app: &AppHandle) -> Result<(), AppError> {
     // Display-only: clicks pass straight through, so the overlay can never
     // steal focus from the paste target on any platform.
     //
-    // **After `show()`, not at build time.** On Linux this reaches tao's
-    // `CursorIgnoreEvents`, which unwraps the widget's GDK window — and that
+    // After `show()`, not at build time. On Linux this reaches tao's
+    // `CursorIgnoreEvents`, which unwraps the widget's GDK window, and that
     // does not exist until the window is realized. Setting it on the
     // still-invisible window aborted the whole process (a panic in a
     // non-unwinding context, so not even catchable): the first use of
@@ -728,7 +733,7 @@ fn hide_overlay(app: &AppHandle) {
     }
 }
 
-/// Hide the overlay unless a newer dictation has started meanwhile — the
+/// Hide the overlay unless a newer dictation has started meanwhile: the
 /// slot is free during this stop()'s cleanup tail, so a quick next press
 /// legitimately owns the overlay by the time we get here.
 fn hide_overlay_if_idle(app: &AppHandle, state: &AppState) {
@@ -753,12 +758,12 @@ mod tests {
         config.dictation_provider = TranscriptionProvider::Local;
         assert!(needs_local_model(&config));
 
-        // Cloud landing on the device out of hours: still needed.
+        // Cloud falling back to the device out of hours: still needed.
         config.dictation_provider = TranscriptionProvider::Cloud;
         config.dictation_out_of_hours = CloudOutOfHours::Local;
         assert!(needs_local_model(&config));
 
-        // Cloud with "disabled": failing without a fallback is the ask.
+        // Cloud with "disabled": failing without a fallback is what the user asked for.
         config.dictation_out_of_hours = CloudOutOfHours::Disabled;
         assert!(!needs_local_model(&config));
     }
@@ -766,7 +771,7 @@ mod tests {
     #[test]
     fn fallback_delivers_everything_on_screen() {
         let heard = vec!["First sentence.".to_string(), "Second one.".to_string()];
-        // Tentative tail included — the words were visible, they ship.
+        // Tentative tail included: the words were visible, so they get delivered.
         assert_eq!(
             fallback_text(&heard, "and a trailing thought"),
             "First sentence. Second one. and a trailing thought"

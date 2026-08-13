@@ -1,4 +1,4 @@
-//! Seeds staged dictation rows into a library database — dev fixture
+//! Seeds staged dictation rows into a library database: dev fixture
 //! tooling for scratch libraries (the app writes real rows only at the end
 //! of a live dictation, which needs a microphone). Rows carry explicit
 //! timestamps and dedupe on raw_text, so reruns are no-ops.

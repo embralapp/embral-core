@@ -1,15 +1,15 @@
 //! Process-spawning helpers. No console windows exist to suppress on Linux,
 //! and executables carry no suffix; CLI resolution is a $PATH walk padded
-//! with the homes CLIs actually live in — an app launched from a desktop
+//! with the homes CLIs actually live in: an app launched from a desktop
 //! entry (or from inside an AppImage) inherits a minimal PATH that misses
 //! per-user and version-manager bins.
 
 use std::path::{Path, PathBuf};
 
-/// Keep a child from flashing a console window — nothing to do here.
+/// Keep a child from flashing a console window; nothing to do here.
 pub fn hide_console(_cmd: &mut std::process::Command) {}
 
-/// [`hide_console`] for tokio-spawned children — nothing to do here.
+/// [`hide_console`] for tokio-spawned children; nothing to do here.
 pub fn hide_console_tokio(_cmd: &mut tokio::process::Command) {}
 
 /// The platform spelling of an executable name (no suffix).
@@ -20,8 +20,8 @@ pub fn exe_name(base: &str) -> String {
 /// Resolve a CLI: every $PATH entry, then the usual install homes a desktop
 /// launch doesn't see. First executable hit wins. (The macOS twin adds
 /// Homebrew's prefixes; the per-user dirs below are the ones that matter
-/// here, `~/.local/bin` most of all — it is where `pip --user`, `pipx`, and
-/// most install scripts land.)
+/// here, `~/.local/bin` most of all: it is where `pip --user`, `pipx`, and
+/// most install scripts put binaries.)
 pub async fn find_cli(name: &str) -> Option<PathBuf> {
     let path_dirs = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())

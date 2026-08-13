@@ -14,18 +14,34 @@ function isTauri() {
 }
 
 /** Selection sentinel for the not-yet-persisted meeting finalizing in the
- * background (`appState.pendingMeeting`) — it has no database row yet. */
+ * background (`appState.pendingMeeting`); it has no database row yet. */
 export const PENDING_MEETING_ID = '__pending__';
+
+/** How many meetings a page of the list is. The whole library is browsable;
+ * this is only how much of it arrives at once. Each row costs a full
+ * database row, the summary and transcript text along with it, which is why
+ * the list takes them a page at a time. 100 is what the first load already
+ * fetched back when that number was a ceiling instead of a page. */
+const PAGE_SIZE = 100;
 
 let _records = $state<MeetingRecord[]>([]);
 let _details = $state<Record<string, MeetingDetail>>({});
 let _selectedId = $state<string | null>(null);
 let _isLoading = $state(false);
+let _isLoadingMore = $state(false);
+/** Whether the library has meetings older than the ones loaded. False once a
+ * page comes back short, which is the only way to know there is no more. */
+let _hasMore = $state(true);
 let _detailLoadingId = $state<string | null>(null);
 let _error = $state<string | null>(null);
 
-/** Multi-selection for the list. `selectedId` stays the *primary* row — the one
- * the detail pane shows — so everything that opens a single meeting (the
+/** Bumped by every full refresh. A page that was in flight when the list was
+ * reloaded belongs to a list that no longer exists, so it is dropped rather
+ * than appended to rows it does not follow. */
+let _generation = 0;
+
+/** Multi-selection for the list. `selectedId` stays the primary row (the one
+ * the detail pane shows), so everything that opens a single meeting (the
  * palette, the pending sentinel, a fresh load) is untouched by it. */
 const _selection = new ListSelection();
 
@@ -43,15 +59,37 @@ async function loadDetail(id: string) {
   }
 }
 
-async function load(limit = 100) {
+/** Where the loaded rows end, for asking the backend what comes after them. */
+function cursor(): { date: string; id: string } | null {
+  const last = _records.at(-1);
+  return last ? { date: last.date, id: last.id } : null;
+}
+
+/**
+ * Reload the list from the top: what a delete, an import, or a finished
+ * meeting leaves behind.
+ *
+ * It refetches as many rows as were on screen rather than just the first
+ * page, so a refresh does not throw away the user's scrolling and leave them
+ * looking at a list that suddenly stops.
+ */
+async function load() {
   if (!isTauri()) return;
+  const generation = ++_generation;
+  const wanted = Math.max(PAGE_SIZE, _records.length);
   _isLoading = true;
   _error = null;
   try {
-    _records = await invoke<MeetingRecord[]>('get_meeting_records', {
-      limit,
-      since: null
+    const page = await invoke<MeetingRecord[]>('get_meeting_records', {
+      limit: wanted,
+      since: null,
+      before: null
     });
+    if (generation !== _generation) return;
+    _records = page;
+    // A short page is the end of the library; a full one means there is at
+    // least possibly more, and the next scroll finds out.
+    _hasMore = page.length === wanted;
     // Rows can vanish under a selection (a delete elsewhere, a janitor prune).
     _selection.retain(_records.map((record) => record.id));
     // The pending sentinel is a valid selection even though no row backs it.
@@ -70,13 +108,61 @@ async function load(limit = 100) {
   } catch (e) {
     _error = errorMessage(e);
   } finally {
-    _isLoading = false;
+    // Only the newest refresh clears the flag; an older one finishing must
+    // not report the list as settled while its replacement is still coming.
+    if (generation === _generation) _isLoading = false;
+  }
+}
+
+/**
+ * Append the next page of older meetings: what the list asks for as the user
+ * scrolls towards the bottom.
+ *
+ * Nothing is dropped or re-selected here. This only ever adds rows below the
+ * ones already loaded, so a multi-selection made higher up survives, and the
+ * date headers stay right because the new rows continue the same
+ * newest-first order the groups are built from.
+ */
+async function loadMore() {
+  if (!isTauri() || _isLoading || _isLoadingMore || !_hasMore) return;
+  const before = cursor();
+  // No rows to continue from, but the library has more: deleting every
+  // loaded meeting at once leaves the list here. "More" then means the
+  // first page, which is `load`'s job.
+  if (!before) {
+    await load();
+    return;
+  }
+
+  const generation = _generation;
+  _isLoadingMore = true;
+  _error = null;
+  try {
+    const page = await invoke<MeetingRecord[]>('get_meeting_records', {
+      limit: PAGE_SIZE,
+      since: null,
+      before
+    });
+    if (generation !== _generation) return;
+    _hasMore = page.length === PAGE_SIZE;
+    // The cursor cannot repeat a row, but a meeting edited into view while
+    // the page was in flight could already be here; a duplicate id would
+    // break the keyed list.
+    const known = new Set(_records.map((record) => record.id));
+    _records = [..._records, ...page.filter((record) => !known.has(record.id))];
+  } catch (e) {
+    _error = errorMessage(e);
+    // Stop asking. Something is wrong with the query, and an observer that
+    // fires on every scroll would otherwise retry it forever.
+    _hasMore = false;
+  } finally {
+    _isLoadingMore = false;
   }
 }
 
 /** Where a search result wanted to land, waiting for the detail pane to
  * mount and take it. Held here rather than passed as a prop because the
- * pane is not a child of whatever opened the meeting — the palette is a
+ * pane is not a child of whatever opened the meeting; the palette is a
  * dialog somewhere else entirely. */
 let _pendingLanding = $state<PassageLanding | null>(null);
 
@@ -90,6 +176,13 @@ async function select(id: string, landing?: PassageLanding) {
   if (id !== PENDING_MEETING_ID) {
     await loadDetail(id);
   }
+}
+
+/** Called after rows are dropped locally. Deleting every loaded meeting at
+ * once leaves the list with nothing to page from while the library still has
+ * older ones, so it starts again from the top. */
+async function refillIfEmptied() {
+  if (_records.length === 0 && _hasMore) await load();
 }
 
 /** A click in the list: plain, Ctrl (add/remove) or Shift (range). `order` is
@@ -106,7 +199,7 @@ async function clickRow(
   }
 }
 
-/** Delete every selected meeting. The pending sentinel is skipped — it has no
+/** Delete every selected meeting. The pending sentinel is skipped: it has no
  * row to delete, and it is about to become one. */
 async function deleteSelected() {
   const ids = _selection.ids.filter((id) => id !== PENDING_MEETING_ID);
@@ -128,6 +221,7 @@ async function deleteSelected() {
       _selectedId = _selection.primary;
     }
     if (_selectedId && _selectedId !== PENDING_MEETING_ID) await loadDetail(_selectedId);
+    await refillIfEmptied();
   } catch (e) {
     _error = errorMessage(e);
     throw e;
@@ -157,13 +251,19 @@ export const meetingsStore = {
   get isLoading() {
     return _isLoading;
   },
+  /** Whether the library has meetings older than the loaded ones. The list
+   * keeps a row at the bottom while this holds, and that row is what asks
+   * for them. */
+  get hasMore() {
+    return _hasMore;
+  },
   get detailLoadingId() {
     return _detailLoadingId;
   },
   get error() {
     return _error;
   },
-  /** The multi-selection. `selectedId` is its primary — what the detail shows. */
+  /** The multi-selection. `selectedId` is its primary: what the detail shows. */
   get selection() {
     return _selection;
   },
@@ -171,7 +271,7 @@ export const meetingsStore = {
   get pendingLanding() {
     return _pendingLanding;
   },
-  /** Taken once, by whoever acts on it — a landing must not fire again when
+  /** Taken once, by whoever acts on it: a landing must not fire again when
    * the user comes back to the same meeting by an ordinary click. */
   takeLanding(): PassageLanding | null {
     const landing = _pendingLanding;
@@ -180,6 +280,7 @@ export const meetingsStore = {
   },
 
   load,
+  loadMore,
   clickRow,
   deleteSelected,
 
@@ -208,7 +309,7 @@ export const meetingsStore = {
     }
   },
 
-  /** Save the user's own notes. `stars` carries where each star sits *now*:
+  /** Save the user's own notes. `stars` carries where each star sits now:
    * they anchor into the notes by block ordinal, so an edit moves them and
    * a save that omitted them would leave the anchors drifting. */
   async updateNotes(id: string, markdown: string, stars: MeetingStar[]) {
@@ -324,6 +425,7 @@ export const meetingsStore = {
           await loadDetail(_selectedId);
         }
       }
+      await refillIfEmptied();
     } catch (e) {
       _error = errorMessage(e);
       throw e;

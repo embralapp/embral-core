@@ -2,8 +2,8 @@
     // The wizard shell: assembles the step list (cloud builds open on an
     // account step and a plans page; every build ends on the welcome
     // page), renders the dots and nav, and owns the draft. The draft is
-    // an overlay of only the fields onboarding touches — finish()
-    // re-loads config before saving so anything the cloud seam changed
+    // an overlay of only the fields onboarding touches; finish()
+    // re-loads config before saving so anything the cloud-only code changed
     // mid-wizard (provider adoption on sign-in) survives
     // ([shell.md](../../../../docs/shell.md)).
     import { onMount } from "svelte";
@@ -34,8 +34,8 @@
 
     // Each step carries its telemetry name ([telemetry.md]
     // onboarding_step_viewed) beside its component. The cloud steps open
-    // the flow and their components load through the seam, so they start
-    // component-less — the list's shape (and the dots) is right from the
+    // the flow and their components load from the cloud-only tree, so they
+    // start component-less: the list's shape (and the dots) is right from the
     // first frame, and no step ever reindexes under the user. `selfNav`
     // marks the fork pages that carry their own forward buttons.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,9 +66,9 @@
 
     onMount(() => {
         void modelsStore.refresh();
-        // The cloud fork pages open the flow, signed in or not — the
+        // The cloud fork pages open the flow, signed in or not: the
         // account step reads the auth store, so the refresh runs in
-        // parallel while its component loads through the seam.
+        // parallel while its component loads from the cloud-only tree.
         if (CLOUD_ENABLED) {
             void cloudAuth.refresh();
             void (async () => {
@@ -85,16 +85,16 @@
                               : s,
                     );
                 } else {
-                    // A failed seam load leaves the offline-shaped wizard
-                    // rather than two dead pages.
+                    // If the cloud-only components fail to load, keep the
+                    // offline-shaped wizard rather than two dead pages.
                     steps = steps.filter((s) => s.component !== null);
                 }
             })();
         }
     });
 
-    // The completion mode ([telemetry.md]): recorded at the cloud forks —
-    // declining an account or never seeing one is offline; the plans page
+    // The completion mode ([telemetry.md]): recorded at the cloud forks.
+    // Declining an account or never seeing one is offline; the plans page
     // decides cloud_only (skips local models) vs cloud_and_local.
     let mode = "offline";
 
@@ -105,7 +105,7 @@
     }
 
     // One onboarding_step_viewed per page shown (a population-level
-    // funnel). Telemetry is cloud-edition only — the command doesn't
+    // funnel). Telemetry is cloud-edition only; the command doesn't
     // exist offline ([telemetry.md]).
     let lastViewed = "";
     $effect(() => {

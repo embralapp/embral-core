@@ -1,15 +1,15 @@
 //! Process-spawning helpers. No console windows exist to suppress on
 //! macOS, and executables carry no suffix; CLI resolution is a $PATH walk
-//! padded with the homes CLIs actually live in — a bundled app launched
+//! padded with the homes CLIs actually live in: a bundled app launched
 //! from Finder inherits a minimal PATH that misses Homebrew and
 //! version-manager shims.
 
 use std::path::{Path, PathBuf};
 
-/// Keep a child from flashing a console window — nothing to do here.
+/// Keep a child from flashing a console window; nothing to do here.
 pub fn hide_console(_cmd: &mut std::process::Command) {}
 
-/// [`hide_console`] for tokio-spawned children — nothing to do here.
+/// [`hide_console`] for tokio-spawned children; nothing to do here.
 pub fn hide_console_tokio(_cmd: &mut tokio::process::Command) {}
 
 /// The platform spelling of an executable name (no suffix).

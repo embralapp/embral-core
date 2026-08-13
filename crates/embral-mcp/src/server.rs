@@ -1,7 +1,7 @@
 //! The MCP surface: eight read-only tools over the library, served by rmcp.
-//! Query logic lives in [`crate::queries`]; this file is schemas, wiring,
+//! Query logic lives in [`crate::queries`]; this file is schemas, glue,
 //! and the result envelope. Search is hybrid (keyword + semantic) when the
-//! embedding model is on disk and keyword-only otherwise — silently: a
+//! embedding model is on disk and keyword-only otherwise, silently: a
 //! search never errors because semantics are unavailable.
 
 use rmcp::{
@@ -35,7 +35,7 @@ pub struct EmbralServer {
 #[derive(Clone, Copy, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SearchMode {
-    /// Quoted text goes exact, everything else hybrid — the default.
+    /// Quoted text goes exact, everything else hybrid (the default).
     Auto,
     /// Keyword + semantic, fused.
     Hybrid,
@@ -78,13 +78,13 @@ impl SourceArg {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 pub struct SearchMeetingsArgs {
-    /// What to find — a natural-language description, topic, or exact
+    /// What to find: a natural-language description, topic, or exact
     /// phrase (put exact phrases in double quotes).
     pub query: String,
     pub mode: Option<SearchMode>,
     /// Restrict where passages come from: verbatim speech ("transcript"),
     /// the user's own notes ("user_notes"), AI summaries ("summary"), or
-    /// text read out of images the user pasted into a meeting —
+    /// text read out of images the user pasted into a meeting, such as
     /// screenshots of slides, whiteboards, diagrams ("image_text").
     pub sources: Option<Vec<SourceArg>>,
     /// Only meetings these people were in (attendee names). "Meetings Jane
@@ -116,7 +116,7 @@ pub struct SearchDictationsArgs {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 pub struct PassageContextArgs {
-    /// A passage_id from a search result. Ids are transient — they change
+    /// A passage_id from a search result. Ids are transient: they change
     /// when a meeting is edited; re-search rather than storing them.
     pub passage_id: i64,
     /// Transcript passages: seconds of surrounding speech before (default 60).
@@ -192,7 +192,7 @@ impl EmbralServer {
         }
     }
 
-    /// The semantic leg's query vector — absent in exact mode, when the
+    /// The semantic leg's query vector: absent in exact mode, when the
     /// model isn't downloaded, or when inference fails (all degrade to
     /// keyword-only, silently).
     fn query_vector(&self, query: &str, mode: Option<SearchMode>) -> Option<Vec<f32>> {
@@ -318,7 +318,7 @@ impl EmbralServer {
         match fetched {
             // The one tool whose success is not a single text envelope:
             // the picture must be a real image block or clients will not
-            // show it to their model. The metadata rides beside it.
+            // show it to their model. The metadata sits beside it.
             Ok(f) => {
                 use base64::Engine;
                 let data = base64::engine::general_purpose::STANDARD.encode(&f.bytes);

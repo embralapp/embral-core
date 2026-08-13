@@ -1,9 +1,10 @@
-//! The telemetry facade ([telemetry.md]). Telemetry is a **cloud-edition
-//! feature**: its machinery (queue, flusher, install id, endpoint) lives in
-//! `cloud/telemetry.rs`, behind the seam and out of the open-core repo. The
-//! shared call sites go through this facade, which compiles to a no-op in
-//! offline builds — the public repo shows exactly which moments the cloud
-//! edition can count, and that its own build counts nothing.
+//! The telemetry facade ([telemetry.md]). Telemetry is a cloud-edition
+//! feature: its machinery (queue, flusher, install id, endpoint) lives in
+//! `cloud/telemetry.rs`, compiled only in cloud builds and kept out of the
+//! open-core repo. The shared call sites go through this facade, which
+//! compiles to a no-op in offline builds; the public repo shows exactly
+//! which moments the cloud edition can count, and that its own build counts
+//! nothing.
 //!
 //! The pure vocabulary helpers (app-name normalization, duration buckets)
 //! stay here: they are harmless, and keeping them beside their tests keeps
@@ -18,20 +19,22 @@ pub fn track(state: &crate::AppState, name: &str, props: serde_json::Value) {
 }
 
 /// Ask the flusher to send now instead of at the next tick (events that
-/// precede an imminent exit). A no-op in offline builds.
+/// precede an imminent exit). A no-op in offline builds, where its only
+/// caller (`cloud/commands.rs`) is not compiled either.
 #[allow(unused_variables)]
+#[cfg_attr(not(feature = "cloud"), allow(dead_code))]
 pub fn flush_soon(state: &crate::AppState) {
     #[cfg(feature = "cloud")]
     crate::cloud::telemetry::flush_soon(state);
 }
 
 /// Normalize a detected meeting app's process name to the closed set the
-/// vocabulary allows — the raw value is an exe name and must not leave the
+/// vocabulary allows: the raw value is an exe name and must not leave the
 /// machine ([telemetry.md]).
 pub fn normalize_detected_app(process: &str) -> &'static str {
     let p = process.to_ascii_lowercase();
     for known in [
-        // `chromium` is its own token, not folded into `chrome`: neither
+        // `chromium` is its own token, not merged into `chrome`: neither
         // string contains the other, so a Linux Chromium user would
         // otherwise report as "other" and be invisible.
         "zoom", "teams", "chrome", "chromium", "msedge", "firefox", "slack", "discord", "webex",
@@ -84,13 +87,13 @@ mod tests {
         // Linux identities are bare process names.
         assert_eq!(normalize_detected_app("teams-for-linux"), "teams");
         assert_eq!(normalize_detected_app("msedge"), "msedge");
-        // Chromium is its own bucket, and must not be swallowed by "chrome"
-        // (nor vice versa) — neither name contains the other.
+        // Chromium is its own bucket, and must not be merged into "chrome"
+        // (nor vice versa): neither name contains the other.
         assert_eq!(normalize_detected_app("chromium"), "chromium");
         assert_eq!(normalize_detected_app("chromium-browser"), "chromium");
         assert_eq!(normalize_detected_app("chrome"), "chrome");
         assert_eq!(normalize_detected_app("google-chrome"), "chrome");
-        // Anything unknown collapses to "other" — exe names never leave.
+        // Anything unknown collapses to "other"; exe names never leave.
         assert_eq!(normalize_detected_app("obscure-voip-tool.exe"), "other");
     }
 

@@ -2,8 +2,8 @@
 //!
 //! Runs inside `finalize_meeting` before the transcript is formatted:
 //! diarize the full recording, then write display labels and registry links
-//! onto the transcript segments — user-given live names claim their
-//! clusters, everything else gets "Speaker N" in order of first appearance.
+//! onto the transcript segments. User-given live names claim their
+//! clusters; everything else gets "Speaker N" in order of first appearance.
 //! The segment-mapping math is pure and lives in `embral_engine::speakers`;
 //! this module is the glue that owns audio reading and the labeling policy.
 
@@ -44,7 +44,7 @@ pub fn read_wav_16k(path: &Path) -> Result<Vec<f32>> {
 }
 
 /// Run the pipeline, labeling `segments` in place (overwriting any
-/// provisional live labels). CPU-heavy — call from a blocking context. Any
+/// provisional live labels). CPU-heavy; call from a blocking context. Any
 /// error leaves the segments as they came in (the meeting still finishes,
 /// keeping live labels when they exist).
 pub fn run(
@@ -64,7 +64,7 @@ pub fn run(
         return Ok(());
     }
 
-    // Clusters in order of first appearance — that order drives numbering.
+    // Clusters in order of first appearance; that order drives numbering.
     let mut clusters: Vec<usize> = Vec::new();
     for s in &spans {
         if !clusters.contains(&s.cluster) {
@@ -73,8 +73,8 @@ pub fn run(
     }
 
     // Map segments onto clusters up front: it drives the final label write
-    // AND lets user-given live names (renamed pills during the recording)
-    // claim the clusters their segments cover — an explicit name outranks
+    // and lets user-given live names (renamed pills during the recording)
+    // claim the clusters their segments cover; an explicit name outranks
     // anything this pass could infer.
     let times: Vec<(f64, f64)> = segments.iter().map(|s| (s.start, s.end)).collect();
     let seg_clusters = math::label_segments(&times, &spans);
@@ -91,7 +91,7 @@ pub fn run(
     let mut assignments: HashMap<usize, (String, Option<String>)> = HashMap::new();
     let mut next_number = 1usize;
     for &cluster in &clusters {
-        // A user named this cluster live — keep the name (linked to its
+        // A user named this cluster live: keep the name (linked to its
         // profile when one matches), no numbered label.
         if let Some(name) = user_labels.get(&cluster) {
             let id = profile_id_by_name.get(&name.to_lowercase()).cloned();
@@ -105,7 +105,7 @@ pub fn run(
     // --- Label the transcript ----------------------------------------------
     // Wholesale: this pass is the authority, so any provisional live labels
     // the session produced are overwritten (or cleared where diarization
-    // found no overlapping speech) — user-given names having been folded
+    // found no overlapping speech); user-given names were already merged
     // into `assignments` above.
     for (seg, cluster) in segments.iter_mut().zip(seg_clusters.iter().copied()) {
         let assigned = cluster.and_then(|c| assignments.get(&c));
@@ -131,7 +131,7 @@ fn is_generic_label(label: &str) -> bool {
 
 /// The user-given name for each diarized cluster, if any: among a cluster's
 /// segments, the most frequent incoming non-generic label. Incoming labels
-/// are the session's live labels after any pill renames — generic
+/// are the session's live labels after any pill renames; generic
 /// "Speaker N" labels are machine guesses and carry no vote.
 fn dominant_user_labels(
     segments: &[TranscriptionSegment],
@@ -174,7 +174,7 @@ mod tests {
             end: 1.0,
         };
         let segments = vec![
-            seg(Some("Speaker 1")), // machine guess — no vote
+            seg(Some("Speaker 1")), // machine guess: no vote
             seg(Some("Avirut")),
             seg(Some("Avirut")),
             seg(Some("Speaker 2")),
@@ -224,7 +224,7 @@ mod tests {
         assert!(labels.contains(&"Speaker 2".to_string()));
 
         // A live rename survives the pass: pre-label the first segment with a
-        // user-given name and re-run — its whole cluster keeps the name.
+        // user-given name and re-run; its whole cluster keeps the name.
         let mut segments2: Vec<TranscriptionSegment> = (0..6)
             .map(|i| seg(i as f64 * step + 0.2, (i + 1) as f64 * step - 0.2))
             .collect();

@@ -20,9 +20,9 @@ import { toDisplaySrc, toStoredSrc } from './assetSrc';
  * The markdown embral keeps.
  *
  * ProseMirror is schema-driven: markdown-it renders to HTML, ProseMirror's
- * DOMParser walks it, and **any element with no matching schema rule is
- * dropped with no error**. So "supports markdown" is exactly "has a node or
- * mark for it" — there is no catch-all on the way in. Whatever is missing
+ * DOMParser walks it, and any element with no matching schema rule is
+ * dropped with no error. So "supports markdown" is exactly "has a node or
+ * mark for it"; there is no catch-all on the way in. Whatever is missing
  * here is silently deleted the first time a document containing it is
  * serialized back out, which is why this list is one place and every editor
  * mount uses it.
@@ -30,19 +30,19 @@ import { toDisplaySrc, toStoredSrc } from './assetSrc';
  * `StarterKit` alone left out `Link`, so `[text](url)` lost its URL, and
  * `Image`, `Table` and `TaskList`, which vanished outright.
  * `tiptap-markdown` already ships markdown serialize/parse specs keyed to
- * these node names, so registering the extensions is all that is needed —
+ * these node names, so registering the extensions is all that is needed;
  * no custom serializers.
  *
  * The contract is CommonMark + GFM: headings, emphasis, strikethrough,
  * code and code blocks, blockquotes, horizontal rules, hard breaks,
  * bullet/ordered/task lists, links, images, tables. Anything outside it
- * (footnotes, definition lists, raw HTML blocks) is not kept — see the
+ * (footnotes, definition lists, raw HTML blocks) is not kept; see the
  * round-trip test, which is what makes that claim checkable.
  */
 export function markdownExtensions(storageRoot = '') {
   // The document stores a portable, storage-relative `src`; the DOM needs an
-  // absolute one the webview can load. Mapping it on the attribute — rather
-  // than rewriting the markdown — keeps `node.attrs.src` in the stored form,
+  // absolute one the webview can load. Mapping it on the attribute (rather
+  // than rewriting the markdown) keeps `node.attrs.src` in the stored form,
   // which is what the markdown serializer writes out. Both directions are
   // idempotent, so copying an image between documents round-trips.
   const AssetImage = Image.extend({
@@ -59,8 +59,8 @@ export function markdownExtensions(storageRoot = '') {
       };
     },
     // The stock image spec (prosemirror-markdown's, re-exported by
-    // tiptap-markdown) writes the token and never closes its block — a
-    // block-level image glued the NEXT paragraph onto the same line.
+    // tiptap-markdown) writes the token and never closes its block; a
+    // block-level image glued the next paragraph onto the same line.
     // Delegating keeps upstream's escaping; closeBlock supplies the
     // separator, and block images round-trip byte-stable.
     addStorage() {
@@ -80,8 +80,9 @@ export function markdownExtensions(storageRoot = '') {
     }
   });
 
-  // The stock list item must open with a paragraph. A pasted image can BE
-  // a bullet here (paste onto an empty bullet replaces it — imagePaste.ts),
+  // The stock list item must open with a paragraph. A pasted image can
+  // itself be a bullet here (paste onto an empty bullet replaces it;
+  // imagePaste.ts),
   // so it admits an image as its opening child; the round-trip test proves
   // `- ![](…)` survives a save. Task items stay paragraph-first: markdown
   // cannot write an image-only task (`- [ ] ` with its image on the next
@@ -97,8 +98,8 @@ export function markdownExtensions(storageRoot = '') {
       openOnClick: false,
       autolink: true
     }),
-    // Block, not inline: a screenshot is block content — a paste lands the
-    // way typed text would and the caret moves below it (imagePaste.ts,
+    // Block, not inline: a screenshot is block content, so a paste goes
+    // where typed text would and the caret moves below it (imagePaste.ts,
     // [shell.md] §Writing surface). The serializer above is what makes a
     // block image safe; see its comment.
     AssetImage.configure({ inline: false, allowBase64: true }),

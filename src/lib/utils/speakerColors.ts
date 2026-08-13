@@ -1,10 +1,10 @@
 /** Stable accent per speaker label so the eye can follow a voice down the
- * page — shared by the live transcript, the pending meeting, and the
+ * page, shared by the live transcript, the pending meeting, and the
  * post-meeting segment editor.
  *
  * Text alone: no pill, no fill. A transcript names a speaker on every
  * turn, and chips at that density read as decoration rather than
- * information — colored text carries the same "follow this voice" cue
+ * information; colored text carries the same "follow this voice" cue
  * without boxing every line. Editing one is the same text with a caret in
  * it (`SpeakerNameInput`), not a form field that appears in its place. */
 const namePalette = [

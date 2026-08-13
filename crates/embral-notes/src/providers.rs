@@ -3,9 +3,9 @@
 //! Both engines speak the OpenAI chat/completions protocol: `Builtin` is the
 //! bundled llama-server sidecar (endpoint resolved to its loopback port at
 //! call time) and `Custom` is any other OpenAI-compatible base URL (the cloud
-//! relay will ride this). To keep this unit-testable without a network, the
-//! wire concerns are split into pure functions — [`endpoint`],
-//! [`request_body`], [`parse_response`] — and one thin async [`generate`]
+//! relay will use this). To keep this unit-testable without a network, the
+//! wire concerns are split into pure functions ([`endpoint`],
+//! [`request_body`], [`parse_response`]) and one thin async [`generate`]
 //! that ties them together with `reqwest`.
 
 use anyhow::{anyhow, Result};
@@ -13,14 +13,14 @@ use embral_types::LlmProvider;
 use serde_json::{json, Value};
 
 /// Everything one LLM call needs. Built from an `LlmProfile` by the caller
-/// (see `src-tauri/src/refinement.rs`) — for the `Builtin` provider the
+/// (see `src-tauri/src/refinement.rs`); for the `Builtin` provider the
 /// caller resolves `endpoint` to the running sidecar's loopback URL first.
 #[derive(Debug, Clone, Default)]
 pub struct NotesConfig {
     pub provider: LlmProvider,
     /// Empty → the provider's built-in default (see [`model_for`]).
     pub model: String,
-    /// Base URL; required — `Builtin` gets the runtime sidecar port,
+    /// Base URL; required. `Builtin` gets the runtime sidecar port,
     /// `Custom` whatever it was configured with.
     pub endpoint: String,
     pub api_key: String,
@@ -104,7 +104,7 @@ fn apply_headers(cfg: &NotesConfig, req: reqwest::RequestBuilder) -> reqwest::Re
     }
 }
 
-/// The request for [`prime`]: the normal body capped to a single token —
+/// The request for [`prime`]: the normal body capped to a single token;
 /// the point is the engine processing (and caching) the prompt, not the
 /// reply.
 pub fn prime_body(cfg: &NotesConfig, system: &str, user: &str) -> Value {

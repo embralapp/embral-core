@@ -1,4 +1,4 @@
-// The English catalog. Composition only — no logic, no strings of its own.
+// The English catalog. Composition only: no logic, no strings of its own.
 // One entry per surface; each surface file reads in the order the user meets
 // it on screen.
 

@@ -1,9 +1,9 @@
 // The shared hover label for hot-path lists: one floating element for the
 // whole app instead of a mounted tooltip tree per row (`Tip.svelte` stays
-// the tool for one-off chrome — this action exists because a thousand
+// the tool for one-off chrome; this action exists because a thousand
 // transcript rows cannot afford a thousand tooltip components).
 //
-// Same contract as Tip: the label is presentation only — `aria-label`
+// Same contract as Tip: the label is presentation only. `aria-label`
 // stays on the element, and a disabled button emits no pointer events so
 // it never opens.
 
@@ -29,7 +29,7 @@ export function hideTip() {
   current = null;
 }
 
-/** `use:tip={label}` — shows the shared label centered above the element. */
+/** `use:tip={label}` shows the shared label centered above the element. */
 export function tip(node: HTMLElement, text: string) {
   let label = text;
 

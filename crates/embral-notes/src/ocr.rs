@@ -3,13 +3,13 @@
 //! the summary prompt's image inventory.
 //!
 //! The OS call itself is thin platform code (`platform/{windows,macos}/ocr.rs`);
-//! everything that has an opinion about the *text* lives here, where it can
+//! everything that has an opinion about the text lives here, where it can
 //! be tested without an OS.
 
 /// Tidy raw engine output into a document.
 ///
-/// Both engines answer in lines — `OcrLine` on Windows, one observation per
-/// line on macOS — with whatever spacing their layout analysis produced.
+/// Both engines answer in lines (`OcrLine` on Windows, one observation per
+/// line on macOS) with whatever spacing their layout analysis produced.
 /// Collapse the runs, drop the blanks, and keep the line structure: on a
 /// slide the line breaks are the only structure there is.
 pub fn normalize(lines: &[&str]) -> String {
@@ -25,7 +25,7 @@ pub fn normalize(lines: &[&str]) -> String {
 
 /// One recognized line with its box. Any consistent coordinate space works
 /// (Windows hands back pixels, Vision normalized units) as long as the
-/// origin is top-left — the macOS engine flips Vision's bottom-left y
+/// origin is top-left; the macOS engine flips Vision's bottom-left y
 /// before it gets here.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OcrLine {
@@ -53,7 +53,7 @@ const COLUMN_OVERLAP: f32 = 0.3;
 /// This walks the lines in y order, splitting the image into horizontal
 /// bands at every full-width line, clusters each band into columns by
 /// x-overlap, and reads columns left to right, each top to bottom. A
-/// one-column image — every line wide, or everything overlapping — comes
+/// one-column image (every line wide, or everything overlapping) comes
 /// out in plain (y, x) order, exactly what the geometry-free path
 /// produced. Degenerate boxes never panic and never drop text.
 pub fn layout(lines: &[OcrLine]) -> Vec<String> {
@@ -96,7 +96,7 @@ fn same_column(a: &OcrLine, b: &OcrLine) -> bool {
     let (a0, a1) = (a.x, a.x + a.width.max(0.0));
     let (b0, b1) = (b.x, b.x + b.width.max(0.0));
     let overlap = a1.min(b1) - a0.max(b0);
-    // Multiply rather than divide: a zero-width interval then simply never
+    // Multiply rather than divide: a zero-width interval then never
     // overlaps instead of dividing by zero.
     overlap > 0.0 && overlap >= COLUMN_OVERLAP * a.width.max(0.0).min(b.width.max(0.0))
 }
@@ -151,7 +151,7 @@ const MIN_WORDS: usize = 3;
 
 /// Whether this text is worth indexing.
 ///
-/// An engine pointed at a photo of a wall does not return nothing — it
+/// An engine pointed at a photo of a wall does not return nothing: it
 /// returns a handful of punctuation glyphs it mistook for letters. Those
 /// become a chunk, an embedding, and eventually a palette snippet that reads
 /// like a bug. Two cheap signals separate a slide from a wall: enough real
@@ -196,7 +196,7 @@ pub fn blocks(text: &str, max_words: usize) -> Vec<String> {
 
 /// One line describing an image, for the summary prompt's inventory. The
 /// model needs enough to tell one screenshot from another, not the whole
-/// slide — the prompt already carries the notes those images sit in.
+/// slide; the prompt already carries the notes those images sit in.
 pub fn for_prompt(text: &str, max_chars: usize) -> String {
     let one_line = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if one_line.chars().count() <= max_chars {
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn a_one_column_document_is_unchanged() {
-        // Full-width paragraph lines with a short last line — the everyday
+        // Full-width paragraph lines with a short last line: the everyday
         // shape, and the one whose output must match the geometry-free
         // path exactly.
         let lines = [
@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     fn transitive_overlap_chains_one_column() {
-        // A overlaps B and B overlaps C, but A never touches C — connected
+        // A overlaps B and B overlaps C, but A never touches C; connected
         // components make them one column anyway, in y order.
         let lines = [
             l("A", 0.0, 10.0, 100.0),

@@ -1,13 +1,13 @@
 //! The OS shell theme the tray icons follow ([shell.md](../../../../docs/shell.md)).
 //!
 //! On Windows the taskbar shade is the `SystemUsesLightTheme` registry
-//! value (the *taskbar* theme; the sibling `AppsUseLightTheme` is the app
+//! value (the taskbar theme; the sibling `AppsUseLightTheme` is the app
 //! theme users set independently) and the accent is DWM's `AccentColor`;
 //! a registry watcher fires the callback when either changes.
 
 use crate::platform::ThemeSnapshot;
 
-/// Windows' default accent blue — the accent when the registry read fails.
+/// Windows' default accent blue: the accent when the registry read fails.
 const FALLBACK_ACCENT: [u8; 3] = [0x00, 0x78, 0xd4];
 
 pub fn theme_snapshot() -> ThemeSnapshot {
@@ -65,7 +65,7 @@ fn read_hkcu_dword(
 /// Fire `on_change` whenever the taskbar theme or accent color key changes;
 /// the watcher lives for the process. Registry notifications are one-shot,
 /// so the fired registration is re-armed after each wake. Failure to set
-/// the watcher up leaves the icons correct for the values read at startup —
+/// the watcher up leaves the icons correct for the values read at startup:
 /// degraded, not broken.
 pub fn watch_theme(on_change: Box<dyn Fn() + Send>) {
     use windows::core::{w, PCWSTR};
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn accent_dword_is_abgr() {
-        // 0xAABBGGRR: alpha ff, blue d4, green 78, red 00 — Windows blue.
+        // 0xAABBGGRR: alpha ff, blue d4, green 78, red 00, Windows blue.
         assert_eq!(accent_to_rgb(0xffd4_7800), [0x00, 0x78, 0xd4]);
     }
 }

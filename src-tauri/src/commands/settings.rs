@@ -28,7 +28,7 @@ pub struct ResetScopes {
 }
 
 /// Whether installing an update (which restarts the app) is safe right
-/// now. Returns the human-readable reason to wait, or `None` when clear —
+/// now. Returns the human-readable reason to wait, or `None` when clear;
 /// the updater UI refuses the restart while any of these are live, so an
 /// update can never kill a recording, a dictation, an import, or a voice
 /// enrollment mid-flight.
@@ -48,7 +48,7 @@ pub async fn update_guard(state: State<'_, AppState>) -> Result<Option<AppError>
 }
 
 /// The scoped reset behind About → Reset…: each flag deletes one body of
-/// data outright — config to defaults, meetings (rows + their files),
+/// data outright: config to defaults, meetings (rows + their files),
 /// speaker profiles, dictation history, downloaded models.
 /// Refused while anything is using the mic; no scope is reversible.
 #[tauri::command]
@@ -105,7 +105,7 @@ pub async fn reset_app_data(
     }
 
     if scopes.models {
-        // The LLM sidecar holds its weights open; release before deleting —
+        // The LLM sidecar holds its weights open; release before deleting;
         // same for the embedding worker and its model files.
         state.llm.shutdown();
         state.search.shutdown().await;
@@ -122,7 +122,7 @@ pub async fn reset_app_data(
         #[allow(unused_mut)]
         let mut fresh = AppConfig::default();
         // Defaults have telemetry on; the reset severed the old identity,
-        // so a fresh install id is minted like a first boot — and the sync
+        // so a fresh install id is created like a first boot, and the sync
         // mirror follows the default rather than assuming "off".
         #[cfg(feature = "cloud")]
         {
@@ -142,7 +142,7 @@ pub async fn reset_app_data(
 /// The cloud session is server-managed state: the frontend never writes it
 /// (sign-in/out mutate config directly in `cloud::commands`), so whatever a
 /// save payload carries for these fields is stale by definition. A settings
-/// draft snapshotted before a sign-in used to blank the token here — the
+/// draft snapshotted before a sign-in used to blank the token here; the
 /// "randomly signed out" bug.
 #[cfg(feature = "cloud")]
 fn preserve_server_fields(incoming: &mut AppConfig, current: &AppConfig) {
@@ -150,6 +150,10 @@ fn preserve_server_fields(incoming: &mut AppConfig, current: &AppConfig) {
     incoming.cloud_account_email = current.cloud_account_email.clone();
 }
 
+/// `config` is mutated only in cloud builds (`preserve_server_fields` and
+/// the telemetry install id), so the offline build sees a `mut` it never
+/// uses.
+#[cfg_attr(not(feature = "cloud"), allow(unused_mut))]
 #[tauri::command]
 pub async fn save_config(
     app: AppHandle,
@@ -213,7 +217,7 @@ pub async fn preview_export_filename(template: String) -> Result<String, AppErro
 }
 
 /// Send a sample payload to one webhook destination so users can verify an
-/// endpoint without recording a meeting. Takes the row's values directly —
+/// endpoint without recording a meeting. Takes the row's values directly;
 /// race-free against the settings autosave debounce, and testable before
 /// the row is ever saved.
 #[tauri::command]
@@ -280,7 +284,7 @@ pub async fn list_audio_devices() -> Result<AudioDevices, AppError> {
 
 /// What a running recording could capture: the apps currently playing
 /// audio and the machine's microphones ([recording.md] §Dual-stream
-/// capture). Drives the source picker, which polls this while it is open —
+/// capture). Drives the source picker, which polls this while it is open;
 /// apps come and go mid-call.
 #[derive(serde::Serialize)]
 pub struct AudioSources {
@@ -355,9 +359,14 @@ pub async fn open_notes_folder<R: tauri::Runtime>(
     let base = crate::storage::storage_base(&config.storage_dir);
     drop(config);
     crate::telemetry::track(&state, "notes_folder_opened", serde_json::json!({}));
-    let notes = base.join("notes");
+    // The storage root, not a `notes/` subdirectory. Notes and transcripts
+    // were markdown files under `notes/` until schema v11 made them database
+    // columns ([storage.md]); `init_storage_dirs` has created only `audio/`
+    // and `assets/` ever since, so the old path opened nothing. This is the
+    // folder the recovery button on a failed meeting has to reach.
+    let _ = std::fs::create_dir_all(&base);
     app.opener()
-        .open_path(notes.to_string_lossy().to_string(), None::<&str>)
+        .open_path(base.to_string_lossy().to_string(), None::<&str>)
         .map_err(AppError::internal)
 }
 

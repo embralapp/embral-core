@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 //
 // The repo's first component-render test: shadow mode's whole point is
-// what is NOT on screen, which only a mounted DOM can assert. The tauri
+// what is not on screen, which only a mounted DOM can assert. The tauri
 // bridge is mocked (no webview here); the harness supplies the tooltip
 // provider +layout.svelte provides in the app.
 
@@ -45,7 +45,7 @@ describe('shadow mode hides the recording tells', () => {
     appState.setShadowMode(true);
     flushSync();
     // A red stop square beside a pause button reads as recording
-    // controls on a shared screen — the tell shadow exists to prevent.
+    // controls on a shared screen: the tell shadow exists to prevent.
     expect(ariaLabels().has(t.pauseAria)).toBe(false);
     expect(ariaLabels().has(t.stop)).toBe(false);
     // The way back stays, and its accessible name holds still.

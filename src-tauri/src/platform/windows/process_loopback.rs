@@ -1,22 +1,22 @@
-//! Per-process system-audio capture ([recording.md]) — the lane that fixes
-//! "embral captured the monitor while Zoom played out of the laptop".
+//! Per-process system-audio capture ([recording.md]): the capture path that
+//! fixes "embral captured the monitor while Zoom played out of the laptop".
 //!
 //! `ActivateAudioInterfaceAsync` with `AUDIOCLIENT_ACTIVATION_TYPE_
-//! PROCESS_LOOPBACK` captures one process tree's render streams **wherever
-//! they play**: no endpoint is involved, so device changes cannot desync
+//! PROCESS_LOOPBACK` captures one process tree's render streams wherever
+//! they play: no endpoint is involved, so device changes cannot desync
 //! it, and audio from every other app (music, notifications) stays out of
-//! the recording. Windows build ≥ 20348 only — older builds fall back to
-//! the device lane in `loopback.rs`.
+//! the recording. Windows build ≥ 20348 only; older builds fall back to
+//! the device capture in `loopback.rs`.
 //!
-//! The mic-session pid detection reports is often a *renderer* child while
+//! The mic-session pid detection reports is often a renderer child while
 //! the audio plays from a sibling (every browser), so the target is the
 //! topmost ancestor sharing the same executable name, captured with
 //! `INCLUDE_TARGET_PROCESS_TREE`.
 //!
 //! The WASAPI glue here cannot be unit-tested (it needs a real process
-//! rendering audio); the pure parts — the tree climb and the build gate —
-//! are tested below, and the whole lane degrades to the device path on any
-//! failure.
+//! rendering audio); the pure parts (the tree climb and the build gate)
+//! are tested below, and the whole path degrades to the device capture on
+//! any failure.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
@@ -47,7 +47,7 @@ use windows::Win32::System::Threading::{CreateEventW, SetEvent, WaitForSingleObj
 use crate::audio::pipeline::Pipeline;
 
 /// The build that introduced process loopback (Windows 10 21H2 server /
-/// Windows 11 client). Older builds get the device lane.
+/// Windows 11 client). Older builds get the device capture.
 const MIN_BUILD: u32 = 20348;
 
 /// The format we ask the capture engine for. Shared mode converts and
@@ -64,7 +64,7 @@ pub(crate) fn supported(os_build: &str) -> bool {
 /// One app's capture, running on its own thread until dropped.
 ///
 /// The pump owns `!Send` COM handles, so it cannot live on the caller's
-/// thread beside the others — each app gets a thread that opens, pumps,
+/// thread beside the others; each app gets a thread that opens, pumps,
 /// and tears down. Dropping the handle stops it; `alive()` reports a pump
 /// that ended on its own (the app quit, or the capture failed).
 pub(crate) struct AppCapture {
@@ -77,7 +77,7 @@ pub(crate) struct AppCapture {
 
 impl AppCapture {
     /// Start capturing this app's tree. `None` when the build is too old,
-    /// the app is gone, or activation fails — the caller skips it and
+    /// the app is gone, or activation fails; the caller skips it and
     /// keeps every other source running.
     pub(crate) fn start(
         pid: u32,
@@ -98,10 +98,10 @@ impl AppCapture {
         let thread = std::thread::Builder::new()
             .name(format!("app-audio-{pid}"))
             .spawn(move || {
-                // A panic here must not poison the process: the lane just
-                // reports dead and the supervisor recaptures or falls back
-                // to capturing everything. (Memory corruption inside the
-                // OS call is not catchable — see recording.md.)
+                // A panic here must not poison the process: the capture
+                // just reports dead and the supervisor recaptures or falls
+                // back to capturing everything. (Memory corruption inside
+                // the OS call is not catchable; see recording.md.)
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     pump(pid, sink, paused, &stop_rx, &thread_ready)
                 }));
@@ -161,7 +161,7 @@ fn build_number(os_build: &str) -> Option<u32> {
 /// One row of the process table: (pid, parent pid, executable name).
 type ProcRow = (u32, u32, String);
 
-/// The topmost ancestor of `start` that shares its executable name — a
+/// The topmost ancestor of `start` that shares its executable name: a
 /// browser's mic-holding renderer resolves to the browser itself, so
 /// include-tree capture then covers every sibling that plays audio.
 /// Unknown pids and parent cycles resolve to `start` unchanged.
@@ -230,7 +230,7 @@ fn process_table() -> WinResult<Vec<ProcRow>> {
 /// returns immediately and the completion lands on an MTA worker, so the
 /// handler just signals an event our thread waits on.
 ///
-/// The handler *owns* the event: the runtime holds its own reference for as
+/// The handler owns the event: the runtime holds its own reference for as
 /// long as the activation is in flight, so closing the handle anywhere else
 /// would leave `ActivateCompleted` signalling a recycled handle when an
 /// activation we gave up waiting for finally lands.
@@ -283,7 +283,7 @@ impl Drop for ProcessCapture {
 
 /// Activate and start a process-loopback capture for `target_pid`'s tree.
 ///
-/// COM must already be initialized (MTA) on this thread — the activation
+/// COM must already be initialized (MTA) on this thread: the activation
 /// is asynchronous and its completion calls back into a COM object we
 /// host, which is not safe on an uninitialized thread.
 fn open(target_pid: u32) -> WinResult<ProcessCapture> {
@@ -306,11 +306,11 @@ fn open(target_pid: u32) -> WinResult<ProcessCapture> {
         // constructor: no safe wrapper covers VT_BLOB. The blob borrows
         // `params` on our stack, which outlives the call below.
         //
-        // `ManuallyDrop` is load-bearing, not tidiness: windows-rs gives
+        // `ManuallyDrop` is required here, not tidiness: windows-rs gives
         // PROPVARIANT a `Drop` that calls `PropVariantClear`, and for
-        // VT_BLOB that hands `pBlobData` to `CoTaskMemFree` — a stack
-        // address, which corrupts the heap and kills the process at some
-        // later allocation (0xc0000374, twice in the field). This variant
+        // VT_BLOB that hands `pBlobData` to `CoTaskMemFree`. That is a
+        // stack address, which corrupts the heap and kills the process at
+        // some later allocation (0xc0000374, twice in the field). This variant
         // owns nothing, so its destructor must never run.
         let mut inner = PROPVARIANT_0_0::default();
         inner.vt = VT_BLOB;
@@ -332,9 +332,9 @@ fn open(target_pid: u32) -> WinResult<ProcessCapture> {
         )?;
 
         // The completion handler signals; 3 s is generous for an
-        // activation that normally lands in milliseconds. Giving up does
-        // not close the event — the handler owns it, and the runtime may
-        // still hold a reference to a late activation.
+        // activation that normally completes in milliseconds. Giving up
+        // does not close the event: the handler owns it, and the runtime
+        // may still hold a reference to a late activation.
         let signaled = WaitForSingleObject(done, 3_000) == WAIT_OBJECT_0;
         let result = if signaled {
             let mut activate_result = windows::core::HRESULT(0);
@@ -398,9 +398,9 @@ fn pump(
     stop_rx: &Receiver<()>,
     ready: &Arc<AtomicBool>,
 ) {
-    // COM on this thread, MTA — the activation below is asynchronous and
+    // COM on this thread, MTA: the activation below is asynchronous and
     // calls back into a COM object we host. Without this the callback
-    // lands on a thread the runtime knows nothing about; it corrupted the
+    // arrives on a thread the runtime knows nothing about; it corrupted the
     // heap in the field before this line existed. RPC_E_CHANGED_MODE
     // (already initialized differently) is fine for our usage.
     unsafe {
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn a_browser_renderer_climbs_to_the_browser() {
         // The mic session lives in a renderer; the audio plays from a
-        // sibling — so capture must target the top chrome.exe.
+        // sibling, so capture must target the top chrome.exe.
         let table = vec![
             row(4, 0, "System"),
             row(100, 4, "explorer.exe"),

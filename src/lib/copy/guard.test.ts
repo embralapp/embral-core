@@ -1,14 +1,14 @@
 // The anti-rot guard (docs/copy.md). Two checks over the Svelte source, plus
 // a smoke test:
 //
-//  1. No user-facing string literal in markup — copy belongs in the catalog.
+//  1. No user-facing string literal in markup; copy belongs in the catalog.
 //     Parses each component and walks the FRAGMENT only (never the <script>),
 //     so config sentinels, invoke() names, event names, discriminants, and
 //     console text are out of scope by construction. Flags copy-bearing
 //     attributes (by an allowlist of attribute names) and text nodes, never
 //     descending into attribute values (class="flex ..." is not copy).
 //
-//  2. No non-reactive catalog alias — a top-level `const t = copy.x` reads the
+//  2. No non-reactive catalog alias: a top-level `const t = copy.x` reads the
 //     getter once and a future locale swap never reaches it. Only
 //     `$derived(copy.x)` is sanctioned. Nested reads (inside $derived.by or a
 //     function body) are fine and not flagged.
@@ -16,7 +16,7 @@
 //  3. A smoke test that the Svelte AST still has the shape checks 1–2 rely on,
 //     so a compiler upgrade can't make the guard silently match nothing.
 //
-// Runs under `npm test` only — tsconfig excludes tests from svelte-check.
+// Runs under `npm test` only; tsconfig excludes tests from svelte-check.
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -67,8 +67,8 @@ const ALLOW: Record<string, string[]> = {
 function svelteFiles(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    // The open-core tree drops src/lib/cloud/ wholesale; a missing dir is
-    // simply never walked (cloud-seam.md). Present here, it is checked too.
+    // The open-core tree drops src/lib/cloud/ entirely; a missing dir is
+    // never walked (cloud-seam.md). Present here, it is checked too.
     if (entry.isDirectory()) svelteFiles(full, acc);
     else if (entry.name.endsWith('.svelte')) acc.push(full);
   }
@@ -120,7 +120,7 @@ function memberRoot(node: Record<string, unknown> | null): string | null {
 }
 
 /** Top-level `const/let NAME = copy…` (or destructure) that is not wrapped in
- * $derived — the alias that breaks a locale swap. Nested reads are excluded
+ * $derived: the alias that breaks a locale swap. Nested reads are excluded
  * because they are not top-level statements. */
 function nonReactiveAliases(source: string): string[] {
   const ast = parse(source, { modern: true });

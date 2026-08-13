@@ -1,6 +1,6 @@
 //! Hybrid retrieval: an FTS5 leg and a vector leg fused by reciprocal-rank
 //! fusion, with multiplicative boosts. The caller supplies the query vector
-//! (or doesn't — no model means the FTS leg alone, silently: search never
+//! (or doesn't; no model means the FTS leg alone, silently: search never
 //! errors because semantics are unavailable).
 
 use anyhow::Result;
@@ -32,9 +32,9 @@ pub struct SearchArgs<'a> {
     pub owner: OwnerKind,
     pub limit: usize,
     pub sources: Option<Vec<Source>>,
-    /// People *in the meeting* (attendee display names).
+    /// People in the meeting (attendee display names).
     pub participants: Option<Vec<String>>,
-    /// People *who said it* (chunk speaker labels).
+    /// People who said it (chunk speaker labels).
     pub speakers: Option<Vec<String>>,
     pub after: Option<DateTime<Utc>>,
     pub before: Option<DateTime<Utc>>,
@@ -71,7 +71,7 @@ pub struct Hit {
     pub start_secs: Option<f64>,
     pub end_secs: Option<f64>,
     pub text: String,
-    /// Which image this passage was read out of — `Some` only for
+    /// Which image this passage was read out of; `Some` only for
     /// `image_text`. There is nothing in the document to scroll to for an
     /// image hit, so this is what a caller points at.
     pub image_filename: Option<String>,
@@ -143,11 +143,11 @@ fn fts_quote(token: &str) -> String {
 ///
 /// **With `prefix_last`, the last word is a prefix.** Live search runs
 /// while the user is still typing, so the final token is almost never a
-/// whole word — matching it exactly meant results appeared only when a
+/// whole word: matching it exactly meant results appeared only when a
 /// word happened to be complete and vanished on the next keystroke (the
 /// palette's old "search is slow" bug, which was really a gap). Earlier
 /// tokens are words the user finished, and stay exact. The `*` goes
-/// *outside* the quotes: FTS5 reads `"integratio" *` as a prefix query,
+/// outside the quotes: FTS5 reads `"integratio" *` as a prefix query,
 /// while `"integratio*"` would search for a literal asterisk.
 fn fts_expr(query: &str, phrase: Option<&str>, prefix_last: bool) -> String {
     if let Some(p) = phrase {
@@ -623,15 +623,15 @@ mod tests {
     fn filters_narrow_the_corpus() {
         let db = library();
 
-        // Speaker filter: who *said* it.
+        // Speaker filter: who said it.
         let mut args = SearchArgs::new("quarter", OwnerKind::Meetings);
         args.speakers = Some(vec!["Bob".into()]);
         let found = hits(&db, &args);
         assert!(!found.is_empty());
         assert!(found.iter().all(|h| h.speakers.contains(&"Bob".to_string())));
 
-        // Participant filter: who was *there* — Dana never says "offers"?
-        // she does; but Dana isn't in m-budget, so "budget" + Dana = empty.
+        // Participant filter: who was there. Dana does say "offers" (in
+        // m-hiring), but she isn't in m-budget, so "budget" + Dana = empty.
         let mut args = SearchArgs::new("budget", OwnerKind::Meetings);
         args.participants = Some(vec!["dana".into()]);
         assert!(hits(&db, &args).is_empty());
@@ -654,7 +654,7 @@ mod tests {
     /// Live search runs while a word is still being typed: every stroke
     /// must find the meeting, finished words stay exact, and the prefix is
     /// not a free-for-all. (Ported from the old meeting-level search when
-    /// it died in v8 — the lesson predates this engine.)
+    /// it died in v8; the lesson predates this engine.)
     #[test]
     fn prefix_matching_serves_live_typing() {
         let db = library();
@@ -668,7 +668,7 @@ mod tests {
             args.prefix_last_token = true;
             assert!(!hits(&db, &args).is_empty(), "typing {partial:?} should find it");
         }
-        // Earlier words must still match — only the cursor word is loose.
+        // Earlier words must still match; only the cursor word is loose.
         let mut args = SearchArgs::new("zzz quart", OwnerKind::Meetings);
         args.prefix_last_token = true;
         assert!(hits(&db, &args).is_empty());
@@ -702,7 +702,7 @@ mod tests {
         db.with_conn(|conn| SqliteVecIndex.ensure(conn)).unwrap();
 
         // Hand-placed vectors for exactly two transcript chunks: hiring at
-        // e1, one budget chunk at e2 — no distance ties, no boost noise.
+        // e1, one budget chunk at e2; no distance ties, no boost noise.
         let ids: Vec<(i64, String)> = db
             .with_conn(|conn| {
                 let mut stmt = conn.prepare(

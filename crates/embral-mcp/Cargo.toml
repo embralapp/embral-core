@@ -11,7 +11,7 @@ embral-search = { path = "../embral-search" }
 embral-embedder = { path = "../embral-embedder" }
 rmcp = { version = "2.2", features = ["transport-io"] }
 # Image content in tool results: decode the four pasted formats, downscale
-# to the client budget, re-encode. Pure-Rust codecs only — the static-link
+# to the client budget, re-encode. Pure-Rust codecs only; the static-link
 # story must not change.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 base64 = "0.22"

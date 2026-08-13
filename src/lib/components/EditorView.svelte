@@ -3,12 +3,12 @@
   import type { MeetingStar } from '$lib/types';
   import MarkdownEditor from './MarkdownEditor.svelte';
 
-  /** One meeting document on screen — summary, notes, or the raw transcript
+  /** One meeting document on screen: summary, notes, or the raw transcript
    * fallback. All three are markdown over the same editor; what differs is
-   * whether they are editable and whether stars ride in the gutter, so both
+   * whether they are editable and whether stars show in the gutter, so both
    * are props rather than three near-identical components.
    *
-   * `value` is deliberately **not** bindable: the parent owns the draft and
+   * `value` is deliberately not bindable: the parent owns the draft and
    * hears about edits through `onChange`. Binding would let a programmatic
    * transaction (star anchoring on mount, say) push the editor's
    * re-serialized markdown back over the caller's state. */
@@ -40,7 +40,7 @@
   let editorRef = $state<MarkdownEditor | null>(null);
 
   // A star's id here is its index in the meeting's list, which is what
-  // `scrollToStar` and the click handler below both speak.
+  // `scrollToStar` and the click handler below both use.
   onMount(() => {
     stars.forEach((star, i) => {
       if (star.note_block !== null) {
@@ -64,12 +64,12 @@
     return editorRef?.scrollToImage(filename) ?? false;
   }
 
-  /** Whether there is a document to look in yet — see `MarkdownEditor`. */
+  /** Whether there is a document to look in yet; see `MarkdownEditor`. */
   export function isReady(): boolean {
     return editorRef?.isReady() ?? false;
   }
 
-  /** Where each star sits in the document *now*. Stars anchor as node
+  /** Where each star sits in the document now. Stars anchor as node
    * attributes, so ProseMirror carries them through inserts and deletes for
    * free; this reads the resulting ordinals back out so a save can persist
    * them instead of leaving the stored ones to drift. */

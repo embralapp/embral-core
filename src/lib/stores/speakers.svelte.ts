@@ -94,9 +94,5 @@ export const speakersStore = {
     } catch (e) {
       _error = errorMessage(e);
     }
-  },
-
-  clearError() {
-    _error = null;
   }
 };

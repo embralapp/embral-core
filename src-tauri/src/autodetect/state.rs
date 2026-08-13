@@ -1,5 +1,5 @@
 //! Pure detection logic: the tick-driven call state machine and the
-//! process-name matcher. No OS calls — fully unit-tested; the WASAPI scan and
+//! process-name matcher. No OS calls, fully unit-tested; the WASAPI scan and
 //! policy handling live in the sibling modules.
 
 /// One observation per poll tick: is some candidate app using the mic?
@@ -47,7 +47,7 @@ impl Detector {
         matches!(self.phase, Phase::Active | Phase::Grace { .. })
     }
 
-    /// The current phase, for the poller's transition log — a stuck Active
+    /// The current phase, for the poller's transition log; a stuck Active
     /// state was invisible in the field before this existed.
     pub fn phase_name(&self) -> &'static str {
         match self.phase {
@@ -127,7 +127,7 @@ pub fn match_app(app: &crate::platform::types::AppId, allowlist: &[String]) -> b
 }
 
 /// One identity string (exe name, bundle id, display name) against the
-/// allowlist: case-insensitive, `.exe`-stripped, bidirectional substring —
+/// allowlist: case-insensitive, `.exe`-stripped, bidirectional substring,
 /// which is what lets a bare entry like "chrome" catch `chrome.exe`,
 /// `com.google.Chrome.helper`, and "Google Chrome" alike.
 fn match_identity(identity: &str, allowlist: &[String]) -> bool {
@@ -169,7 +169,7 @@ mod tests {
 
     /// Linux identities, taken verbatim from a live Zoom-in-Chrome call and
     /// the real process names of the Linux clients. The vocabulary is bare
-    /// process names — no `.exe`, no bundle ids — so these are the fixtures
+    /// process names (no `.exe`, no bundle ids), so these are the fixtures
     /// that prove the platform-keyed default list actually matches what
     /// `mic_users.rs` reports there ([260801-linux-port.md] Phase 2).
     ///
@@ -220,7 +220,7 @@ mod tests {
             assert!(!match_app(&exe(binary), &allow), "{binary} is not a meeting");
         }
 
-        // Chrome and Chromium stay distinct — the pair substring matching
+        // Chrome and Chromium stay distinct, the pair substring matching
         // cannot collapse, which is why both need their own entry. With only
         // `chrome` allowed, a Chromium call goes undetected.
         let chrome_only = list(&["chrome"]);

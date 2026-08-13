@@ -14,7 +14,7 @@
 </script>
 
 <!-- State styling must use data-[state=checked|unchecked] variants: bits-ui
-     emits data-state="checked"/"unchecked" on the Switch, NOT presence
+     emits data-state="checked"/"unchecked" on the Switch, not presence
      attributes like data-checked (which would silently never match). -->
 <SwitchPrimitive.Root
 	bind:ref

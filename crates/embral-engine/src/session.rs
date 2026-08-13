@@ -1,6 +1,6 @@
 //! One live transcription session over a warm recognizer.
 //!
-//! Synchronous by design — the caller runs it on a blocking thread and feeds
+//! Synchronous by design: the caller runs it on a blocking thread and feeds
 //! 16 kHz mono f32 chunks (the recorder's native output). Events come back in
 //! the same call, mirroring the pull model the old Parakeet session used.
 //!
@@ -8,7 +8,7 @@
 //!
 //! - **Streaming** (Zipformer): the recognizer's built-in endpoint
 //!   rules finalize utterances from trailing silence. There is deliberately
-//!   **no VAD gating** here — the endpoint rules need to *see* the silence,
+//!   no VAD gating here: the endpoint rules need to see the silence,
 //!   and streaming encoders are cheap enough to run on it.
 //! - **Offline** (Parakeet TDT): Silero VAD segments speech; each completed
 //!   segment is decoded whole for the finalized text (full-context accuracy),
@@ -37,10 +37,10 @@ const OFFLINE_INTERIM_MAX_SAMPLES: usize = 20 * 16_000;
 /// live-preview buffer when speech is confirmed. Silero takes a few hundred
 /// ms to flip `detected()`, and the syllables spoken in that window are in
 /// the VAD's own segment (finals are complete) but would be missing from
-/// every interim — the "first words appear only when the segment finalizes"
+/// every interim: the "first words appear only when the segment finalizes"
 /// bug. A little leading silence in the preview decode is harmless.
 const OFFLINE_PREROLL_SAMPLES: usize = 16_000;
-/// Utterances shorter than this get no live speaker label — a sub-second
+/// Utterances shorter than this get no live speaker label: a sub-second
 /// "yeah" embeds too noisily to cluster honestly. They stay unlabeled; the
 /// post-meeting pass places them by temporal overlap.
 const MIN_LABEL_SAMPLES: usize = 16_000;
@@ -49,17 +49,18 @@ const MIN_LABEL_SAMPLES: usize = 16_000;
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionEvent {
     /// Still-changing preview of the current utterance. Never carries a
-    /// speaker — live labeling happens when the utterance completes.
+    /// speaker; live labeling happens when the utterance completes.
     ///
     /// `text` is the portion that agreed with the previous decode of the
     /// same utterance; `tentative` is the changed suffix, still likely to
     /// move. This is heuristic finality (the local engines expose none per
-    /// token — every decode may rewrite anything), split so the UI can dim
+    /// token; every decode may rewrite anything), split so the UI can dim
     /// the wobbling tail the same way the cloud provider's real one is.
-    /// The tail always carries a leading space (the seam's word-boundary
-    /// convention — this diff splits on words, so the tail always opens
-    /// one), even when `text` is empty: the finalized segment before the
-    /// interim still needs the separator.
+    /// The tail always carries a leading space (the word-boundary
+    /// convention at the join between stable text and tail: this diff
+    /// splits on words, so the tail always opens one), even when `text` is
+    /// empty: the finalized segment before the interim still needs the
+    /// separator.
     Interim {
         text: String,
         tentative: Option<String>,
@@ -78,7 +79,7 @@ pub enum SessionEvent {
 }
 
 /// Per-utterance live speaker labeling: embed each completed VAD segment and
-/// assign it with one-pass clustering. Labels are a provisional preview —
+/// assign it with one-pass clustering. Labels are a provisional preview:
 /// the post-meeting pipeline re-diarizes the whole recording and overwrites
 /// them (see `docs/speakers.md`).
 pub(crate) struct LiveLabeler {
@@ -178,7 +179,7 @@ impl LocalSession {
     }
 
     /// Force-finalize the in-flight utterance (a starred moment): the words
-    /// spoken after it start a new segment, so the marker lands exactly
+    /// spoken after it start a new segment, so the marker falls exactly
     /// between what came before and after. A no-op mid-silence.
     pub fn split_now(&mut self) -> Vec<SessionEvent> {
         match &mut self.inner {
@@ -190,7 +191,7 @@ impl LocalSession {
     /// The stream clock: seconds of audio accepted so far. This is the
     /// timeline segments are stamped in (the wall clock runs ahead of it
     /// by the processing backlog), so timestamps that must order against
-    /// segments — starred moments — are taken from here.
+    /// segments (starred moments) are taken from here.
     pub fn stream_secs(&self) -> f64 {
         match &self.inner {
             Inner::Streaming(s) => s.samples_fed as f64 / SAMPLE_RATE as f64,
@@ -341,7 +342,7 @@ struct OfflineInner {
     samples_fed: u64,
     /// Samples of the in-flight (still-detected) speech run, for interims.
     live_buf: Vec<f32>,
-    /// The last ~1 s of audio heard while the VAD was idle — the words that
+    /// The last ~1 s of audio heard while the VAD was idle: the words that
     /// were already being spoken when detection confirms.
     preroll: Vec<f32>,
     /// `live_buf` length at the last interim decode.
@@ -469,12 +470,12 @@ impl OfflineInner {
 
 /// Split the current interim decode against the previous one: the longest
 /// common word prefix is the stable part, the changed suffix the tentative
-/// tail. Word granularity on purpose — a character-level split would carve
+/// tail. Word granularity on purpose: a character-level split would carve
 /// syllables the decoder never produced. Because the split is on words, the
-/// tail ALWAYS opens a new word, so it always carries the seam's leading
-/// space — even when the stable part is empty, since whatever precedes the
-/// interim (a finalized segment) still needs the separator; renderers
-/// collapse the space when nothing does.
+/// tail always opens a new word, so it always carries the leading space at
+/// the join with the stable text, even when the stable part is empty, since
+/// whatever precedes the interim (a finalized segment) still needs the
+/// separator; renderers collapse the space when nothing does.
 fn split_agreed(prev: &str, curr: &str) -> (String, Option<String>) {
     let prev_words: Vec<&str> = prev.split_whitespace().collect();
     let curr_words: Vec<&str> = curr.split_whitespace().collect();
@@ -521,7 +522,7 @@ fn polish(raw: &str, punct: Option<&OnlinePunctuation>) -> String {
 }
 
 /// Capitalize the first letter and the standalone pronoun "i" (incl. "i'm",
-/// "i'll", …). No punctuation is invented — that is the punct model's job.
+/// "i'll", …). No punctuation is invented; that is the punct model's job.
 fn naive_case(lower: &str) -> String {
     let mut words: Vec<String> = lower.split_whitespace().map(String::from).collect();
     for w in words.iter_mut() {
@@ -545,7 +546,7 @@ mod tests {
     #[test]
     fn split_agreed_hardens_the_shared_prefix() {
         // First decode of an utterance: everything is tentative. The tail
-        // still leads with a space — a finalized segment may precede it.
+        // still leads with a space; a finalized segment may precede it.
         assert_eq!(
             split_agreed("", "the quick"),
             (String::new(), Some(" the quick".to_string()))

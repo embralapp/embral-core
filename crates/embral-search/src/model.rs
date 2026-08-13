@@ -1,4 +1,4 @@
-//! The embedding model's identity — one place for everything the engine
+//! The embedding model's identity: one place for everything the engine
 //! needs to know about it. The download itself is managed by the catalog in
 //! embral-engine, which repeats these facts (engine can't depend on this
 //! crate, this crate can't depend on sherpa); a consistency test in
@@ -9,16 +9,12 @@ use std::path::PathBuf;
 pub const MODEL_ID: &str = "embedding-multilingual";
 pub const MODEL_FILE: &str = "model_quantized.onnx";
 pub const TOKENIZER_FILE: &str = "tokenizer.json";
-pub const MODEL_URL: &str =
-    "https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/onnx/model_quantized.onnx";
-pub const TOKENIZER_URL: &str =
-    "https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/tokenizer.json";
 pub const MODEL_BYTES: u64 = 118_308_185;
 pub const TOKENIZER_BYTES: u64 = 17_082_730;
 /// multilingual-e5-small's output width; also the vec0 column width.
 pub const DIM: usize = 384;
 
-/// Mirrors `catalog::model_dir(MODEL_ID)` — `%LOCALAPPDATA%/embral/models/{id}`.
+/// Mirrors `catalog::model_dir(MODEL_ID)`: `%LOCALAPPDATA%/embral/models/{id}`.
 pub fn model_dir() -> PathBuf {
     dirs::data_local_dir()
         .or_else(dirs::home_dir)

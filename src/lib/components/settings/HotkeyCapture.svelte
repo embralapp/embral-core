@@ -10,8 +10,8 @@
    * cancels; Clear unsets.
    *
    * This existed twice, byte for byte, in the Meetings and Dictation settings
-   * sections — same comment, same body, different config field — and the
-   * Dictation *page* needed a third. It takes `onChange` rather than `bind:` so
+   * sections (same comment, same body, different config field), and the
+   * Dictation page needed a third. It takes `onChange` rather than `bind:` so
    * the settings pages can keep writing straight into their shared debounced
    * draft while the Dictation page writes through `configStore.save`.
    */
@@ -35,7 +35,7 @@
       capturing = false;
       return;
     }
-    // Null while only modifiers are down, and for keys we can't name — either
+    // Null while only modifiers are down, and for keys we can't name; either
     // way, keep listening rather than saving a combo that won't register.
     const combo = comboFromEvent(e);
     if (!combo) return;

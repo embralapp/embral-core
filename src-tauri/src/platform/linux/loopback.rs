@@ -1,35 +1,35 @@
 //! System-audio capture ([recording.md](../../../../docs/recording.md)):
-//! a record stream on the default sink's **monitor source**.
+//! a record stream on the default sink's monitor source.
 //!
 //! Every sink has a monitor carrying whatever that sink is playing, so
 //! recording the default sink's monitor captures everything the machine
-//! plays. No permission gates it — there is nothing to be denied, unlike
-//! macOS's tap consent — and no sound server at all degrades to mic-only.
+//! plays. No permission gates it (there is nothing to be denied, unlike
+//! macOS's tap consent), and no sound server at all degrades to mic-only.
 //!
 //! Three decisions, each from the Phase −1 spike rather than guesswork
 //! ([260801-linux-port.md]):
 //!
-//! - **Native geometry, not server-side conversion.** The server *would*
+//! - Native geometry, not server-side conversion. The server would
 //!   accept a request for 16 kHz mono against a 48 kHz stereo monitor and
 //!   convert for us. We ask for the monitor's own channels and rate instead
 //!   (f32 samples, which is a cheap reinterpretation) and let
-//!   `audio/pipeline.rs` downmix and resample — the same division of labour
-//!   as the WASAPI and Core Audio lanes. One resampler, tested once, feeding
-//!   the mixer canonical 16 kHz mono from every source.
-//! - **`monitor_source_name`, never a built string.** `SinkInfo` states the
+//!   `audio/pipeline.rs` downmix and resample, the same division of labour
+//!   as the WASAPI and Core Audio capture paths. One resampler, tested
+//!   once, feeding the mixer canonical 16 kHz mono from every source.
+//! - `monitor_source_name`, never a built string. `SinkInfo` states the
 //!   monitor outright; the `"<sink>.monitor"` convention held everywhere it
 //!   was checked, but the field is what this reads.
-//! - **A default-sink change mid-recording does not crash**, and the stream
-//!   stays pinned to the monitor it opened — Windows' existing blind spot,
+//! - A default-sink change mid-recording does not crash, and the stream
+//!   stays pinned to the monitor it opened: Windows' existing blind spot,
 //!   shared rather than fixed. It bites less here than on Windows, because
 //!   PipeWire's `module-stream-restore` keeps apps on remembered sinks, so
 //!   they often do not follow a default change either.
 //!
-//! **`preferred_device` is ignored**, as on macOS. The picker's output list
+//! `preferred_device` is ignored, as on macOS. The picker's output list
 //! comes from cpal, whose Linux names are ALSA PCMs (`sysdefault:CARD=…`)
 //! rather than pulse sinks, so nothing here could match one reliably.
 //! Pinning system audio to a chosen device would mean enumerating sinks in
-//! the picker instead — a real design, backlogged rather than faked.
+//! the picker instead: a real design, backlogged rather than faked.
 //!
 //! [260801-linux-port.md]: ../../../../docs/plans/260801-linux-port.md
 
@@ -45,7 +45,7 @@ use crate::platform::types::{
 };
 
 /// How much audio to pull per read. Small enough that a stop is noticed
-/// promptly — the loop only checks between reads — and large enough not to
+/// promptly (the loop only checks between reads) and large enough not to
 /// spin: ~20 ms.
 const READ_MS: u32 = 20;
 
@@ -64,16 +64,16 @@ pub struct SystemAudioCapture {
 }
 
 impl SystemAudioCapture {
-    /// Own the system-audio lane until `stop_rx` closes — the seam's blocking
-    /// entry point. Start once, announce, pump, drop: there is no per-tick
-    /// reopen to supervise (the Windows lane's job), because one monitor
-    /// carries the whole machine's output.
+    /// Hold the system-audio capture until `stop_rx` closes: the platform
+    /// layer's blocking entry point. Start once, announce, pump, drop:
+    /// there is no per-tick reopen to supervise (the Windows side's job),
+    /// because one monitor carries the whole machine's output.
     pub fn run(
         sink_factory: SystemAudioSinkFactory,
         paused: Arc<AtomicBool>,
         preferred_device: Option<&str>,
         // The picker's selection, ignored here: a monitor is one global
-        // mixdown, so there is no per-app lane to narrow to. The same
+        // mixdown, so there is no per-app stream to narrow to. The same
         // compromise macOS makes, and structural to the pulse protocol.
         _wanted: Box<dyn Fn() -> SystemAudioWanted + Send>,
         stop_rx: std::sync::mpsc::Receiver<CaptureCommand>,
@@ -108,7 +108,7 @@ impl SystemAudioCapture {
     }
 
     /// Open a record stream on the default sink's monitor. `None` on any
-    /// failure — no server, no default sink, a format the server refuses —
+    /// failure (no server, no default sink, a format the server refuses),
     /// and the mixer degrades to mic-only.
     pub fn start(
         sink: Box<dyn Fn(&[f32]) + Send>,
@@ -180,10 +180,10 @@ impl SystemAudioCapture {
     }
 
     /// Read one block and feed it through the pipeline. `false` when the
-    /// stream is finished and the lane should give up.
+    /// stream is finished and the capture should give up.
     fn pump(&mut self) -> bool {
         {
-            // SAFETY: a `&mut [f32]` viewed as the bytes it already is —
+            // SAFETY: a `&mut [f32]` viewed as the bytes it already is:
             // same allocation, same lifetime, 4 bytes per sample, and the
             // stream was opened as `F32le` so the server writes exactly this
             // layout. `Simple::read` fills the whole slice or errors.

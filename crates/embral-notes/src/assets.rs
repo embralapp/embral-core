@@ -15,7 +15,7 @@
 
 use std::collections::HashSet;
 
-/// Where one meeting's images live, relative to the storage root — an
+/// Where one meeting's images live, relative to the storage root: an
 /// indexed path for the app's `resolve_indexed_path` guard.
 pub fn asset_dir_rel(meeting_id: &str) -> String {
     format!("assets/{meeting_id}")
@@ -27,7 +27,7 @@ pub fn link_rel(meeting_id: &str, filename: &str) -> String {
 }
 
 /// The image type, read from the bytes themselves. A caller's claimed
-/// extension is not evidence — the clipboard is not a trusted source, and
+/// extension is not evidence: the clipboard is not a trusted source, and
 /// the file name is ours to choose anyway.
 pub fn sniff_image_ext(bytes: &[u8]) -> Option<&'static str> {
     const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
@@ -68,7 +68,7 @@ pub fn image_links(markdown: &str) -> Vec<String> {
     let mut i = 0;
     while i + 1 < bytes.len() {
         if bytes[i] == b'!' && bytes[i + 1] == b'[' {
-            // `![alt](target)` — alt text may not contain `]`, which is
+            // `![alt](target)`: alt text may not contain `]`, which is
             // markdown's own rule for an unescaped label.
             if let Some(close) = markdown[i + 2..].find(']') {
                 let after = i + 2 + close + 1;
@@ -91,7 +91,7 @@ pub fn image_links(markdown: &str) -> Vec<String> {
 
 /// Drop image links the meeting does not actually own.
 ///
-/// The summary is written by a language model that has been *shown* the
+/// The summary is written by a language model that has been shown the
 /// notes' image links and asked to reuse them. Asking nicely is not a
 /// guarantee: it can invent a plausible-looking path, and the notes it was
 /// shown are user-typed, so `![](../../../secret.png)` is reachable too.
@@ -128,7 +128,7 @@ pub fn retain_known_images(markdown: &str, known: &HashSet<String>) -> String {
     out
 }
 
-/// Repoint every `assets/…` link at a new prefix — how a document reaches a
+/// Repoint every `assets/…` link at a new prefix: how a document reaches a
 /// vault, where the images sit beside the note rather than under the
 /// storage root.
 pub fn rewrite_asset_links(markdown: &str, to_prefix: &str) -> String {
@@ -183,7 +183,7 @@ mod tests {
     fn names_continue_from_the_highest_present() {
         assert_eq!(next_asset_name(&[], "png"), "img-01.png");
         assert_eq!(next_asset_name(&["img-01.png".into()], "jpg"), "img-02.jpg");
-        // Numbering is per directory, so a gap does not get reused — two
+        // Numbering is per directory, so a gap does not get reused: two
         // images never share a name even if one was deleted by hand.
         assert_eq!(
             next_asset_name(&["img-01.png".into(), "img-07.webp".into()], "png"),

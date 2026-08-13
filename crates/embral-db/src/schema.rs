@@ -8,7 +8,7 @@ use anyhow::Result;
 use rusqlite::Connection;
 
 const MIGRATIONS: &[&str] = &[
-    // v1 — initial schema: meetings + segments + external-content FTS index.
+    // v1. Initial schema: meetings + segments + external-content FTS index.
     r#"
     CREATE TABLE meetings (
         id               TEXT PRIMARY KEY,
@@ -60,7 +60,7 @@ const MIGRATIONS: &[&str] = &[
         VALUES (new.rowid, new.title, new.notes_md, new.transcript_md);
     END;
     "#,
-    // v2 — speaker registry: known people, their voice-reference embeddings,
+    // v2. Speaker registry: known people, their voice-reference embeddings,
     // a registry link per segment, and per-meeting match suggestions.
     r#"
     CREATE TABLE speakers (
@@ -90,7 +90,7 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE segments ADD COLUMN speaker_id TEXT;
     ALTER TABLE meetings ADD COLUMN speaker_suggestions TEXT NOT NULL DEFAULT '[]';
     "#,
-    // v3 — timestamped chapters on meetings + dictation history.
+    // v3. Timestamped chapters on meetings + dictation history.
     r#"
     ALTER TABLE meetings ADD COLUMN chapters_json TEXT NOT NULL DEFAULT '[]';
 
@@ -102,26 +102,26 @@ const MIGRATIONS: &[&str] = &[
         created_at   TEXT NOT NULL
     );
     "#,
-    // v4 — user-starred moments replace AI chapters (existing chapter data
+    // v4. User-starred moments replace AI chapters (existing chapter data
     // is discarded deliberately; pre-release no-compat).
     r#"
     ALTER TABLE meetings DROP COLUMN chapters_json;
     ALTER TABLE meetings ADD COLUMN stars_json TEXT NOT NULL DEFAULT '[]';
     "#,
-    // v5 — the user's raw live notes, stored verbatim for the Notes tab
+    // v5. The user's raw live notes, stored verbatim for the Notes tab
     // (previously they only existed appended inside the summary document).
     r#"
     ALTER TABLE meetings ADD COLUMN user_notes TEXT NOT NULL DEFAULT '';
     "#,
-    // v6 — speaker emails are gone. Nothing ever read them: matching is
+    // v6. Speaker emails are gone. Nothing ever read them: matching is
     // embedding-only and meeting attendees are display names. They were a hook
     // for calendar matching, which is not built and not planned.
     r#"
     ALTER TABLE speakers DROP COLUMN emails;
     "#,
-    // v7 — the chunk-level retrieval index: passages over transcripts, user
+    // v7. The chunk-level retrieval index: passages over transcripts, user
     // notes, summaries, and dictations (embral-search owns the SQL that
-    // fills and queries these). The vec0 vector table is deliberately NOT
+    // fills and queries these). The vec0 vector table is deliberately not
     // here: its dimensions belong to the embedding model, so embral-search
     // creates and versions it outside migrations (meta keys
     // embedding_model / embedding_dim).
@@ -169,17 +169,17 @@ const MIGRATIONS: &[&str] = &[
         INSERT INTO chunks_fts(rowid, text) VALUES (new.id, new.text);
     END;
     "#,
-    // v8 — the meeting-level FTS index dies: both former consumers (the
+    // v8. The meeting-level FTS index dies: both former consumers (the
     // palette, the MCP server) now search chunk passages, and nothing reads
     // meetings_fts anymore. This also retires its au trigger, which
-    // re-tokenized all three columns on *every* meetings UPDATE.
+    // re-tokenized all three columns on every meetings UPDATE.
     r#"
     DROP TRIGGER meetings_ai;
     DROP TRIGGER meetings_ad;
     DROP TRIGGER meetings_au;
     DROP TABLE meetings_fts;
     "#,
-    // v9 — voice matching is gone: no more voice-reference embeddings,
+    // v9. Voice matching is gone: no more voice-reference embeddings,
     // "sounds like" suggestions, or the is_you flag (whose only consumer was
     // the mic-dominance "you" prior). Diarization, the registry of named
     // people, and segment speaker links all stay.
@@ -188,13 +188,13 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE meetings DROP COLUMN speaker_suggestions;
     ALTER TABLE speakers DROP COLUMN is_you;
     "#,
-    // v10 — pending notes-based name suggestions ("Speaker 1 looks like
+    // v10. Pending notes-based name suggestions ("Speaker 1 looks like
     // John", derived from the user's typed notes) as a per-meeting JSON
     // array, kept until confirmed or dismissed.
     r#"
     ALTER TABLE meetings ADD COLUMN name_suggestions TEXT NOT NULL DEFAULT '[]';
     "#,
-    // v11 — the summary and transcript documents live in the database only.
+    // v11. The summary and transcript documents live in the database only.
     // The markdown files they pointed at were generated exports nothing read
     // (integrations.md), and keeping them meant renaming, deleting and
     // pruning two files at five lifecycle sites. The files already on disk
@@ -203,17 +203,17 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE meetings DROP COLUMN notes_path;
     ALTER TABLE meetings DROP COLUMN transcript_path;
     "#,
-    // v12 — a meeting's three documents get their real names: `summary`
+    // v12. A meeting's three documents get their real names: `summary`
     // (what the LLM wrote), `notes` (what the user typed) and `transcript`.
-    // `notes_md` used to hold the *summary* while the user's own typing
+    // `notes_md` used to hold the summary while the user's own typing
     // lived in `user_notes`, so "notes" meant opposite things either side of
-    // the command layer — `update_meeting_notes` wrote the summary, and the
+    // the command layer: `update_meeting_notes` wrote the summary, and the
     // MCP server translated `notes_md` into `summary_md` on the way out. The
     // `_md` suffix goes with them: all three are markdown, so it
     // distinguished nothing.
     //
-    // Note that `notes` deliberately does not become `notes_md`. Reusing the
-    // old name for a *different* document would let any missed reference in
+    // `notes` deliberately does not become `notes_md`. Reusing the
+    // old name for a different document would let any missed reference in
     // a hand-written SQL string read the wrong one in silence; as it stands
     // a stale `notes_md` fails loudly with "no such column".
     r#"
@@ -221,20 +221,20 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE meetings RENAME COLUMN user_notes TO notes;
     ALTER TABLE meetings RENAME COLUMN transcript_md TO transcript;
     "#,
-    // v13 — the text OCR read out of a pasted image. It belongs to an image
+    // v13. The text OCR read out of a pasted image. It belongs to an image
     // rather than to a document, so it cannot live on `meetings`, and
     // deriving it on the fly would re-OCR the whole library on every index
     // sync. `ocr_engine NULL` means "not read yet", the same idiom as
     // `chunks.embedded_with`.
     //
-    // A *recorded engine mismatch does not re-OCR*, unlike the vector
-    // index's model mismatch. There the old data is unusable — a vector
+    // A recorded engine mismatch does not re-OCR, unlike the vector
+    // index's model mismatch. There the old data is unusable: a vector
     // from another model does not live in the same space. Here it is a
     // string, and a string Vision produced reads perfectly well on Windows.
     //
     // Rows appear only once the meeting row does. During a live recording
     // there is none (finalize creates it), so this key would reject the
-    // insert — which is also why OCR never runs while the recording does.
+    // insert, which is also why OCR never runs while the recording does.
     r#"
     CREATE TABLE image_text (
         meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
@@ -244,7 +244,7 @@ const MIGRATIONS: &[&str] = &[
         PRIMARY KEY (meeting_id, filename)
     );
     "#,
-    // v14 — which image an `image_text` chunk was read out of, so a search
+    // v14. Which image an `image_text` chunk was read out of, so a search
     // hit can point at it. NULL for every other source, which is most rows.
     //
     // The passage's own text is not enough to find the image: it lives
@@ -255,16 +255,16 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE chunks ADD COLUMN image_filename TEXT;
     "#,
-    // v15 — link name-only segments to the registry. Names arrived through
-    // doors that never set `speaker_id` (chiefly the notes-naming pass,
+    // v15. Link name-only segments to the registry. Names arrived through
+    // paths that never set `speaker_id` (chiefly the notes-naming pass,
     // which links only to profiles that already existed), so a person's
     // history could be split between linked segments and plain-text
     // look-alikes. From here on the app adopts strays whenever a profile is
     // created, renamed, or merged into; this backfills everything from
     // before that rule. `MIN(s.id)` makes a duplicate-name registry
-    // deterministic — duplicates are exactly what merge then fixes. A
+    // deterministic; duplicates are exactly what merge then fixes. A
     // profile named like a generic "Speaker N" label adopts nothing (the
-    // GLOB, a hair wider than the Rust-side check): those labels are
+    // GLOB, slightly wider than the Rust-side check): those labels are
     // per-meeting placeholders, and two meetings' "Speaker 2" are
     // different people.
     r#"
@@ -324,8 +324,8 @@ mod tests {
         .unwrap();
     }
 
-    /// v6 drops speaker emails. A registry that *has* emails must survive the
-    /// drop with its people intact — the column goes, nobody goes with it.
+    /// v6 drops speaker emails. A registry that has emails must survive the
+    /// drop with its people intact: the column goes, nobody goes with it.
     #[test]
     fn v6_drops_emails_and_keeps_the_people() {
         let conn = Connection::open_in_memory().unwrap();
@@ -428,7 +428,7 @@ mod tests {
     }
 
     /// v12 renames all three documents to what they actually are. Each must
-    /// arrive under its new name with its content unmoved — the whole hazard
+    /// arrive under its new name with its content unmoved: the whole hazard
     /// of this migration is the summary and the notes swapping places.
     #[test]
     fn v12_renames_the_documents_without_swapping_them() {
@@ -476,7 +476,7 @@ mod tests {
     }
 
     /// v14 records which image a chunk was read out of. Chunks already in
-    /// the index must survive it — they are expensive to rebuild, since
+    /// the index must survive it: they are expensive to rebuild, since
     /// every one of them carries an embedding.
     #[test]
     fn v14_adds_the_image_filename_without_disturbing_existing_chunks() {
@@ -505,7 +505,7 @@ mod tests {
 
         migrate(&conn).unwrap();
 
-        // The existing chunk kept its text *and* its embedding stamp: a
+        // The existing chunk kept its text and its embedding stamp: a
         // migration that re-pends the index would re-embed the library.
         let (text, embedded, image): (String, Option<String>, Option<String>) = conn
             .query_row(
@@ -520,7 +520,7 @@ mod tests {
     }
 
     /// v15 links name-only segments to the registry profile whose name they
-    /// carry — the backfill behind adopt-on-write. A segment already linked,
+    /// carry: the backfill behind adopt-on-write. A segment already linked,
     /// or whose label the registry does not know, is left alone.
     #[test]
     fn v15_links_name_only_segments_to_their_profiles() {
@@ -572,7 +572,7 @@ mod tests {
     }
 
     /// v13 adds the per-image OCR text. Existing meetings must survive, and
-    /// the rows must go when their meeting does — the asset directory is
+    /// the rows must go when their meeting does: the asset directory is
     /// already pruned on delete, and a stale row would keep answering
     /// searches for a meeting that no longer exists.
     #[test]
@@ -634,7 +634,7 @@ mod tests {
     }
 
     /// v11 drops the two markdown export paths. The documents themselves
-    /// must come through untouched — the paths went, the meetings did not.
+    /// must come through untouched: the paths went, the meetings did not.
     #[test]
     fn v11_drops_the_export_paths_and_keeps_the_documents() {
         let conn = Connection::open_in_memory().unwrap();
@@ -711,7 +711,7 @@ mod tests {
     }
 }
 
-/// The version this build writes — what `meta.schema_version` becomes after
+/// The version this build writes: what `meta.schema_version` becomes after
 /// [`migrate`].
 pub fn latest_version() -> i64 {
     MIGRATIONS.len() as i64

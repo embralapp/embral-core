@@ -1,6 +1,6 @@
 import { copy } from '$lib/copy';
 
-/** Time-of-day only ("3:42 PM") — for list rows already sitting under a
+/** Time-of-day only ("3:42 PM"), for list rows already sitting under a
  * date group header. */
 export function formatMeetingTime(value: string): string {
   const date = new Date(value);
@@ -18,7 +18,7 @@ const startOfWeek = (d: Date) => startOfDay(d) - d.getDay() * 86_400_000;
 
 /**
  * The list's date group. Calendar-aligned, Sunday-opening weeks, and the order
- * of the tests *is* the design — first match wins:
+ * of the tests is the design; first match wins:
  *
  *   Today · Yesterday · a weekday name for the rest of this week (Monday) ·
  *   Last week (the preceding Sun–Sat) · Last month (the preceding calendar
@@ -26,8 +26,8 @@ const startOfWeek = (d: Date) => startOfDay(d) - d.getDay() * 86_400_000;
  *
  * Because the weekday rule only covers the current week, "Last week" is exactly
  * the previous Sun–Sat block, and "Last month" is the previous calendar month
- * with whatever last week already claimed cut away — so a week that straddles
- * the turn of the month lands under Last week, not Last month.
+ * with whatever last week already claimed cut away, so a week that straddles
+ * the turn of the month falls under Last week, not Last month.
  *
  * A date earlier in the current month than last week (the 5th, seen on the
  * 30th) falls through to "July 2026": the current month as a heading, which is
@@ -62,7 +62,7 @@ export function dateGroupLabel(value: string, now: Date = new Date()): string {
 }
 
 const WEEKDAY_LABELS = new Set(
-  // Jan 7 2024 was a Sunday. Built in local time on purpose — a UTC date can
+  // Jan 7 2024 was a Sunday. Built in local time on purpose: a UTC date can
   // format as the neighbouring weekday west of Greenwich.
   Array.from({ length: 7 }, (_, i) =>
     new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(new Date(2024, 0, 7 + i))
@@ -80,7 +80,7 @@ export function isSingleDayGroup(label: string): boolean {
 /**
  * Group already-sorted items under their date headers. Both lists sort
  * newest-first, so equal labels are contiguous and a running comparison is
- * enough — no map, no re-sort (a sort here would mask an ordering bug in the
+ * enough; no map, no re-sort (a sort here would mask an ordering bug in the
  * store).
  */
 export function groupByDate<T>(
@@ -113,12 +113,12 @@ export function formatMeetingDate(value: string): string {
 }
 
 /**
- * A position inside a recording — "5:03". The player's readout, the live
+ * A position inside a recording, like "5:03". The player's readout, the live
  * elapsed timer, the transcript's timecode gutter, the starred moments.
  *
  * This existed five times over, privately, in five components, and had already
  * drifted: the live timer padded its minutes ("05:03") while every other
- * timecode in the app did not. Truncating, not rounding — a moment at 5:03.9 is
+ * timecode in the app did not. Truncating, not rounding: a moment at 5:03.9 is
  * still 5:03, and rounding it up would name a second that has not happened yet.
  */
 export function formatTime(seconds: number): string {
@@ -129,8 +129,8 @@ export function formatTime(seconds: number): string {
 }
 
 /**
- * How long something lasted — "5:03", or "1:22:33" once it runs past an
- * hour (hours appear only when needed). A *duration* rounds (a 90.6-second
+ * How long something lasted: "5:03", or "1:22:33" once it runs past an
+ * hour (hours appear only when needed). A duration rounds (a 90.6-second
  * meeting lasted 91 seconds); a position ([`formatTime`]) truncates. The
  * two are different questions.
  */

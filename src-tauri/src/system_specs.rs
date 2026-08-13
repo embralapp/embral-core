@@ -1,4 +1,4 @@
-//! What this machine can carry — RAM, cores, and free disk — so onboarding
+//! What this machine can handle (RAM, cores, and free disk), so onboarding
 //! can recommend a model bundle instead of asking the user to know their
 //! hardware ([shell.md](../../docs/shell.md),
 //! [transcription.md](../../docs/transcription.md)). The mapping from specs

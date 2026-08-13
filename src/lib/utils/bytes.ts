@@ -1,4 +1,4 @@
-/** "45 MB" / "2.5 GB" — download sizes, one implementation. This existed
+/** "45 MB" / "2.5 GB": download sizes, one implementation. This existed
  * four times (both model pages, onboarding, the accuracy picker) and had
  * nothing keeping the copies in step. */
 export function formatBytes(bytes: number | undefined | null): string {

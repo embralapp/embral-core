@@ -2,19 +2,19 @@
 // OS notifications shown while the window is hidden, and the in-app notices
 // that ride the recording banner or the error slot.
 //
-// These have no on-screen review path — an OS notification fires only when a
+// These have no on-screen review path: an OS notification fires only when a
 // recording starts with the window hidden, the updater message only on a real
 // update. The type check and the corpus test are their safety net.
 //
 // The `message` arguments are the mapped sentence from a backend `AppError`
-// (via errorMessage in ../errors.ts) interpolated into a frame — no longer a
+// (via errorMessage in ../errors.ts) interpolated into a frame, no longer a
 // raw backend string (docs/copy.md).
 
 import { plural } from '../plural';
 import { locale } from './locale';
 
 export const notifications = {
-  // Notices: one line each — the title is the whole message, with the
+  // Notices: one line each. The title is the whole message, with the
   // answers beside it ([shell.md] §Notices). The notice row is a fixed
   // 360px; every label here is budgeted by notice-fit.test.ts, so a
   // longer word has to pass that test, not just read well.
@@ -35,7 +35,7 @@ export const notifications = {
     // Fixed text on purpose: the meeting is one click away via the
     // notice's target, and a dynamic title would fight the fit budget.
     webhookFailed: { title: 'Webhook delivery failed' },
-    // The countdown chip beside a notice's title — plain text on purpose,
+    // The countdown chip beside a notice's title: plain text on purpose,
     // so it cannot be mistaken for the logo's ring.
     countdown: (secs: number) => `${secs}s`,
     countdownAria: (secs: number) =>

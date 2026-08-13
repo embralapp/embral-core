@@ -139,7 +139,7 @@ impl LlmSidecar {
         Ok(base_url(port))
     }
 
-    /// Record activity — postpones idle eviction.
+    /// Record activity; postpones idle eviction.
     pub fn touch(&self) {
         *self.last_used.lock().expect("llm mutex poisoned") = Instant::now();
     }
@@ -210,8 +210,8 @@ pub async fn resolved_notes_config(
 
 /// Whether anything in the current configuration actually uses the built-in
 /// model: summaries on the builtin engine, dictation cleanup on-device, or
-/// cloud cleanup while signed out (the degrade chain lands here then). The
-/// performance knobs (`llm_keep_warm`, `llm_idle_minutes`) follow this —
+/// cloud cleanup while signed out (the degrade chain falls back to it then).
+/// The performance knobs (`llm_keep_warm`, `llm_idle_minutes`) follow this:
 /// keep-warm must not pin ~3 GB after a one-off use when every engine has
 /// since left the device. The settings UI mirrors this rule
 /// (`utils/llmUsage.ts`); keep the two in step.
@@ -235,12 +235,12 @@ pub fn cleanup_uses_builtin(config: &embral_types::AppConfig) -> bool {
     }
 }
 
-/// The transport dictation cleanup runs with, per the configured tier —
+/// The transport dictation cleanup runs with, per the configured tier,
 /// degrading rather than blocking, because cleanup must never cost the user
 /// their dictation: Cloud while signed out falls to the on-device model
-/// (a stale-config safety net only — sign-out reverts the stored tier to
+/// (a stale-config safety net only; sign-out reverts the stored tier to
 /// on-device, [cloud-seam.md]); an unavailable on-device model (or `Off`)
-/// is `None`, and the caller delivers the raw text. A *request* failure on
+/// is `None`, and the caller delivers the raw text. A request failure on
 /// whichever transport this returns degrades at the call site the same way.
 pub async fn resolved_cleanup_config(
     sidecar: &LlmSidecar,
@@ -260,8 +260,8 @@ pub async fn resolved_cleanup_config(
             cfg.api_key = config.cloud_session_token.clone();
             Some(cfg)
         }
-        // OnDevice — and Cloud while signed out, which sign-out reversion
-        // makes a stale-config edge case: the built-in model.
+        // OnDevice, and Cloud while signed out (sign-out reversion makes
+        // that a stale-config edge case): the built-in model.
         _ => {
             let mut cfg =
                 crate::refinement::notes_config(&embral_types::LlmProfile::builtin());
@@ -281,8 +281,8 @@ pub async fn resolved_cleanup_config(
 
 /// The transport the notes-naming pass runs with: the summaries engine
 /// when one resolves (the sidecar is typically already going to be used by
-/// the summary anyway), else the built-in model, else `None` — the pass
-/// silently skips and speakers keep their labels.
+/// the summary anyway), else the built-in model, else `None`, in which case
+/// the pass silently skips and speakers keep their labels.
 pub async fn resolved_naming_config(
     sidecar: &LlmSidecar,
     config: &embral_types::AppConfig,
@@ -382,7 +382,7 @@ Speaker 2: Sounds good. Last thing — budget: we are about eight percent under 
         config.summaries_enabled = false;
         config.dictation_cleanup = embral_types::DictationCleanup::Cloud;
 
-        // Signed out, the degrade chain lands on the builtin model.
+        // Signed out, the degrade chain falls back to the builtin model.
         config.cloud_session_token = String::new();
         assert!(uses_local_llm(&config));
 

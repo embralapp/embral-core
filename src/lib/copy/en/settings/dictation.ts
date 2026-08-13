@@ -1,5 +1,5 @@
 // Settings → Dictation. The dictation hotkey, its own transcription tree,
-// output handling, and history retention — plus the "what cleanup does"
+// output handling, and history retention, plus the "what cleanup does"
 // dialog.
 
 export const dictation = {
@@ -47,7 +47,7 @@ export const dictation = {
   },
 
   // The "what cleanup does" explainer dialog. The examples are English-shaped
-  // on purpose (fillers, capitalization) — a translator rewrites them.
+  // on purpose (fillers, capitalization); a translator rewrites them.
   cleanupDialog: {
     title: 'What cleanup does',
     description:

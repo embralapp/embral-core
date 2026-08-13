@@ -21,7 +21,7 @@ export const configStore = {
     if (!_config) return false;
     // Configured iff the model that would actually run is on disk (statuses
     // come from the engine catalog via modelsStore.refresh()). Cloud needs the
-    // local model too — it is where a dropped connection lands.
+    // local model too: it is what a dropped connection falls back to.
     return modelsStore.status(meetingAsrModel(_config))?.present ?? false;
   },
 
@@ -33,7 +33,7 @@ export const configStore = {
     _isLoading = true;
     try {
       _config = await invoke<AppConfig>("get_config");
-      // `isConfigured` reads model statuses — load them now, not first when
+      // `isConfigured` reads model statuses, so load them now, not first when
       // a settings page happens to mount (the record button gates on this).
       await modelsStore.refresh();
     } finally {

@@ -55,7 +55,7 @@
     let swatchColor = $derived(draft.tray_recording_color || accentColor);
 
     // --- Audio devices (moved from the former Audio page) ---
-    // Sentinel for "system default" — an empty string is stored in config.
+    // Sentinel for "system default": an empty string is stored in config.
     const DEFAULT = "__default__";
     let devices = $state<AudioDevices>({ inputs: [], outputs: [] });
     let loading = $state(false);

@@ -6,7 +6,7 @@
 //! hands back CoreFoundation dictionaries to walk, and this one call, which
 //! answers the only question we ask. `IOPSGetTimeRemainingEstimate` returns
 //! a plain `CFTimeInterval` with no object to release, and its "unlimited"
-//! sentinel *is* "on wall power" — including on a Mac with no battery,
+//! sentinel means "on wall power", including on a Mac with no battery,
 //! which is the answer we want for a desktop.
 
 use crate::platform::types::PowerSource;
@@ -18,7 +18,7 @@ extern "C" {
     fn IOPSGetTimeRemainingEstimate() -> f64;
 }
 
-/// `kIOPSTimeRemainingUnlimited`: on an unlimited power source — wall power,
+/// `kIOPSTimeRemainingUnlimited`: on an unlimited power source, wall power,
 /// or no battery in the machine at all.
 const TIME_REMAINING_UNLIMITED: f64 = -2.0;
 
@@ -29,9 +29,9 @@ pub fn power_source() -> PowerSource {
     if estimate == TIME_REMAINING_UNLIMITED {
         PowerSource::Plugged
     } else {
-        // Everything else — a real estimate, or
-        // `kIOPSTimeRemainingUnknown` (-1.0, "on battery but the estimate
-        // isn't ready") — means the battery is carrying the machine.
+        // Everything else (a real estimate, or
+        // `kIOPSTimeRemainingUnknown`, -1.0, "on battery but the estimate
+        // isn't ready") means the battery is carrying the machine.
         PowerSource::Battery
     }
 }

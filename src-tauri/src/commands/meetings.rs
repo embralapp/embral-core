@@ -1,7 +1,7 @@
 //! Meeting library commands: list, detail, palette search, title/notes/
 //! transcript edits, and deletes.
 
-use embral_db::MeetingRow;
+use embral_db::{MeetingCursor, MeetingRow};
 use embral_types::{AppError, MeetingRecord, MeetingSummary};
 use tauri::{AppHandle, State};
 
@@ -24,32 +24,47 @@ pub async fn get_meetings(
         .collect())
 }
 
+/// The last row of the page the list already has, so the next call can
+/// continue from it. The fields are a `MeetingRecord`'s own `date` and `id`
+/// handed straight back, which is why this is a date rather than a row
+/// number: see [`MeetingCursor`].
+#[derive(serde::Deserialize)]
+pub struct MeetingPageCursor {
+    pub date: String,
+    pub id: String,
+}
+
 #[tauri::command]
 pub async fn get_meeting_records(
     state: State<'_, AppState>,
     limit: Option<u32>,
     since: Option<String>,
+    before: Option<MeetingPageCursor>,
 ) -> Result<Vec<MeetingRecord>, AppError> {
     let db = state.db().await?;
     let since = parse_since(since)?;
-    let rows = db.list_meetings(limit, since).map_err(|e| e.to_string())?;
+    let before = before
+        .map(|c| {
+            Ok::<_, AppError>(MeetingCursor {
+                started_at: parse_rfc3339(&c.date)?,
+                id: c.id,
+            })
+        })
+        .transpose()?;
+    let rows = db
+        .list_meetings_page(limit, since, before.as_ref())
+        .map_err(|e| e.to_string())?;
     Ok(rows.iter().map(MeetingRow::to_record).collect())
 }
 
-fn parse_since(since: Option<String>) -> Result<Option<chrono::DateTime<chrono::Utc>>, AppError> {
-    since
-        .map(|s| {
-            chrono::DateTime::parse_from_rfc3339(&s)
-                .map(|dt| dt.with_timezone(&chrono::Utc))
-                .map_err(AppError::internal)
-        })
-        .transpose()
+fn parse_rfc3339(value: &str) -> Result<chrono::DateTime<chrono::Utc>, AppError> {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .map_err(AppError::internal)
 }
 
-#[tauri::command]
-pub async fn get_meeting(state: State<'_, AppState>, id: String) -> Result<String, AppError> {
-    let db = state.db().await?;
-    Ok(require_row(&db, &id)?.summary)
+fn parse_since(since: Option<String>) -> Result<Option<chrono::DateTime<chrono::Utc>>, AppError> {
+    since.as_deref().map(parse_rfc3339).transpose()
 }
 
 #[tauri::command]
@@ -73,7 +88,7 @@ pub struct LibraryMeetingHit {
     pub title: String,
     pub started_at: String,
     pub snippet: String,
-    /// Which document the passage came from — names the tab to open.
+    /// Which document the passage came from; it names the tab to open.
     pub source: String,
     /// Where in the recording the passage runs, for transcript passages.
     /// The pair bounds the search for the words the user typed: a common
@@ -103,7 +118,7 @@ pub struct LibrarySearchResults {
     pub dictations: Vec<LibraryDictationHit>,
 }
 
-/// The passage's opening line, trimmed — what the frontend looks for in the
+/// The passage's opening line, trimmed: what the frontend looks for in the
 /// document to scroll to. A whole line is distinctive enough to find the
 /// right paragraph and short enough to send twelve of.
 fn hit_lead(hit: &embral_search::Hit) -> String {
@@ -130,7 +145,7 @@ fn hit_snippet(hit: &embral_search::Hit) -> String {
 
 /// The palette's search: the hybrid engine over meetings (best passage per
 /// meeting) and dictations in one call. The vector leg joins only when the
-/// embed worker is already warm — a keystroke never waits on a model load;
+/// embed worker is already warm, so a keystroke never waits on a model load;
 /// a cold worker gets a background warm-up and the next keystroke benefits.
 #[tauri::command]
 pub async fn search_library(
@@ -295,8 +310,8 @@ pub async fn update_meeting_summary(
 /// Save the user's own notes, plus where their stars now sit.
 ///
 /// Unlike the summary and the transcript this document has no frontmatter
-/// and no file — it is one column, kept verbatim. The stars come with it
-/// because they anchor *into* it by textblock ordinal: editing the notes
+/// and no file; it is one column, kept verbatim. The stars come with it
+/// because they anchor into it by textblock ordinal: editing the notes
 /// moves the blocks under them, so a save that left `stars_json` alone
 /// would leave every star pointing at whatever now occupies its old index,
 /// and the drift would compound with each edit. The frontend re-derives the
@@ -345,8 +360,8 @@ pub async fn update_meeting_transcript(
 }
 
 /// Delete several meetings at once (the list's multi-select). The index is
-/// exported **once** at the end rather than per row, and a missing meeting is
-/// not an error — it is already in the state the caller wanted.
+/// exported once at the end rather than per row, and a missing meeting is
+/// not an error; it is already in the state the caller wanted.
 #[tauri::command]
 pub async fn delete_meetings(state: State<'_, AppState>, ids: Vec<String>) -> Result<(), AppError> {
     let config = state.config.lock().await.clone();
@@ -369,7 +384,7 @@ pub async fn delete_meetings(state: State<'_, AppState>, ids: Vec<String>) -> Re
     Ok(())
 }
 
-/// The registry ids a meeting's segments link to — remembered before the
+/// The registry ids a meeting's segments link to, remembered before the
 /// delete so profiles the meeting was the last home of can be pruned.
 fn collect_linked_speakers(
     db: &embral_db::Db,

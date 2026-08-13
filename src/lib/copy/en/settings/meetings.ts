@@ -127,7 +127,7 @@ export const meetings = {
   audio: {
     _group: 'Audio recordings',
     keep: { label: 'Keep audio files' },
-    // Retention is a plain day count — the backend and the janitor already
+    // Retention is a plain day count: the backend and the janitor already
     // take any value; the old presets only constrained the UI. Same input
     // idiom as the dictation page's history rows.
     deleteAudio: {

@@ -1,5 +1,5 @@
 // Settings → Transcription. The model library (managed here; selection lives
-// on the Meetings/Dictation pages) and the vocabulary boost — plus the copy
+// on the Meetings/Dictation pages) and the vocabulary boost, plus the copy
 // for two shared controls: the provider/language block and the accuracy
 // picker, both also used by the Dictation and Meetings pages.
 

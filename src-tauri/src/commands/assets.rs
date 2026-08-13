@@ -11,16 +11,16 @@ use crate::AppState;
 /// Save pasted image bytes under the meeting's asset directory and return
 /// the storage-root-relative link the markdown should carry.
 ///
-/// The bytes arrive as a **raw IPC body**, not a JSON argument. Tauri
+/// The bytes arrive as a raw IPC body, not a JSON argument. Tauri
 /// serializes command arguments as JSON, where a `Vec<u8>` becomes an array
-/// of integers — roughly four times the size plus a parse, which on a
+/// of integers, roughly four times the size plus a parse, which on a
 /// full-screen screenshot is a visible freeze of the window. There is no
-/// size cap: images are stored exactly as pasted (owner's call — lossless
+/// size cap: images are stored exactly as pasted (owner's call: lossless
 /// always), which makes the transport choice matter more, not less.
 ///
 /// The meeting id rides in the `x-meeting-id` header. Absent means "the
 /// recording happening now", read from the recovery scratch, because the
-/// live notes editor has no meeting id of its own — the recording owns it.
+/// live notes editor has no meeting id of its own; the recording owns it.
 #[tauri::command]
 pub async fn save_note_asset(
     request: tauri::ipc::Request<'_>,
@@ -58,10 +58,10 @@ pub async fn save_note_asset(
     let dir = crate::commands::resolve_indexed_path(&base, &dir_rel)?;
     std::fs::create_dir_all(&dir).map_err(AppError::internal)?;
 
-    // Allocate by *creating* the file, not by checking whether a name is
+    // Allocate by creating the file, not by checking whether a name is
     // free: two fast pastes both scan an empty directory and both pick
     // img-01. `create_new` makes the winner unambiguous and the loser
-    // simply tries the next number.
+    // tries the next number.
     let mut attempt = 0;
     loop {
         let existing: Vec<String> = std::fs::read_dir(&dir)

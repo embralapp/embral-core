@@ -1,12 +1,12 @@
 // Maps a caught backend failure to a catalog sentence. Commands reject with a
-// serialized `AppError` (crates/embral-types/src/error.rs) — a `{ code, … }`
+// serialized `AppError` (crates/embral-types/src/error.rs), a `{ code, … }`
 // object; the error events carry the same shape. Anything else (an
 // un-converted command that still returns a string, a thrown JS Error) falls
 // through to its own text.
 //
 // `AppErrorCode` mirrors the Rust `code` tags. It is the frontend half of the
 // contract: `en/errors.ts` is `satisfies Record<AppErrorCode, …>`, so a code
-// added here without its copy — or copy without its code — fails
+// added here without its copy (or copy without its code) fails
 // `npm run check`. The Rust `code()` unit test pins the other half.
 
 import { copy } from '$lib/copy';

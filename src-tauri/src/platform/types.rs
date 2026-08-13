@@ -1,10 +1,10 @@
-//! Portable types shared by every platform implementation. Pure data — the
+//! Portable types shared by every platform implementation. Pure data: the
 //! platform modules produce these, the rest of the app consumes them without
 //! knowing which OS filled them in.
 
 /// Where a platform permission stands. Windows reports `NotRequired` for
-/// everything; macOS reports real TCC state where the OS exposes it —
-/// each platform constructs only its own variants, hence the allow.
+/// everything; macOS reports real TCC state where the OS exposes it.
+/// Each platform constructs only its own variants, hence the allow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
@@ -22,7 +22,7 @@ pub enum PermissionState {
 /// A machine with no battery at all reads as `Plugged`: the whole point of
 /// the distinction is "is this thing at a desk", and a desktop is the most
 /// desk-bound machine there is. `Unknown` is only for a platform that
-/// cannot answer — the stub, or an OS call that failed.
+/// cannot answer: the stub, or an OS call that failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerSource {
     /// Wall power (or a machine with no battery to run from).
@@ -30,7 +30,7 @@ pub enum PowerSource {
     /// Running down a battery.
     Battery,
     /// The platform did not answer. Callers keep whatever they would have
-    /// done without a power reading — never guess.
+    /// done without a power reading; never guess.
     Unknown,
 }
 
@@ -44,20 +44,20 @@ pub enum PowerSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Recognized {
-    /// The engine ran. Empty text is a legitimate result — a photo with no
-    /// writing in it — and settles the image for good.
+    /// The engine ran. Empty text is a legitimate result (a photo with no
+    /// writing in it) and settles the image for good.
     Text(String),
     /// The engine ran and could not read this file: a truncated download, a
     /// format the decoder rejects, an image past the engine's size limit.
     /// The image is stamped so it is not retried forever.
     Failed(String),
-    /// There is no OCR here — the stub platform, or no language pack
+    /// There is no OCR here: the stub platform, or no language pack
     /// installed. The image stays pending, and the caller stops: nothing
     /// else will fare better.
     Unavailable,
 }
 
-/// What the system-audio lane is capturing right now — logged on every
+/// What the system-audio capture is recording right now, logged on every
 /// (re)open ([recording.md](../../../docs/recording.md) §Dual-stream
 /// capture). Diagnostic only: the picker is what shows the user the
 /// choice, so this never crosses into the frontend.
@@ -72,11 +72,11 @@ pub enum SystemAudioSource {
     /// notion.
     Everything { devices: usize },
     /// Exactly these apps' own audio, wherever they play (per-process
-    /// capture — the picker excluded something).
+    /// capture; the picker excluded something).
     Apps { names: Vec<String> },
 }
 
-/// Builds a fresh 16 kHz-mono sink per capture attempt — every capture
+/// Builds a fresh 16 kHz-mono sink per capture attempt: every capture
 /// gets its own ring in the mixer, so sources sum and one closing never
 /// disturbs another.
 pub type SystemAudioSinkFactory = Box<dyn Fn() -> Box<dyn Fn(&[f32]) + Send> + Send>;
@@ -85,7 +85,7 @@ pub type SystemAudioSinkFactory = Box<dyn Fn() -> Box<dyn Fn(&[f32]) + Send> + S
 /// Read fresh on every supervision tick, so a checkbox applies live.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum SystemAudioWanted {
-    /// Everything the machine plays — the default, and the only lane that
+    /// Everything the machine plays: the default, and the only mode that
     /// needs no per-process capture.
     #[default]
     Everything,
@@ -99,12 +99,12 @@ pub enum CaptureCommand {
     Reconfigure,
 }
 
-/// An application observed by the OS — a mic user, or the focused app.
+/// An application observed by the OS: a mic user, or the focused app.
 ///
 /// Which fields are present varies by platform: Windows has executable
-/// names (`Zoom.exe`); macOS often only has a bundle id — frequently for
-/// the *helper* process actually holding the audio stream
-/// (`com.google.Chrome.helper`) — plus a display name for the owning app.
+/// names (`Zoom.exe`); macOS often only has a bundle id, frequently for
+/// the helper process actually holding the audio stream
+/// (`com.google.Chrome.helper`), plus a display name for the owning app.
 /// The matcher ([detection.md](../../../docs/detection.md)) accepts any of
 /// them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,7 +119,7 @@ pub struct AppId {
 }
 
 impl AppId {
-    /// An app known only by its executable name — the Windows case (and
+    /// An app known only by its executable name: the Windows case (and
     /// the matcher's tests; unused by the macOS scan, which fills bundle
     /// ids and display names directly).
     #[cfg_attr(not(windows), allow(dead_code))]

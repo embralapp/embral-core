@@ -4,7 +4,7 @@
   /** A live spectrum: one stationary bar per frequency band (low → high),
    * moving up and down with the current audio. Each bar stacks the
    * microphone's share (solid tone, at the bottom) under the system
-   * audio's share (muted tone) — sources, never identity. Quiet by
+   * audio's share (muted tone); sources, never identity. Quiet by
    * design: no numbers, no color coding beyond the two tones. */
   const BAND_COUNT = 24;
   /** Rough visual gain: speech band magnitudes sit well below full scale. */

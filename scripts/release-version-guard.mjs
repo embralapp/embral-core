@@ -1,5 +1,5 @@
 // The one rule that makes updates work (docs/release.md): the version the
-// updater compares is tauri.conf.json's — the tag only triggers the
+// updater compares is tauri.conf.json's; the tag only triggers the
 // workflow. When they disagree the release publishes under one number
 // while advertising another and clients see no update, silently (v0.4.0
 // shipped 0.2.0 artifacts exactly this way). Fail before spending a build.

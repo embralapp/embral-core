@@ -2,13 +2,13 @@
 //! ([storage.md](../../../../docs/storage.md) §The chunk index).
 //!
 //! `Windows.Media.Ocr` is in the box on every Windows 10/11 install: no
-//! model to download, nothing to bundle or sign. It reads printed text —
-//! slides, screenshots, documents — well, and handwriting poorly; that is
+//! model to download, nothing to bundle or sign. It reads printed text
+//! (slides, screenshots, documents) well, and handwriting poorly; that is
 //! the platform's ceiling, not a defect in this file.
 //!
 //! This is WinRT rather than Win32, so it wants a COM apartment on the
 //! calling thread (the caller runs us on a `spawn_blocking` worker) and its
-//! calls are asynchronous, resolved here with `.join()` — every one of them
+//! calls are asynchronous, resolved here with `.join()`; every one of them
 //! completes in milliseconds against an in-memory stream.
 
 use windows::Graphics::Imaging::{
@@ -22,11 +22,12 @@ use crate::platform::types::Recognized;
 use embral_notes::ocr::OcrLine;
 
 /// Read the text in one image. Bytes rather than a path: the decoder is
-/// happy with an in-memory stream, and file IO belongs above the seam.
+/// happy with an in-memory stream, and file IO belongs above the platform
+/// layer.
 pub fn recognize_text(bytes: &[u8]) -> Recognized {
     // SAFETY: the documented apartment call. A thread already initialized
-    // in another mode answers RPC_E_CHANGED_MODE, which is fine — we only
-    // need *an* apartment, and the existing one serves.
+    // in another mode answers RPC_E_CHANGED_MODE, which is fine; we only
+    // need an apartment of some kind, and the existing one serves.
     unsafe {
         let _ = windows::Win32::System::Com::CoInitializeEx(
             None,
@@ -70,7 +71,7 @@ fn read(engine: &OcrEngine, bytes: &[u8]) -> windows_core::Result<Vec<OcrLine>> 
         None => decoder.GetSoftwareBitmapAsync()?.join()?,
         Some((width, height)) => {
             // Past the engine's limit the call fails outright rather than
-            // degrading, so a large screenshot has to be scaled first —
+            // degrading, so a large screenshot has to be scaled first;
             // the failure mode this guards against is silent and total.
             tracing::debug!("scaling a {width}x{height} image down for OCR");
             let transform = BitmapTransform::new()?;
@@ -94,7 +95,7 @@ fn read(engine: &OcrEngine, bytes: &[u8]) -> windows_core::Result<Vec<OcrLine>> 
     for line in result.Lines()? {
         let text = line.Text()?.to_string_lossy();
         // `OcrLine` exposes no rect of its own; its box is the union of
-        // its words' (pixel space, top-left origin — what layout wants).
+        // its words' (pixel space, top-left origin, what layout wants).
         let mut x0 = f32::INFINITY;
         let mut y0 = f32::INFINITY;
         let mut x1 = f32::NEG_INFINITY;
@@ -143,8 +144,8 @@ mod tests {
     /// `EMBRAL_TEST_OCR_IMAGE=C:/path/to/slide.png
     ///  cargo test -p embral --lib ocr -- --ignored --nocapture`
     ///
-    /// Point it at a screenshot of slides *and* at a photographed
-    /// whiteboard — printed text and handwriting are different problems and
+    /// Point it at a screenshot of slides and also at a photographed
+    /// whiteboard: printed text and handwriting are different problems and
     /// this engine is much better at the first.
     #[test]
     #[ignore = "needs EMBRAL_TEST_OCR_IMAGE pointing at an image file"]
@@ -168,7 +169,7 @@ mod tests {
 
     #[test]
     fn a_non_image_fails_rather_than_pretending() {
-        // Refusing to decode is `Failed` — an answer about this file — not
+        // Refusing to decode is `Failed` (an answer about this file), not
         // `Unavailable`, which would leave it pending forever.
         match recognize_text(b"this is not an image") {
             Recognized::Failed(_) => {}

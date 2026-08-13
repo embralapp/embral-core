@@ -47,12 +47,12 @@ export const imagePaste = (options: ImagePasteOptions = {}) =>
               // alongside, and letting that through would drop a file name
               // into the document next to the image.
               event.preventDefault();
-              // All placeholders land synchronously: each insert leaves a
-              // NodeSelection on its image, which is what stacks multiple
-              // files in paste order. The caret then moves below the last
-              // image onto a fresh bullet or line — pasting reads like
-              // typing: the image lands where you were, and writing
-              // continues underneath it.
+              // All placeholders are inserted synchronously: each insert
+              // leaves a NodeSelection on its image, which is what stacks
+              // multiple files in paste order. The caret then moves below
+              // the last image onto a fresh bullet or line, so pasting
+              // reads like typing: the image goes where you were, and
+              // writing continues underneath it.
               const placed = files.map((file) => ({ file, token: placePlaceholder() }));
               caretBelow();
               for (const { file, token } of placed) void save(token, file);
@@ -62,13 +62,13 @@ export const imagePaste = (options: ImagePasteOptions = {}) =>
         })
       ];
 
-      /** Insert the pending node the way typed text would land. An empty
-       * textblock is replaced outright — pasted onto an empty bullet, the
+      /** Insert the pending node where typed text would go. An empty
+       * textblock is replaced outright: pasted onto an empty bullet, the
        * image becomes the bullet (the schema admits it: extensions.ts).
        * A non-empty one takes the image right after it: a mid-sentence
        * paste never splits its sentence, and inside a list item that
        * position is still inside the item, so the image stays nested
-       * under its bullet. At depth 0 — a NodeSelection or gap cursor —
+       * under its bullet. At depth 0 (a NodeSelection or gap cursor),
        * right after the selected node, which is what stacks a multi-file
        * paste in order. */
       function placePlaceholder(): string {
@@ -98,8 +98,8 @@ export const imagePaste = (options: ImagePasteOptions = {}) =>
       }
 
       /** Put the caret on a fresh empty block below the last pasted
-       * image — a new bullet when the image sits in a list or task item,
-       * a new line otherwise — so writing continues under the screenshot
+       * image (a new bullet when the image sits in a list or task item,
+       * a new line otherwise) so writing continues under the screenshot
        * instead of stranded above it. Reads the NodeSelection the last
        * insert left behind. */
       function caretBelow() {
@@ -149,8 +149,7 @@ export const imagePaste = (options: ImagePasteOptions = {}) =>
 
       /** Swap the placeholder for the real link, or remove it on failure.
        * Finding it by token rather than by position is what makes an undo
-       * mid-flight harmless: the node is simply not there and nothing
-       * happens. */
+       * mid-flight harmless: the node is not there and nothing happens. */
       function replacePlaceholder(token: string, link: string | null) {
         const { state } = editor.view;
         let found: number | null = null;
@@ -165,7 +164,7 @@ export const imagePaste = (options: ImagePasteOptions = {}) =>
           // The placeholder may be all its list item holds (it replaced
           // the empty paragraph the paste landed on), and deleting just
           // the node would leave a child-less item the schema refuses.
-          // Take every ancestor it is the only child of along with it —
+          // Take every ancestor it is the only child of along with it:
           // the item, and the list too when that item was its last.
           const $pos = state.doc.resolve(found);
           let from: number = found;
@@ -186,7 +185,7 @@ export const imagePaste = (options: ImagePasteOptions = {}) =>
         }
         editor.view.dispatch(tr);
         if (link === null) return;
-        // Keep the arriving image in view: once when the real link lands,
+        // Keep the arriving image in view: once when the real link is set,
         // and once more when the bytes render and the node takes its
         // height (nothing else listens for that growth). `nearest` so a
         // viewport already showing the image does not move.

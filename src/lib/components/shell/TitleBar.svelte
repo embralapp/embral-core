@@ -44,7 +44,7 @@
     </button>
 
     <!-- The right column: its empty space (left of the window controls) must
-         drag the window too — without the attribute here it fell on a plain
+         drag the window too; without the attribute here it fell on a plain
          div and stayed dead. The buttons carry no drag attribute, so they
          still click. -->
     <div data-tauri-drag-region class="flex h-full items-center justify-end">

@@ -1,5 +1,5 @@
 // The wizard's draft: only the fields onboarding owns, applied over a
-// freshly-loaded config at finish so anything the cloud seam changed
+// freshly-loaded config at finish so anything the cloud-only code changed
 // mid-wizard (provider adoption on sign-in) survives ([shell.md](../../../../docs/shell.md)).
 
 import type { AppConfig } from "$lib/types";

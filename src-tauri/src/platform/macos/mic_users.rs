@@ -2,17 +2,17 @@
 //!
 //! Core Audio's HAL keeps an object per audio client process; per-object
 //! `kAudioProcessPropertyIsRunningInput` says "this process has an active
-//! input stream" — the same predicate as the Windows WASAPI session scan,
-//! and no TCC permission gates the property reads. Property *listeners*
+//! input stream", the same predicate as the Windows WASAPI session scan,
+//! and no TCC permission gates the property reads. Property listeners
 //! on these objects are unreliable (macOS 15.0.x), so the caller's 3 s
-//! poll drives this. Any HAL failure degrades to an empty list —
+//! poll drives this. Any HAL failure degrades to an empty list;
 //! detection must never take the app down.
 //!
-//! Identity: the capturing process is often a *helper*
+//! Identity: the capturing process is often a helper
 //! (`com.google.Chrome.helper`), so each hit carries every identity the
-//! platform has — the HAL's bundle id, `NSRunningApplication`'s app-level
+//! platform has (the HAL's bundle id, `NSRunningApplication`'s app-level
 //! name/bundle where the pid is an app, and the executable basename via
-//! `proc_pidpath` as the floor — and the matcher tests them all.
+//! `proc_pidpath` as the floor), and the matcher tests them all.
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
@@ -80,7 +80,7 @@ fn app_id(pid: i32, hal_bundle_id: Option<String>) -> AppId {
     }
 }
 
-/// Executable basename via `proc_pidpath` — works for helpers that aren't
+/// Executable basename via `proc_pidpath`; works for helpers that aren't
 /// "applications". Shared with `input::focused_app`.
 pub(super) fn exe_basename(pid: i32) -> Option<String> {
     let mut buf = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
@@ -189,7 +189,7 @@ fn read_cfstring(
 
 #[cfg(test)]
 mod tests {
-    /// Live probe of the real HAL scan — run manually while some app holds
+    /// Live probe of the real HAL scan; run manually while some app holds
     /// a microphone stream:
     /// `cargo test -p embral --lib scan_lists -- --ignored --nocapture`.
     /// (On a machine with no input device it prints an empty list and

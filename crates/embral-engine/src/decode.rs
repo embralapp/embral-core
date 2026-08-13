@@ -1,5 +1,5 @@
 //! Decode an audio file (wav/mp3/m4a/aac) to the engine's canonical format:
-//! 16 kHz mono f32 PCM. Used by import — everything downstream of capture
+//! 16 kHz mono f32 PCM. Used by import; everything downstream of capture
 //! (sessions, finalize, notes) then works exactly as it does for live audio.
 
 use std::fs::File;
@@ -192,7 +192,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Real-world check against a bundled demo MP3. Ignored by default —
+    /// Real-world check against a bundled demo MP3. Ignored by default:
     /// decoding a full earnings call takes ~a minute; run in verification
     /// passes via `cargo test -p embral-engine -- --ignored`.
     #[test]

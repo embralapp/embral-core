@@ -4,7 +4,7 @@
 //! The standalone (Squirrel) installer keeps it at `%APPDATA%\Claude`, but
 //! the MSIX build (Microsoft Store / WinGet / the current official Windows
 //! installer) runs in a virtualized filesystem and redirects it under the
-//! package folder in `%LOCALAPPDATA%\Packages` — so a bare `%APPDATA%`
+//! package folder in `%LOCALAPPDATA%\Packages`, so a bare `%APPDATA%`
 //! check misses every Store/WinGet install.
 
 use std::path::{Path, PathBuf};
@@ -17,8 +17,8 @@ const CLAUDE_MSIX_PACKAGE: &str = "Claude_pzs8sxrjxfjjc";
 
 /// Every directory Claude Desktop might keep `claude_desktop_config.json` in,
 /// most specific first: the standalone (Squirrel) install's `%APPDATA%\Claude`,
-/// then the MSIX virtualized path — the known package, then any other `Claude_*`
-/// package discovered under `%LOCALAPPDATA%\Packages`. Pure so the ordering is
+/// then the MSIX virtualized path (the known package, then any other `Claude_*`
+/// package discovered under `%LOCALAPPDATA%\Packages`). Pure so the ordering is
 /// unit-tested without touching disk; `package_dirs` is the folder listing.
 fn desktop_config_candidates(
     roaming: Option<&Path>,
@@ -64,7 +64,7 @@ fn local_package_dirs(local: Option<&Path>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The best Claude Desktop config directory visible on disk — the first
+/// The best Claude Desktop config directory visible on disk: the first
 /// candidate that exists, else the first candidate as a sensible default for
 /// display. No `Get-AppxPackage` call, so it's cheap enough for the setup-info
 /// path shown in the copy-paste fallback.
@@ -82,7 +82,7 @@ pub fn desktop_config_dir_on_disk() -> Option<PathBuf> {
 /// The live Claude Desktop config directory and whether it's installed.
 /// Prefers a config dir that exists (standalone or MSIX); only when the fast
 /// disk checks come up empty does it ask `Get-AppxPackage` (slow, hence last)
-/// and derive the dir from the package family — so a freshly-installed but
+/// and derive the dir from the package family, so a freshly-installed but
 /// never-launched Desktop still registers. The path comes back even when
 /// nothing is installed, so callers can still say where to look.
 pub async fn resolve_desktop_config_dir() -> (Option<PathBuf>, bool) {

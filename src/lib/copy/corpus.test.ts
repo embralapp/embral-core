@@ -1,5 +1,5 @@
 // Walks the whole catalog and asserts the invariants that catch the realistic
-// mechanical errors (docs/copy.md). It is not a baseline-equality test — a
+// mechanical errors (docs/copy.md). It is not a baseline-equality test: a
 // committed snapshot of every string would just be a second copy to maintain;
 // these invariants hold permanently instead.
 //
@@ -13,7 +13,7 @@ import { copy } from './index';
 import { cloudCopy } from '$lib/cloud/copy';
 
 // A string sample: catalog functions only interpolate their args (never do
-// arithmetic), and some pass an arg straight through as a Part's text — so a
+// arithmetic), and some pass an arg straight through as a Part's text, so a
 // string keeps that text a string, while numeric interpolation coerces fine.
 const SAMPLE = 'x';
 
@@ -21,7 +21,7 @@ type Leaf = { path: string; value: unknown };
 
 function leaves(node: unknown, path: string, acc: Leaf[]): void {
   // Arrays and functions are catalog leaves in their own right (a static or
-  // computed Part[], or an interpolating function) — checkLeaf handles both.
+  // computed Part[], or an interpolating function); checkLeaf handles both.
   if (node === null || typeof node !== 'object' || Array.isArray(node)) {
     acc.push({ path, value: node });
     return;
@@ -29,7 +29,7 @@ function leaves(node: unknown, path: string, acc: Leaf[]): void {
   for (const [k, v] of Object.entries(node)) leaves(v, `${path}.${k}`, acc);
 }
 
-/** Validate a Part[] — each piece a plain string or { slot, text }; fragments
+/** Validate a Part[]: each piece a plain string or { slot, text }; fragments
  * are glued, so only the well-formed check applies. */
 function checkParts(path: string, parts: unknown[]): void {
   for (const part of parts) {

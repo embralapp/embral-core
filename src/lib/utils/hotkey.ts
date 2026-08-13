@@ -9,7 +9,7 @@
  * fires. Same for `Shift+2` → `@`, and for any layout where a key's character
  * differs from its position.
  *
- * So we read `KeyboardEvent.code` — the physical key — which happens to use the
+ * So we read `KeyboardEvent.code` (the physical key), which happens to use the
  * exact names that table accepts. `KEYS` is that table's frontend half: a key
  * we can't name in it is a key we refuse to save, rather than one we save and
  * discover is dead. The values are what the user sees.
@@ -84,7 +84,7 @@ export function comboFromEvent(e: KeyboardEvent): string | null {
 }
 
 /** The macOS modifier glyphs, in the order Apple writes them. The stored
- * combo keeps the portable `Ctrl+Alt+Shift+Super` vocabulary either way —
+ * combo keeps the portable `Ctrl+Alt+Shift+Super` vocabulary either way;
  * only the display changes. */
 const MAC_GLYPHS: Record<string, string> = {
   Ctrl: '⌃',
@@ -96,7 +96,7 @@ const MAC_GLYPHS: Record<string, string> = {
 /**
  * A saved combo, written the way a person would read it on this OS:
  * `Shift + Alt + Super + ]` on Windows, `⌥⇧⌘]` on macOS (glyphs, no
- * separators — Apple's convention). Anything it doesn't recognize passes
+ * separators, Apple's convention). Anything it doesn't recognize passes
  * through as-is, so a combo saved by an older build still displays.
  */
 export function formatCombo(combo: string, mac: boolean = isMac): string {

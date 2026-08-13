@@ -1,6 +1,6 @@
 <script lang="ts">
     // One MCP client as a card, styled like the model library: a colored left
-    // edge for status (green registered, amber installed, red not installed —
+    // edge for status (green registered, amber installed, red not installed;
     // gray for the informational "other clients" card), the name, a one-word
     // status, the Register/Remove action, and a collapsed manual fallback.
     import type { Snippet } from "svelte";

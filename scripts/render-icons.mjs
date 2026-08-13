@@ -1,11 +1,11 @@
 // Renders the tray and window mark PNGs from src-tauri/icons/icon.svg.
 // The Rust build embeds these with include_bytes!, so the outputs are
 // committed; run `pnpm render:icons` after changing the mark. The installed
-// app icon set is separate — `pnpm tauri icon src-tauri/icons/icon-app.svg`.
+// app icon set is separate: `pnpm tauri icon src-tauri/icons/icon-app.svg`.
 //
 // Variants: the bare mark in white (dark taskbars) and black (light
 // taskbars) at 32 px for the tray and 64 px for the window. The recording
-// state needs no asset of its own — the white mark is tinted at runtime.
+// state needs no asset of its own; the white mark is tinted at runtime.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

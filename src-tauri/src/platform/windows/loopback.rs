@@ -1,9 +1,9 @@
 //! System-audio capture ([recording.md](../../../../docs/recording.md)):
-//! the device lane — the WASAPI loopback trick, an *output* device opened
-//! as a cpal input — plus its supervision loop: reopen when the stream
+//! the device path (the WASAPI loopback trick, an output device opened
+//! as a cpal input) plus its supervision loop: reopen when the stream
 //! dies, follow the default output when no device is pinned. The
-//! per-process lane (`process_loopback.rs`) outranks this whole file when
-//! a detected call's pid is available.
+//! per-process capture (`process_loopback.rs`) outranks this whole file
+//! when a detected call's pid is available.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
@@ -16,15 +16,15 @@ use crate::platform::types::{
     CaptureCommand, SystemAudioSinkFactory, SystemAudioSource, SystemAudioWanted,
 };
 
-/// Supervision cadence: how often a live lane re-checks its stream and the
-/// default output, and how long a failed open waits before retrying (a
+/// Supervision cadence: how often a live capture re-checks its stream and
+/// the default output, and how long a failed open waits before retrying (a
 /// headset plugged in mid-meeting starts capturing on the next tick).
 const SUPERVISE_EVERY: Duration = Duration::from_secs(5);
 
 pub struct SystemAudioCapture;
 
 impl SystemAudioCapture {
-    /// Own the system-audio lane until `stop_rx` closes. Blocking — the
+    /// Hold the system-audio capture until `stop_rx` closes. Blocking: the
     /// capture handles are `!Send`, so their whole lifecycle lives on the
     /// calling (`system-audio`) thread. Every (re)open announces what is
     /// being captured through `on_source`.
@@ -37,9 +37,9 @@ impl SystemAudioCapture {
         stop_rx: Receiver<CaptureCommand>,
         on_source: Box<dyn Fn(SystemAudioSource) + Send>,
     ) {
-        // Two lanes, re-chosen every tick from the picker's selection.
-        // Everything (the default) captures each active output endpoint —
-        // which endpoint a meeting app is pinned to then stops mattering,
+        // Two modes, re-chosen every tick from the picker's selection.
+        // Everything (the default) captures each active output endpoint,
+        // so which endpoint a meeting app is pinned to stops mattering,
         // the bug "follow the default output" could never fix. A narrowed
         // selection captures those apps' own audio instead: the only way
         // to leave one app out of the mix.
@@ -51,8 +51,8 @@ impl SystemAudioCapture {
         loop {
             let next = wanted();
             if first_pass || next != current {
-                // The selection changed: tear the old lane down whole, so
-                // nothing is captured twice.
+                // The selection changed: tear the old captures down whole,
+                // so nothing is captured twice.
                 open.clear();
                 apps.clear();
                 current = next;
@@ -101,7 +101,7 @@ impl SystemAudioCapture {
                             paused.clone(),
                         ) {
                             Some(capture) => apps.push(capture),
-                            // One app failing is not fatal — the others
+                            // One app failing is not fatal; the others
                             // keep recording and the picker keeps working.
                             None => tracing::warn!(pid, "app capture unavailable — skipping it"),
                         }

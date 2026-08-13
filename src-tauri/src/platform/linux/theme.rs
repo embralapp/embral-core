@@ -9,14 +9,14 @@
 //!
 //! Two honest limits, both different from the Windows twin:
 //!
-//! - **`is_light` is an approximation, and on some desktops it barely
-//!   moves.** It is supposed to describe the surface the tray icon sits on,
-//!   and Windows reads exactly that (`SystemUsesLightTheme`, the *taskbar*
+//! - `is_light` is an approximation, and on some desktops it barely
+//!   moves. It is supposed to describe the surface the tray icon sits on,
+//!   and Windows reads exactly that (`SystemUsesLightTheme`, the taskbar
 //!   theme, distinct from the app theme). No portal exposes panel shade, so
 //!   we infer it from two keys the portal does answer, in this order:
 //!
 //!   1. A GTK theme name containing "dark" (`Mint-Y-Dark`, `Breeze-Dark`).
-//!      Decisive when present — no theme is named both — and it is the only
+//!      Decisive when present (no theme is named both), and it is the only
 //!      signal that works on desktops whose backend does not track
 //!      `color-scheme`.
 //!   2. `color-scheme`, which is how GNOME expresses dark mode while leaving
@@ -24,10 +24,10 @@
 //!
 //!   Measured limitation (LMDE 7 / Cinnamon, 2026-08-01):
 //!   `xdg-desktop-portal-xapp` reports `color-scheme = 1` (prefer-dark)
-//!   **unconditionally** — switching to a light GTK theme does not move it,
+//!   unconditionally: switching to a light GTK theme does not move it,
 //!   and neither does setting `org.gnome.desktop.interface color-scheme`.
 //!   The consequence, stated exactly: on Cinnamon a dark theme is detected
-//!   by step 1, and a *light* theme falls through to step 2 and is reported
+//!   by step 1, and a light theme falls through to step 2 and is reported
 //!   dark anyway, so `is_light` is effectively always false there. Mint's
 //!   default theme is dark, so the default install is right and a user who
 //!   switches to a light theme gets a mark with poor contrast.
@@ -35,14 +35,14 @@
 //!   There is no clean fix, which is why this is documented rather than
 //!   worked around: trusting the theme name first would break GNOME, whose
 //!   GTK theme stays `Adwaita` in dark mode, and telling the two apart needs
-//!   per-desktop branching on `XDG_CURRENT_DESKTOP` — the exact thing using
+//!   per-desktop branching on `XDG_CURRENT_DESKTOP`, the exact thing using
 //!   the portal was meant to avoid. It is cosmetic (icon contrast only), and
 //!   Phase 1's tray verification against a live host is where it would show.
-//! - **`accent-color` is newer than `color-scheme`** and some portal
+//! - `accent-color` is newer than `color-scheme`, and some portal
 //!   backends answer only the latter. A missing accent falls back to
 //!   embral's own, exactly as the other two platforms fall back to theirs.
 //!
-//! The watcher is a real signal (`SettingChanged`), not a poll — the portal
+//! The watcher is a real signal (`SettingChanged`), not a poll: the portal
 //! pushes, so a theme flip reaches the tray immediately instead of within
 //! the macOS path's five seconds.
 
@@ -52,7 +52,7 @@ const PORTAL_DEST: &str = "org.freedesktop.portal.Desktop";
 const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
 const PORTAL_IFACE: &str = "org.freedesktop.portal.Settings";
 const APPEARANCE: &str = "org.freedesktop.appearance";
-/// The namespace the GTK theme name lives in — proxied by every backend,
+/// The namespace the GTK theme name lives in, proxied by every backend,
 /// including the ones that do not track `color-scheme`.
 const GNOME_IFACE: &str = "org.gnome.desktop.interface";
 
@@ -114,11 +114,11 @@ pub fn watch_theme(on_change: Box<dyn Fn() + Send>) {
                 return;
             };
             for message in signals {
-                // Body is `(s, s, v)` — namespace, key, value. All three must
+                // Body is `(s, s, v)`: namespace, key, value. All three must
                 // be named: deserializing into a 2-tuple is a signature
-                // mismatch, which fails for *every* message and silently
+                // mismatch, which fails for every message and silently
                 // turns this whole loop into a no-op. The value itself is
-                // unused — the callback re-reads a fresh snapshot — but it
+                // unused (the callback re-reads a fresh snapshot), but it
                 // still has to be decoded to get at the two before it.
                 let Ok((namespace, key, _value)) = message
                     .body()
@@ -128,7 +128,7 @@ pub fn watch_theme(on_change: Box<dyn Fn() + Send>) {
                 };
                 let appearance = namespace == APPEARANCE
                     && (key == "color-scheme" || key == "accent-color");
-                // `gtk-theme` matters because `read_is_light` reads it — a
+                // `gtk-theme` matters because `read_is_light` reads it; a
                 // theme switch is how light/dark actually changes on the
                 // desktops whose backend pins `color-scheme`.
                 let theme = namespace == GNOME_IFACE && key == "gtk-theme";
@@ -173,7 +173,7 @@ fn channel(v: f64) -> u8 {
 
 /// One `ReadOne` call, decoded into `T`. `None` for a key this backend does
 /// not know, a portal that is not running, or a value of an unexpected
-/// shape — every one of which the caller answers with a fallback.
+/// shape; every one of which the caller answers with a fallback.
 fn read_one<T>(proxy: &zbus::blocking::Proxy<'_>, namespace: &str, key: &str) -> Option<T>
 where
     T: TryFrom<zbus::zvariant::OwnedValue>,
@@ -192,10 +192,12 @@ where
 mod tests {
     use super::*;
 
-    /// Drives the *real* portal on the machine running the test. Skips
-    /// where there is none — CI containers have no session bus — so this is
-    /// a dev-box check rather than a gate, and it is the reason the portal
-    /// decoding is not taken on trust.
+    /// Drives the real portal on the machine running the test. Building a
+    /// proxy never touches the bus, so only a real call can tell a live
+    /// portal from a bus with nothing behind it (CI runners have a session
+    /// bus and no portal). Skips unless `color-scheme` itself answers, so
+    /// this is a dev-box check rather than a gate, and it is the reason
+    /// the portal decoding is not taken on trust.
     #[test]
     fn reads_the_live_portal_when_there_is_one() {
         let Ok(conn) = zbus::blocking::Connection::session() else {
@@ -207,13 +209,19 @@ mod tests {
             eprintln!("no settings portal; skipping");
             return;
         };
-        // color-scheme is the older, near-universal key: if a portal answers
-        // anything it answers this, so a `None` here is a decoding bug on
-        // our side rather than a missing feature.
+        // The probe makes the raw call itself rather than going through
+        // `read_one`, so a regression there cannot pass as a missing portal.
+        let probe: zbus::Result<zbus::zvariant::OwnedValue> =
+            proxy.call("ReadOne", &(APPEARANCE, "color-scheme"));
+        if probe.is_err() {
+            eprintln!("the portal did not answer color-scheme; skipping");
+            return;
+        }
+        // The portal answered; our decoding must not lose the value.
         let scheme = read_color_scheme(&proxy);
         assert!(
             scheme.is_some(),
-            "the portal answered but color-scheme did not decode"
+            "the portal answered color-scheme but read_color_scheme dropped it"
         );
         // accent-color may legitimately be absent on an older backend; when
         // it is present it must be a real colour rather than the fallback

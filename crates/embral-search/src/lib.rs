@@ -3,7 +3,7 @@
 //! and hybrid FTS+vector search with rank fusion.
 //!
 //! This crate is synchronous and Tauri-free. All SQL runs through
-//! [`embral_db::Db::with_conn`] — the schema (v7 `chunks` + `chunks_fts`)
+//! [`embral_db::Db::with_conn`]: the schema (v7 `chunks` + `chunks_fts`)
 //! lives in embral-db, the queries live here. The app is the only writer;
 //! the MCP server queries the same file read-only
 //! ([integrations.md](../../../docs/integrations.md)).

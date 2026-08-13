@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use crate::platform::types::PowerSource;
 
 pub fn config_file_path() -> PathBuf {
-    // EMBRAL_DATA_DIR redirects the whole {home}/embral root — a development
-    // affordance for scratch libraries (configuration.md).
+    // EMBRAL_DATA_DIR redirects the whole {home}/embral root: a development
+    // convenience for scratch libraries (configuration.md).
     if let Ok(dir) = std::env::var("EMBRAL_DATA_DIR") {
         if !dir.trim().is_empty() {
             return PathBuf::from(dir).join("config.json");
@@ -19,7 +19,7 @@ pub fn config_file_path() -> PathBuf {
 }
 
 /// What reading a config file found. `Corrupt` means the file exists but no
-/// longer parses — the caller gets defaults, but the file was copied aside
+/// longer parses; the caller gets defaults, but the file was copied aside
 /// first: silently defaulting over a real config would permanently destroy
 /// it (session token included) on the next save.
 enum LoadedConfig {
@@ -63,9 +63,9 @@ pub fn load_config() -> Result<AppConfig> {
             .to_string_lossy()
             .to_string();
     }
-    // The cloud URL used to be materialized into config.json; a stored value
+    // The cloud URL used to be written into config.json; a stored value
     // equal to the production default is that old default, not a
-    // customization — clear it so `cloud_url()` can pick per build (dev
+    // customization. Clear it so `cloud_url()` can pick per build (dev
     // builds talk to the local server).
     #[cfg(feature = "cloud")]
     if config.cloud_api_url == embral_types::DEFAULT_CLOUD_URL {
@@ -91,9 +91,9 @@ fn local_model_ready(config: &AppConfig) -> bool {
 }
 
 /// Who transcribes the recording about to start. `transcription_provider` is
-/// the standing choice — the account plumbing owns it (`adopt_cloud_provider`
-/// at sign-in, `revert_to_device` at sign-out) — and the power policy is a
-/// lens over it, applied per recording and never written back.
+/// the standing choice; the account plumbing owns it (`adopt_cloud_provider`
+/// at sign-in, `revert_to_device` at sign-out). The power policy is a lens
+/// over it, applied per recording and never written back.
 ///
 /// Read once, at `start_recording`: a meeting does not change hands when
 /// someone plugs in halfway through.
@@ -116,7 +116,7 @@ pub fn provider_for_power(config: &AppConfig, power: PowerSource) -> Transcripti
 
 /// The rule itself. Plugged in means a desk, which means CPU headroom, so
 /// the device transcribes; on battery the cloud spends someone else's
-/// cycles. `Unknown` — a platform that cannot answer — leaves the standing
+/// cycles. `Unknown` (a platform that cannot answer) leaves the standing
 /// choice alone in both directions: a guess must never be the thing that
 /// sends a meeting's audio off the machine.
 #[cfg(feature = "cloud")]
@@ -136,15 +136,15 @@ fn power_lens(
     }
 }
 
-/// Why this config cannot start a recording, when it cannot — `None` means
+/// Why this config cannot start a recording, when it cannot; `None` means
 /// it can. The gate's reasoning in words rather than a bare bool: a refused
 /// auto-start happens while the user is in a call looking at something
 /// else, and "Transcription isn't set up yet" in the log names none of the
 /// three things that might be missing.
 ///
-/// Cloud asks two questions, not one. *Something* must be able to
-/// transcribe: a signed-in device, or the local model the fallback lands on
-/// — a signed-out user whose fallback is "switch to this device" is
+/// Cloud asks two questions, not one. Something must be able to
+/// transcribe: a signed-in device, or the local model the fallback switches
+/// to. A signed-out user whose fallback is "switch to this device" is
 /// configured, and refusing to record was the bug (the recording would have
 /// fallen back anyway). And whatever the account state, the chosen failure
 /// path must exist: "switch to this device" needs the model; "disable
@@ -152,13 +152,13 @@ fn power_lens(
 /// exactly what it asks for. Hours running out degrades at the relay, not
 /// here.
 ///
-/// The rules themselves live in `local_gap` / `cloud_gap` — pure, and
-/// tested — because `local_model_ready` reads the real catalog, which a
+/// The rules themselves live in `local_gap` / `cloud_gap` (pure, and
+/// tested) because `local_model_ready` reads the real catalog, which a
 /// unit test can't stage.
 ///
-/// `provider` is the one this recording will actually use — the standing
-/// choice as bent by [`provider_for_power`] — not the config field, so the
-/// gate asks about the lane the meeting is really headed down.
+/// `provider` is the one this recording will actually use (the standing
+/// choice as adjusted by [`provider_for_power`]), not the config field, so
+/// the gate asks about the provider the meeting will really run on.
 pub fn missing_prerequisite(config: &AppConfig, provider: &TranscriptionProvider) -> Option<String> {
     let model = config.meeting_asr_model();
     let local_ready = local_model_ready(config);
@@ -202,7 +202,7 @@ fn cloud_gap(
     }
 }
 
-/// What a failing cloud session does — at start (connect refused: out of
+/// What a failing cloud session does, at start (connect refused: out of
 /// hours, unreachable) and mid-recording (the relay's 402 cut, a drop).
 /// Pure and tested; the recording itself never stops for any of these.
 #[cfg(feature = "cloud")]
@@ -211,7 +211,7 @@ pub enum CloudFailureAction {
     /// Swap in a local session (the "switch to this device" setting).
     SwitchToLocal,
     /// Keep recording with no transcription (the "disable transcription"
-    /// setting — honored for every failure shape, not only hours: the user
+    /// setting, honored for every failure shape, not only hours: the user
     /// said this app should not transcribe on the device).
     DisableTranscription,
     /// Nothing to switch to: surface the failure.
@@ -236,7 +236,7 @@ pub fn on_cloud_failure(
 mod configured_tests {
     use embral_types::{AppConfig, CloudOutOfHours, TranscriptionProvider};
 
-    /// The shipped rule, with the model question answered by the caller —
+    /// The shipped rule, with the model question answered by the caller:
     /// `missing_prerequisite` reads the real catalog, which a unit test
     /// can't stage. `true` = this config can record.
     fn cloud_ok(signed_in: bool, local_ready: bool, out_of_hours: CloudOutOfHours) -> bool {
@@ -246,14 +246,14 @@ mod configured_tests {
     #[test]
     fn signed_out_with_a_local_model_can_still_record() {
         // The field bug: cloud selected, signed out, fallback "switch to
-        // this device", model present — auto-start refused the meeting
+        // this device", model present. Auto-start refused the meeting
         // even though the recording would have fallen back anyway.
         assert!(cloud_ok(false, true, CloudOutOfHours::Local));
     }
 
     #[test]
     fn nothing_to_transcribe_with_is_not_configured() {
-        // Signed out, no model: neither lane can produce a transcript.
+        // Signed out, no model: neither provider can produce a transcript.
         assert!(!cloud_ok(false, false, CloudOutOfHours::Local));
         assert!(!cloud_ok(false, false, CloudOutOfHours::Disabled));
     }
@@ -275,9 +275,9 @@ mod configured_tests {
     fn every_refusal_names_the_model_it_wanted() {
         // The field's one refusal logged "Transcription isn't set up yet",
         // which does not say whether the model, the account, or the
-        // fallback was the problem — the whole point of the reason string.
+        // fallback was the problem (the whole point of the reason string).
         // The real case: language switched to multilingual, whose model
-        // was never downloaded, so the *effective* model is not the one
+        // was never downloaded, so the effective model is not the one
         // named in Settings.
         let refusals = [
             super::cloud_gap(false, false, CloudOutOfHours::Local, "parakeet-tdt-v3"),
@@ -305,7 +305,7 @@ mod configured_tests {
     #[test]
     fn the_gate_asks_about_the_lane_the_power_policy_chose() {
         // Cloud configured, plugged in, policy on → the recording runs on
-        // this device, so the gate must be the *local* question. Asking the
+        // this device, so the gate must be the local question. Asking the
         // cloud question here would let a meeting through with no model on
         // disk and nothing to transcribe it with.
         let mut config = AppConfig::default();
@@ -338,7 +338,7 @@ mod power_tests {
 
     #[test]
     fn on_battery_goes_to_the_cloud_and_plugged_in_comes_home() {
-        // Both directions, from either standing choice — the setting is a
+        // Both directions, from either standing choice: the setting is a
         // policy about power, not a one-way nudge away from the device.
         for configured in [TranscriptionProvider::Local, TranscriptionProvider::Cloud] {
             assert_eq!(
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn disable_wins_regardless_of_the_local_model() {
-        // The user said "don't transcribe on this device" — a downloaded
+        // The user said "don't transcribe on this device"; a downloaded
         // model doesn't override that, and a missing one doesn't error.
         assert_eq!(
             on_cloud_failure(CloudOutOfHours::Disabled, true),
@@ -440,7 +440,7 @@ mod load_tests {
         std::fs::write(&path, "{ not json").unwrap();
 
         assert!(matches!(load_from(&path).unwrap(), LoadedConfig::Corrupt));
-        // The original survives untouched and the evidence copy exists — a
+        // The original survives untouched and the evidence copy exists: a
         // hand-recoverable session token beats a silent factory reset.
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ not json");
         let backup = path.with_extension("json.corrupt");

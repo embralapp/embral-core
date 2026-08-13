@@ -1,7 +1,7 @@
 // The notice window is one fixed 360x56 row ([shell.md] §Notices): logo,
 // one line of title, the answer buttons, a quiet ✕. Nothing in that row
 // wraps or scrolls, so a label that grows past the budget ships as a
-// truncated title — which is issue #10's bug. This test recomputes every
+// truncated title, which is issue #10's bug. This test recomputes every
 // composed notice row from the catalog and fails when one stops fitting.
 //
 // The width model is CALIBRATED, not measured: vitest runs in node with no
@@ -13,7 +13,7 @@
 // Linux's default sans (DejaVu/Cantarell) runs ~8% wider; the silence
 // row's "Continue" label spends most of that margin by owner's choice, so
 // PLATFORM_MARGIN stays at 1.0 and the Segoe table is the contract. If a
-// row here starts failing, shorten the label — do not loosen the table.
+// row here starts failing, shorten the label; do not loosen the table.
 //
 // Adding a notice? Add its row to ROWS below.
 
@@ -47,7 +47,7 @@ function charWidth(ch: string): number {
 
 const MEDIUM = 1.03; // font-medium tracks slightly wider
 // The table over-charges text-sm titles by ~7% against measured Segoe
-// rendering while matching text-xs buttons — see the header. Applied to
+// rendering while matching text-xs buttons; see the header. Applied to
 // titles only, so button estimates stay on their measured values.
 const TITLE_CAL = 0.93;
 
@@ -66,7 +66,7 @@ const PLATFORM_MARGIN = 1.0; // see header comment
 // the ✕, so it can only be narrower than the row it replaces.
 type Action = { label: string; primary: boolean };
 // `chip` reserves room in the title cell for the countdown ("120s" is the
-// widest it gets — the grace is a 120s constant).
+// widest it gets; the grace is a 120s constant).
 type Row = { kind: string; title: string; actions: Action[]; chip?: boolean };
 
 const os = copy.notifications.os;
@@ -101,7 +101,7 @@ const ROWS: Row[] = [
 ];
 
 function rowWidth(row: Row): number {
-  // icon | title-cell | ...actions | ✕ — GAP between each adjacent pair.
+  // icon | title-cell | ...actions | ✕, with GAP between each adjacent pair.
   // The countdown chip lives inside the title cell (gap-1.5 = 6px), so it
   // widens that cell rather than adding a flex child.
   const chip = row.chip

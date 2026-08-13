@@ -49,7 +49,7 @@
 
     async function onRecordClick() {
         if (appState.isRecording) {
-            // Never stop from here — one stray click must not end a meeting.
+            // Never stop from here: one stray click must not end a meeting.
             appState.setView("recording");
             return;
         }
@@ -120,7 +120,7 @@
                     <!-- Shadow mode ([shell.md] §Recording): the rail keeps
                          its slot and its click target, but a small neutral
                          dot where the red microphone was. It reads as a UI
-                         mark rather than an alarm — the point is that a
+                         mark rather than an alarm: the point is that a
                          glance at the screen does not announce a meeting is
                          being recorded. Hovering still tells the truth. -->
                     {#if appState.shadowMode}
@@ -163,15 +163,15 @@
     </div>
 
     <div class="flex flex-col gap-1">
-        <!-- The cloud hours meter, in cloud builds only. It reaches the seam the
-             way everything else does — through $lib/cloud, never by naming the
-             directory (cloud-seam.md). It renders nothing when there is no
-             account, so the rail is unchanged for offline users. -->
+        <!-- The cloud hours meter, in cloud builds only. It loads the
+             cloud-only code the way everything else does: through $lib/cloud,
+             never by naming the directory (cloud-seam.md). It renders nothing
+             when there is no account, so the rail is unchanged for offline
+             users. -->
         {#if CLOUD_ENABLED}
             {#await loadHoursRing() then Ring}
                 {#if Ring}
                     <Ring
-                        {expanded}
                         rowClass={cn(rowClass, "hover:text-sidebar-foreground")}
                         labelClass={labelClass(expanded)}
                     />

@@ -40,7 +40,7 @@ impl From<&MeetingRecord> for MeetingSummary {
     }
 }
 
-/// A session-generated numbered speaker label ("Speaker 3") — a per-meeting
+/// A session-generated numbered speaker label ("Speaker 3"): a per-meeting
 /// placeholder, not a person's name. The naming pass may only rename these,
 /// and adopt-by-name must never treat one as an identity: two meetings'
 /// "Speaker 2" are different people.
@@ -93,12 +93,6 @@ pub struct TranscriptionSegment {
     pub end: f64,
 }
 
-/// Full transcript accumulated from a WebSocket session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DiarizedTranscript {
-    pub segments: Vec<TranscriptionSegment>,
-}
-
 /// Which transcription backend to use. The offline core has exactly one;
 /// the cloud edition adds metered transcription through embral's backend.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -127,8 +121,8 @@ pub enum TranscriptionLanguage {
     Multilingual,
 }
 
-/// What a cloud recording does when the account's hours — subscription plus
-/// purchased — run out. A *connection* drop always falls back to the device;
+/// What a cloud recording does when the account's hours (subscription plus
+/// purchased) run out. A connection drop always falls back to the device;
 /// this is only about hours.
 #[cfg(feature = "cloud")]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -146,8 +140,8 @@ pub enum CloudOutOfHours {
 /// meeting. Plugged in means a desk, which means CPU headroom; on battery
 /// the cloud spends someone else's cycles. A separate field rather than a
 /// third `TranscriptionProvider`, because the provider is a standing choice
-/// the account plumbing writes (adopting cloud at sign-in, reverting at
-/// sign-out) and this is a lens over it.
+/// the account code writes (adopting cloud at sign-in, reverting at
+/// sign-out) and this is an override applied on top of it.
 #[cfg(feature = "cloud")]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -161,21 +155,14 @@ pub enum PowerPolicy {
 
 /// Which transport an LLM profile speaks. `Builtin` is the bundled
 /// llama-server sidecar (OpenAI protocol on a loopback port, resolved at
-/// run time); `Custom` is any OpenAI-compatible base URL — not user-facing,
-/// kept as the generic transport the cloud relay will ride (R7).
+/// run time); `Custom` is any OpenAI-compatible base URL, not user-facing,
+/// kept as the generic transport the cloud relay will use (R7).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum LlmProvider {
     #[default]
     Builtin,
     Custom,
-}
-
-impl LlmProvider {
-    /// Whether prompts stay on this machine.
-    pub fn is_local(self) -> bool {
-        matches!(self, LlmProvider::Builtin)
-    }
 }
 
 /// One synthesis engine. These are fixed per edition (no user-defined
@@ -216,7 +203,7 @@ impl LlmProfile {
         }
     }
 
-    /// The cloud engine rides the generic `Custom` (OpenAI-style)
+    /// The cloud engine uses the generic `Custom` (OpenAI-style)
     /// transport; endpoint and key resolve at run time from the signed-in
     /// device's config, and the relay pins the actual model server-side.
     #[cfg(feature = "cloud")]
@@ -254,7 +241,7 @@ pub enum DictationCleanup {
     /// model survives only as a safety net for stale configs.
     #[cfg(feature = "cloud")]
     Cloud,
-    /// The built-in on-device model. The default in every build — cloud
+    /// The built-in on-device model. The default in every build: cloud
     /// engines are adopted at sign-in, never presumed.
     #[default]
     OnDevice,
@@ -295,7 +282,7 @@ pub enum AutoStopScope {
     /// detection prompt).
     #[default]
     AutoStarted,
-    /// Every recording — a call ending stops whatever is being recorded.
+    /// Every recording: a call ending stops whatever is being recorded.
     All,
 }
 
@@ -353,9 +340,9 @@ pub struct WebhookDestination {
     pub url: String,
     #[serde(default)]
     pub method: WebhookMethod,
-    /// Full meeting content (summary, the user's notes, transcript) rides
-    /// along only while this is on; the default payload is metadata alone.
-    /// Content leaving the machine wants an explicit gate per destination.
+    /// Full meeting content (summary, the user's notes, transcript) is
+    /// included only while this is on; the default payload is metadata alone.
+    /// Content leaving the machine needs an explicit gate per destination.
     #[serde(default)]
     pub include_content: bool,
 }
@@ -450,9 +437,9 @@ pub struct AppConfig {
     #[cfg(feature = "cloud")]
     #[serde(default)]
     pub cloud_account_email: String,
-    /// Random per-install id (uuid), minted at first sign-in and never
-    /// cleared — the server dedupes this install's sessions by it (the
-    /// device *name* is display-only; names collide across machines).
+    /// Random per-install id (uuid), created at first sign-in and never
+    /// cleared; the server dedupes this install's sessions by it (the
+    /// device name is display-only; names collide across machines).
     #[cfg(feature = "cloud")]
     #[serde(default)]
     pub cloud_device_id: String,
@@ -532,13 +519,13 @@ pub struct AppConfig {
     // --- Telemetry (cloud edition only, [telemetry.md]) ---
     /// Usage telemetry. On by default in the cloud edition; the onboarding
     /// checkbox (pre-checked, on the closing page) and the General-settings
-    /// toggle are the only writers — unchecking either opts out.
+    /// toggle are the only writers; unchecking either opts out.
     #[cfg(feature = "cloud")]
     #[serde(default = "default_true")]
     pub telemetry_enabled: bool,
-    /// Persistent per-install id (random UUID): minted at first boot (or
-    /// when telemetry is re-enabled), cleared on opt-out — re-enabling
-    /// mints a fresh one. Empty while disabled.
+    /// Persistent per-install id (random UUID): created at first boot (or
+    /// when telemetry is re-enabled), cleared on opt-out; re-enabling
+    /// creates a fresh one. Empty while disabled.
     #[cfg(feature = "cloud")]
     #[serde(default)]
     pub telemetry_install_id: String,
@@ -598,7 +585,7 @@ pub struct AppConfig {
 
     // --- Synthesis ---
     /// Whether meetings are summarized at all. Off: no summary is written and
-    /// the meeting is its notes + transcript ([synthesis.md]). Defaults on —
+    /// the meeting is its notes + transcript ([synthesis.md]). Defaults on:
     /// summarizing is what the app is for, and onboarding asks anyway.
     #[serde(default = "default_true")]
     pub summaries_enabled: bool,
@@ -625,13 +612,13 @@ pub struct AppConfig {
     /// works push-to-talk style.
     #[serde(default)]
     pub dictation_hotkey: String,
-    /// Where dictation transcribes — independent of meetings (cloud meetings
+    /// Where dictation transcribes, independent of meetings (cloud meetings
     /// with on-device dictation is a legitimate combination). Gaining hours
     /// adopts cloud for both, like meetings.
     #[serde(default)]
     pub dictation_provider: TranscriptionProvider,
     /// What a cloud dictation does when the hours run out. `disabled` means
-    /// the dictation fails with a clear error — there is no "keep recording"
+    /// the dictation fails with a clear error; there is no "keep recording"
     /// for dictation.
     #[cfg(feature = "cloud")]
     #[serde(default)]
@@ -672,13 +659,13 @@ fn default_llm_idle_minutes() -> u32 {
 
 /// Default meeting-app allowlist, per platform. Entries are brand tokens
 /// the bidirectional-substring matcher tests against every identity the
-/// platform reports — exe names on Windows (`msedge.exe`), bundle ids and
+/// platform reports: exe names on Windows (`msedge.exe`), bundle ids and
 /// display names on macOS (`us.zoom.xos`, "Google Chrome"), which is why
 /// the macOS list says "edge"/"safari" where Windows says "msedge".
 #[cfg(windows)]
 fn default_auto_detect_apps() -> Vec<String> {
-    // `ms-teams` used to sit beside `teams` here. It was redundant — `teams`
-    // matches `ms-teams.exe` by substring — and worse than redundant: the
+    // `ms-teams` used to sit beside `teams` here. It was redundant (`teams`
+    // matches `ms-teams.exe` by substring) and worse than redundant: the
     // settings grid has only a `teams` checkbox, so the extra entry survived
     // an uncheck and kept Teams detected. Removed, and
     // `no_token_is_redundant` below keeps it from coming back.
@@ -695,7 +682,7 @@ fn default_auto_detect_apps() -> Vec<String> {
 }
 
 /// Linux reports bare process names, so the tokens are the Windows ones
-/// without `.exe` — Edge is `msedge` again, not macOS's `edge`. Two
+/// without `.exe`; Edge is `msedge` again, not macOS's `edge`. Two
 /// differences from both siblings:
 ///
 /// - **No `safari`**: there is no Safari for Linux. This arm exists largely
@@ -705,10 +692,10 @@ fn default_auto_detect_apps() -> Vec<String> {
 ///   bidirectional, but neither "chrome" nor "chromium" contains the other,
 ///   so `chrome` genuinely does not cover it.
 ///
-/// Deliberately *not* here: `teams-for-linux`, the Linux Teams client's
+/// Deliberately not here: `teams-for-linux`, the Linux Teams client's
 /// binary name. `teams` already matches it by substring, and an entry with
-/// no checkbox in the settings grid cannot be unchecked — the grid tests
-/// exact membership. (Windows' `ms-teams` is exactly that wart; not
+/// no checkbox in the settings grid cannot be unchecked; the grid tests
+/// exact membership. (Windows' `ms-teams` is exactly that mistake; not
 /// reproducing it here.) Every token below has a matching checkbox.
 #[cfg(target_os = "linux")]
 fn default_auto_detect_apps() -> Vec<String> {
@@ -740,7 +727,7 @@ fn default_true() -> bool {
 pub const DEFAULT_LOCAL_ASR_MODEL: &str = "zipformer-en";
 
 /// The one catalog model that covers languages beyond English. The accuracy
-/// tier is an English concept — there is nothing to choose between here.
+/// tier is an English concept; there is nothing to choose between here.
 pub const MULTILINGUAL_ASR_MODEL: &str = "parakeet-tdt-v3";
 
 fn default_local_asr_model() -> String {
@@ -749,8 +736,8 @@ fn default_local_asr_model() -> String {
 
 impl AppConfig {
     /// The model on-device transcription actually runs. `local_asr_model`
-    /// holds the *English* accuracy choice, so selecting another language
-    /// overrides it rather than overwriting it — switching back restores the
+    /// holds the English accuracy choice, so selecting another language
+    /// overrides it rather than overwriting it; switching back restores the
     /// tier the user picked.
     pub fn meeting_asr_model(&self) -> String {
         match self.transcription_language {
@@ -759,7 +746,7 @@ impl AppConfig {
         }
     }
 
-    /// The model on-device dictation runs. Governed by dictation's *own*
+    /// The model on-device dictation runs. Governed by dictation's own
     /// language; empty `dictation_asr_model` = follow the meeting model.
     pub fn dictation_asr_model_id(&self) -> String {
         match self.dictation_language {
@@ -776,8 +763,8 @@ impl AppConfig {
     }
 
     /// The cloud backend this build talks to: the `cloud_api_url` override
-    /// when set, else the production URL — or, in dev builds, the local
-    /// server (`DEV_CLOUD_URL`), so `tauri dev` tests against
+    /// when set, else the production URL; dev builds default to the local
+    /// server (`DEV_CLOUD_URL`) instead, so `tauri dev` tests against
     /// `pnpm dev` on 8080 without touching config.
     #[cfg(feature = "cloud")]
     pub fn cloud_url(&self) -> String {
@@ -799,7 +786,7 @@ impl AppConfig {
         Self::hints_for(self.transcription_language)
     }
 
-    /// Dictation's own hint — its language is independent of meetings'.
+    /// Dictation's own hint; its language is independent of meetings'.
     pub fn dictation_language_hints(&self) -> Option<Vec<String>> {
         Self::hints_for(self.dictation_language)
     }
@@ -901,7 +888,7 @@ mod language_tests {
         config.local_asr_model = "parakeet-tdt-en".to_string();
         config.dictation_asr_model = "zipformer-en-small".to_string();
 
-        // Each surface follows its *own* language — meetings going
+        // Each surface follows its own language: meetings going
         // multilingual must not drag dictation along.
         config.transcription_language = TranscriptionLanguage::Multilingual;
         assert_eq!(config.meeting_asr_model(), MULTILINGUAL_ASR_MODEL);
@@ -926,9 +913,10 @@ mod language_tests {
     }
 
     /// An existing config.json predates this release: it still carries the
-    /// fields we deleted and none of the ones we added. It must still load —
-    /// unknown keys ignored, new keys defaulted — and land on sensible values.
-    /// (No compat shims; this only pins that the *schema* degrades cleanly.)
+    /// fields we deleted and none of the ones we added. It must still load
+    /// (unknown keys ignored, new keys defaulted) and end up with sensible
+    /// values. (No compat shims; this only pins that the schema degrades
+    /// cleanly.)
     #[test]
     fn a_config_from_before_this_release_still_loads() {
         let old = r#"{
@@ -962,7 +950,7 @@ mod language_tests {
     #[cfg(feature = "cloud")]
     fn cloud_url_prefers_the_override_and_resolves_per_build() {
         let mut config = AppConfig::default();
-        // The stored field is a pure override — empty by default.
+        // The stored field is a pure override, empty by default.
         assert!(config.cloud_api_url.is_empty());
         let expected = if cfg!(debug_assertions) {
             DEV_CLOUD_URL
@@ -1022,7 +1010,7 @@ mod llm_profile_tests {
 // --- Path helpers ---
 
 /// The OS-native default storage directory (e.g. `C:\Users\you\embral`).
-/// `EMBRAL_DATA_DIR` overrides the whole root — a development affordance
+/// `EMBRAL_DATA_DIR` overrides the whole root: a development affordance
 /// for driving a real build against a scratch library (configuration.md);
 /// on Windows the home dir comes from the known-folder API, so an env
 /// override is the only way to redirect a build. Falls back to the `~`
@@ -1046,18 +1034,6 @@ pub fn resolve_storage_path(storage_dir: &str) -> PathBuf {
         }
     }
     PathBuf::from(storage_dir)
-}
-
-pub fn audio_dir(base: &Path) -> PathBuf {
-    base.join("audio")
-}
-
-pub fn transcripts_dir(base: &Path) -> PathBuf {
-    base.join("transcripts")
-}
-
-pub fn notes_dir(base: &Path) -> PathBuf {
-    base.join("notes")
 }
 
 pub fn index_path(base: &Path) -> PathBuf {
@@ -1099,7 +1075,7 @@ mod detect_default_tests {
     fn linux_does_not_inherit_the_macos_list() {
         let apps = default_auto_detect_apps();
         assert!(!apps.iter().any(|a| a == "safari"), "no Safari on Linux");
-        // Edge's Linux process is `msedge`, as on Windows — not macOS's bare
+        // Edge's Linux process is `msedge`, as on Windows, not macOS's bare
         // `edge`, which came from a bundle id.
         assert!(apps.iter().any(|a| a == "msedge"));
         assert!(!apps.iter().any(|a| a == "edge"));
@@ -1109,7 +1085,7 @@ mod detect_default_tests {
         assert!(!"chromium".contains("chrome"));
         assert!(!"chrome".contains("chromium"));
         // `teams` covers `teams-for-linux` by substring, so the client's own
-        // binary name must not be a separate entry — an entry with no
+        // binary name must not be a separate entry: an entry with no
         // checkbox in the settings grid could never be turned off.
         assert!(apps.iter().any(|a| a == "teams"));
         assert!(!apps.iter().any(|a| a == "teams-for-linux"));
@@ -1134,7 +1110,7 @@ mod detect_default_tests {
 
     /// No default token may be covered by another. The matcher's test is
     /// bidirectional substring, so a covered token detects nothing its
-    /// coverer would not — and it is worse than dead weight: the settings
+    /// coverer would not, and it is worse than dead weight: the settings
     /// grid has one checkbox per app, so an extra entry the grid cannot name
     /// survives an uncheck and keeps the app detected while the box reads
     /// off. That is exactly what Windows' `ms-teams` beside `teams` did.

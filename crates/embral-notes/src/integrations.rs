@@ -7,7 +7,7 @@
 //! Wire concerns are kept pure where possible: [`render_filename`],
 //! [`compose_export`], [`to_inline_metadata`], and [`webhook_payload`] are
 //! unit-tested; the IO/network wrappers ([`export_to_obsidian`],
-//! [`send_webhook`]) are thin — retries and failure surfacing belong to
+//! [`send_webhook`]) are thin, and retries and failure surfacing belong to
 //! the caller.
 
 use anyhow::Result;
@@ -22,7 +22,7 @@ use crate::text::sanitize_filename;
 /// (YYYY-MM-DD), `{time}` (HH-MM), `{year}` `{month}` `{day}` `{hour}`
 /// `{minute}`, and `{title}` (slugified: lowercase, words joined by `-`).
 /// The result is filesystem-safe and never empty; callers append the
-/// extension. Internal library filenames are unaffected by this — it applies
+/// extension. Internal library filenames are unaffected by this; it applies
 /// to exported copies only.
 pub fn render_filename(template: &str, title: &str, started_at: &DateTime<Utc>) -> String {
     let slug: String = {
@@ -101,7 +101,7 @@ fn strip_leading_frontmatter(markdown: &str) -> &str {
 
 /// The document that leaves the app: what the meeting produced, filtered by
 /// the user's include switches ([configuration.md]). Each content argument is
-/// `None` when its switch is off — no section at all — and `Some` when
+/// `None` when its switch is off (no section at all) and `Some` when
 /// included; an included-but-empty summary or notes section still disappears
 /// rather than exporting a heading with nothing under it, while an included
 /// empty transcript says so. All three off yields a metadata stub
@@ -229,13 +229,14 @@ fn split_frontmatter(
     Some((fields, body))
 }
 
+/// Where images are written inside the vault. A single directory beside the
+/// notes, sub-foldered by meeting so two meetings' `img-01.png` never
+/// collide.
+pub const VAULT_ASSET_DIR: &str = "embral-assets";
+
 /// Write the meeting's notes into `vault_dir` (created if missing), named by
 /// the user's filename template, with metadata rendered per `format`.
 /// Returns the path written.
-/// Where images land inside the vault. A single directory beside the notes,
-/// sub-foldered by meeting so two meetings' `img-01.png` never collide.
-pub const VAULT_ASSET_DIR: &str = "embral-assets";
-
 pub fn export_to_obsidian(
     vault_dir: &str,
     record: &MeetingRecord,
@@ -244,7 +245,7 @@ pub fn export_to_obsidian(
     format: ExportMetadataFormat,
     // `storage_base` is the library root, so an `assets/…` link can be
     // resolved and copied. `None` skips the copying; the links are still
-    // repointed, which is the honest outcome — a broken link the user can
+    // repointed, which is the honest outcome: a broken link the user can
     // see beats an image that silently isn't there.
     storage_base: Option<&Path>,
 ) -> Result<PathBuf> {
@@ -276,7 +277,7 @@ pub fn export_to_obsidian(
     // "## My notes" section alike.
     let summary = crate::assets::rewrite_asset_links(summary, VAULT_ASSET_DIR);
     let content = match format {
-        // Frontmatter passes through — Obsidian reads it as note properties.
+        // Frontmatter passes through; Obsidian reads it as note properties.
         ExportMetadataFormat::Frontmatter => summary,
         ExportMetadataFormat::Inline => to_inline_metadata(&summary),
     };
@@ -297,7 +298,7 @@ pub struct WebhookContent<'a> {
 /// The JSON body sent to a webhook destination when a meeting finishes.
 /// Stable, self-describing shape so downstream automations (Zapier, n8n, a
 /// homelab script) can consume it without scraping files. Metadata always;
-/// the content fields exist only when the destination opted in — absent
+/// the content fields exist only when the destination opted in: absent
 /// rather than empty, so a consumer can tell "not sent" from "empty".
 pub fn webhook_payload(record: &MeetingRecord, content: Option<&WebhookContent>) -> Value {
     let mut payload = json!({
@@ -321,7 +322,7 @@ pub fn webhook_payload(record: &MeetingRecord, content: Option<&WebhookContent>)
 /// not pin the caller's retry task.
 const SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// Send one webhook delivery. Thin on purpose — retries and failure
+/// Send one webhook delivery. Thin on purpose: retries and failure
 /// surfacing are the caller's; a non-2xx answer is an error here so the
 /// caller can retry it.
 pub async fn send_webhook(url: &str, method: WebhookMethod, payload: &Value) -> Result<()> {
@@ -358,7 +359,7 @@ mod tests {
         assert_eq!(p["meeting"]["title"], "Q3: Pipeline Review");
         assert_eq!(p["meeting"]["duration_seconds"], 3480);
         // Metadata only: no content field exists until a destination opts
-        // in — absent, not empty.
+        // in (absent, not empty).
         assert!(p.get("summary_markdown").is_none());
         assert!(p.get("notes_markdown").is_none());
         assert!(p.get("transcript_markdown").is_none());
@@ -449,7 +450,7 @@ mod tests {
     }
 
     /// A vault copy has to stand on its own: the image travels with the
-    /// note and the link points at where it landed, not back into the
+    /// note and the link points at where it was copied, not back into the
     /// library the reader may not have.
     #[test]
     fn export_carries_the_images_and_repoints_their_links() {
@@ -513,7 +514,7 @@ mod tests {
 
     #[test]
     fn inline_metadata_mode_carries_no_fence_at_all() {
-        // The canonical metadata rides inline elsewhere; the composer gets
+        // The canonical metadata goes inline elsewhere; the composer gets
         // an empty frontmatter argument, and the model's block must not
         // slip through as body text.
         let out = compose_export("", "Weekly Sync", Some(CONTRACT_SUMMARY), None, None);
@@ -600,7 +601,7 @@ mod tests {
 
     #[test]
     fn export_honors_the_include_switches() {
-        // Transcript excluded: no section, no placeholder — unlike an
+        // Transcript excluded: no section, no placeholder, unlike an
         // included-but-empty transcript.
         let out = compose_export(FRONTMATTER, "T", Some("Summary."), Some("notes"), None);
         assert!(!out.contains("## Transcript"));

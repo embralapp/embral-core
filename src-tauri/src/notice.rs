@@ -1,12 +1,12 @@
 //! The notice window: embral's own notification chrome on every platform
-//! ([shell.md] §Notices). One lazily-created, reused window — frameless,
-//! always-on-top, never focused, bottom-right of the current monitor —
+//! ([shell.md] §Notices). One lazily-created, reused window (frameless,
+//! always-on-top, never focused, bottom-right of the current monitor)
 //! replaces every OS toast. `platform::style_notice` supplies the
 //! never-activate guarantee (`WS_EX_NOACTIVATE` on Windows, a
 //! non-activating panel on macOS).
 //!
 //! Strings arrive pre-rendered from the frontend catalog: this module
-//! displays, it never words.
+//! displays them and never writes wording of its own.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
@@ -15,8 +15,8 @@ use embral_types::AppError;
 
 const NOTICE: &str = "notice";
 
-/// One fixed size for every notice: a single row — logo, one line of
-/// text, the answers ([shell.md] §Notices).
+/// One fixed size for every notice: a single row of logo, one line of
+/// text, and the answers ([shell.md] §Notices).
 const NOTICE_SIZE: (f64, f64) = (360.0, 56.0);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,10 +27,10 @@ pub struct NoticeAction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoticePayload {
-    /// The notice's family (e.g. `call_detected`, `silence`) — same-kind
+    /// The notice's family (e.g. `call_detected`, `silence`); same-kind
     /// payloads always replace each other.
     pub kind: String,
-    /// The one line of text — a notice carries no body.
+    /// The one line of text; a notice carries no body.
     pub title: String,
     #[serde(default)]
     pub actions: Vec<NoticeAction>,
@@ -38,18 +38,18 @@ pub struct NoticePayload {
     #[serde(default)]
     pub sticky: bool,
     /// When present, the page renders a countdown to this epoch-ms instant
-    /// beside the title — a decision deadline. Chrome only: what the
-    /// deadline means is the sender's business; this module still never
-    /// words.
+    /// beside the title: a decision deadline. Chrome only: what the
+    /// deadline means is the sender's business; this module still writes
+    /// no wording.
     #[serde(default)]
     pub countdown_until_ms: Option<u64>,
-    /// Where a click on the text lands (`open_from_notice`); absent = the app.
+    /// Where a click on the text goes (`open_from_notice`); absent = the app.
     #[serde(default)]
     pub target: Option<serde_json::Value>,
 }
 
 /// Body-click on a notice: surface the main window (rescued, shown,
-/// focused — the tray's path) and tell it where the news lives.
+/// focused; the tray's path) and tell it where the news lives.
 #[tauri::command]
 pub async fn open_from_notice(
     app: AppHandle,
@@ -71,7 +71,7 @@ pub async fn open_from_notice(
 
 /// Whether an incoming payload may replace what is showing. A transient
 /// notice must never clobber a live sticky one (a fallback toast arriving
-/// mid silence check-in), but same-kind updates always land, and sticky
+/// mid silence check-in), but same-kind updates always apply, and sticky
 /// replaces anything.
 fn should_replace(current: Option<(&str, bool)>, kind: &str, sticky: bool) -> bool {
     match current {
@@ -82,9 +82,9 @@ fn should_replace(current: Option<(&str, bool)>, kind: &str, sticky: bool) -> bo
 }
 
 /// What is currently on the notice window. Cleared on hide so precedence
-/// never blocks a fresh notice. The full payload is kept — the first show
-/// races the webview's page load, so the page *fetches* this on mount
-/// (`current_notice`) rather than trusting the one-shot emit to land.
+/// never blocks a fresh notice. The full payload is kept: the first show
+/// races the webview's page load, so the page fetches this on mount
+/// (`current_notice`) rather than trusting the one-shot emit to arrive.
 static CURRENT: std::sync::Mutex<Option<NoticePayload>> = std::sync::Mutex::new(None);
 
 #[tauri::command]
@@ -101,7 +101,7 @@ pub async fn hide_notice(app: AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
-/// The payload currently showing — the notice page's source of truth on
+/// The payload currently showing: the notice page's source of truth on
 /// mount; later updates arrive over `notice-payload`.
 #[tauri::command]
 pub async fn current_notice() -> Result<Option<NoticePayload>, AppError> {
@@ -142,20 +142,20 @@ fn show_notice(app: &AppHandle, payload: NoticePayload) -> Result<(), AppError> 
             .always_on_top(true)
             .skip_taskbar(true)
             .focused(false)
-            // **Resizable, despite nothing being able to resize it.** On GTK,
-            // `resizable(false)` makes the window take the webview's *natural*
-            // size and drops the size hints entirely — measured: the notice
+            // Resizable, despite nothing being able to resize it. On GTK,
+            // `resizable(false)` makes the window take the webview's natural
+            // size and drops the size hints entirely; measured: the notice
             // came out 360x200 while asking for 360x56, and neither
             // `min_inner_size` nor `max_inner_size` could pull it back. The
             // same window with resizing left on honours its size, exactly as
             // the main window honours its 840x560 minimum. Nothing here is
-            // draggable (no decorations, never focused), so this costs no
-            // affordance — it is the only way to be the size we asked for.
+            // draggable (no decorations, never focused), so this takes
+            // nothing away; it is the only way to be the size we asked for.
             .resizable(true)
             .visible(false)
             .build()
             .map_err(|e| format!("notice window failed: {e}"))?;
-            // Never activate — a notice matters most mid-call, and even a
+            // Never activate: a notice matters most mid-call, and even a
             // button click must not pull focus off the meeting app.
             // Native-window access is main-thread work.
             {
@@ -170,7 +170,7 @@ fn show_notice(app: &AppHandle, payload: NoticePayload) -> Result<(), AppError> 
 
     let _ = window.set_size(tauri::LogicalSize::new(w, h));
 
-    // Bottom-right of the current monitor. Verified on X11 by screenshot —
+    // Bottom-right of the current monitor. Verified on X11 by screenshot:
     // the logical form places it correctly, and an earlier "it lands at
     // x=3088" reading was `wmctrl -lG` being misread, not a real bug.
     if let Ok(Some(monitor)) = window.current_monitor() {
@@ -185,8 +185,9 @@ fn show_notice(app: &AppHandle, payload: NoticePayload) -> Result<(), AppError> 
     let _ = app.emit_to(NOTICE, "notice-payload", &payload);
     window.show().map_err(|e| e.to_string())?;
 
-    // Kept at info: the notice is chrome-less, so there is no frame to eyeball
-    // and a platform override reads as a design mistake rather than what it is.
+    // Kept at info: the notice is chrome-less, so there is no frame to check
+    // by eye, and a platform override reads as a design mistake rather than
+    // what it is.
     tracing::info!(
         asked = ?(w, h),
         inner = ?window.inner_size(),
@@ -216,7 +217,7 @@ mod tests {
 
     #[test]
     fn transients_never_clobber_a_live_sticky_notice() {
-        // A fallback toast mid silence check-in must not eat the question.
+        // A fallback toast mid silence check-in must not replace the question.
         assert!(!should_replace(Some(("silence", true)), "switched_to_local", false));
         // Sticky replaces anything; transient replaces transient.
         assert!(should_replace(Some(("notes_ready", false)), "silence", true));

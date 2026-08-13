@@ -1,4 +1,4 @@
-// Mirrors of src-tauri/src/mcp_clients.rs — the setup snippets and the
+// Mirrors of src-tauri/src/mcp_clients.rs: the setup snippets and the
 // per-client detection results.
 
 export interface McpSetupInfo {

@@ -6,7 +6,7 @@ description = "Text embedding for embral's retrieval engine: multilingual-e5-sma
 
 # This crate is linked ONLY by binaries without sherpa-onnx (embral-mcp).
 # ort's prebuilt onnxruntime objects are /MD and cannot share an exe with
-# sherpa's /MT static build (LNK2038, proven) — the app therefore reaches
+# sherpa's /MT static build (LNK2038, proven), so the app reaches
 # embedding through the `embral-mcp embed` child process instead of
 # linking this crate.
 

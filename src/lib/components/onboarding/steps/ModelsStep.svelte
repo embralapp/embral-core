@@ -1,7 +1,7 @@
 <script lang="ts">
     // "Recommended for this computer": system_specs → recommend.ts → two
     // switch rows (language, accuracy) over a checkbox list of download
-    // units. What's checked is what downloads; features simply follow
+    // units. What's checked is what downloads; features follow
     // which models end up present ([shell.md](../../../../../docs/shell.md),
     // [transcription.md](../../../../../docs/transcription.md)).
     import { onMount } from "svelte";
@@ -50,7 +50,7 @@
         void modelsStore.refresh();
         try {
             specs = await invoke<SystemSpecs>("system_specs");
-            // The recommendation lands in the draft immediately: continuing
+            // The recommendation is written to the draft immediately: continuing
             // without touching anything keeps the recommended setup.
             const rec = recommend(specs);
             draft.local_asr_model = rec.asr;
@@ -202,11 +202,6 @@
     /** A unit's still-to-download size. */
     function unitBytes(ids: string[]): number {
         return missingBytes(ids, modelsStore.statuses);
-    }
-
-    function specsLine(s: SystemSpecs): string {
-        const gb = Math.round(s.total_ram_bytes / 1024 ** 3);
-        return `${gb} GB RAM`;
     }
 
     let languageOptions = $derived([

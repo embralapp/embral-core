@@ -5,7 +5,7 @@
 //! uppercase pieces, `▁` marking a word start) but no `bpe.vocab`, so instead
 //! of sherpa's `modeling_unit`/`bpe_vocab` path we tokenize each phrase
 //! ourselves by greedy longest-piece matching and pass the result to
-//! `create_stream_with_hotwords` — one line of space-separated tokens per
+//! `create_stream_with_hotwords`: one line of space-separated tokens per
 //! phrase, the format sherpa accepts when no modeling unit is configured.
 //!
 //! Phrases that can't be fully expressed with the model's pieces (digits,

@@ -1,7 +1,7 @@
 //! The warm engine: loads recognizers once per app run and hands out
 //! per-recording sessions.
 //!
-//! Keeping loaded models cached here is what makes recording start instant —
+//! Keeping loaded models cached here is what makes recording start instant;
 //! the old provider re-loaded ONNX weights at every record start. Loading is
 //! synchronous and can take a few seconds cold; callers should invoke
 //! `create_session` from a blocking context.
@@ -70,7 +70,7 @@ pub struct Engine {
     recognizers: Mutex<HashMap<RecognizerKey, Arc<OnlineRecognizer>>>,
     offline_recognizers: Mutex<HashMap<RecognizerKey, Arc<OfflineRecognizer>>>,
     punctuation: Mutex<Option<Arc<OnlinePunctuation>>>,
-    /// Keyed by the clustering threshold's bits — the threshold is baked
+    /// Keyed by the clustering threshold's bits: the threshold is baked
     /// into a diarizer at construction, and the sensitivity setting varies
     /// it (a handful of values at most).
     diarizers: Mutex<HashMap<u32, Arc<OfflineSpeakerDiarization>>>,
@@ -112,7 +112,7 @@ impl Engine {
 
     /// Split a full 16 kHz mono recording into per-speaker spans. Cluster
     /// indices are recording-local. `clustering_threshold` comes from the
-    /// speaker-sensitivity setting (larger = fewer speakers). CPU-bound —
+    /// speaker-sensitivity setting (larger = fewer speakers). CPU-bound;
     /// call from a blocking context.
     pub fn diarize(&self, samples: &[f32], clustering_threshold: f32) -> Result<Vec<DiarizedSpan>> {
         let diarizer = self.diarizer(clustering_threshold)?;
@@ -234,7 +234,7 @@ impl Engine {
     /// `live_speaker_labels` asks for provisional per-utterance speaker
     /// labels (meeting recordings want them; dictation and imports don't).
     /// Honored only in the VAD-segmented mode with the speaker-id pack
-    /// downloaded — otherwise the session simply runs unlabeled.
+    /// downloaded; otherwise the session runs unlabeled.
     pub fn create_session(
         &self,
         model_id: &str,
@@ -461,7 +461,7 @@ impl Engine {
     }
 
     /// The shared punctuation model, if downloaded (loaded once, kept warm).
-    /// Absence is not an error — sessions fall back to naive casing.
+    /// Absence is not an error; sessions fall back to naive casing.
     fn punctuation(&self) -> Option<Arc<OnlinePunctuation>> {
         let mut guard = self.punctuation.lock().expect("engine mutex poisoned");
         if let Some(p) = guard.as_ref() {

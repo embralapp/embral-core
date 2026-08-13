@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 # The cloud edition: adds the Cloud transcription provider and its config
-# fields. Off by default — the offline core must always build without it.
+# fields. Off by default; the offline core must always build without it.
 cloud = []
 
 [dependencies]

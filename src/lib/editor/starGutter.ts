@@ -3,15 +3,15 @@ import { Plugin } from '@tiptap/pm/state';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 
-/** Star anchors live as a `starId` attribute on textblocks (paragraphs,
- * headings — which includes each bullet's own paragraph), rendered as a
+/** Star anchors live as a `starId` attribute on textblocks (paragraphs and
+ * headings, which includes each bullet's own paragraph), rendered as a
  * gutter ★ via CSS `::before`:
  *
- * - **Undo-safe**: the anchor is document state, so deleting a starred
+ * - Undo-safe: the anchor is document state, so deleting a starred
  *   chunk and pressing Ctrl+Z brings the stars back with their lines.
- * - **Per-line**: every textblock (each bullet included) anchors its own
+ * - Per-line: every textblock (each bullet included) anchors its own
  *   star.
- * - **Selection-proof**: a pseudo-element is never part of the DOM
+ * - Selection-proof: a pseudo-element is never part of the DOM
  *   selection, so Ctrl+A copies only the notes text.
  *
  * Starring/unstarring transactions carry `addToHistory: false` so the
@@ -72,8 +72,8 @@ export function starAnchors(onStarClick?: (id: number) => void) {
   });
 }
 
-/** Every textblock in document order, with the position *of* the node
- * (usable with `setNodeMarkup`). */
+/** Every textblock in document order, with the position of the node
+ * itself (usable with `setNodeMarkup`). */
 function textblocks(doc: PmNode): { pos: number; node: PmNode }[] {
   const out: { pos: number; node: PmNode }[] = [];
   doc.descendants((node, pos) => {
@@ -114,7 +114,7 @@ export function starAtCursor(editor: Editor): number | null {
   return (block?.node.attrs.starId as number | null) ?? null;
 }
 
-/** Anchor a star on the caret's line (replacing any star already there —
+/** Anchor a star on the caret's line (replacing any star already there;
  * one star per line). */
 export function anchorStarAtCursor(editor: Editor, id: number) {
   const block = cursorTextblock(editor);

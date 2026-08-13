@@ -1,16 +1,17 @@
-//! `AppError` — the typed error the Tauri commands return and the error
+//! `AppError`: the typed error the Tauri commands return and the error
 //! events carry, so no user-facing failure crosses to the frontend as a bare
 //! English string. Serialized with an internal `code` tag; the frontend maps
 //! each code to a catalog sentence (`src/lib/copy/en/errors.ts`), interpolating
 //! any carried data (a path, an id, a technical detail).
 //!
 //! The `Display` text is the current English, kept for `tracing` logs and as
-//! the fallback the frontend shows for `Internal`. **Wording is Phase 4's** —
-//! these strings move verbatim; the frontend catalog is where they get edited.
+//! the fallback the frontend shows for `Internal`. Wording changes belong to
+//! the owner's editing pass (260720-copy-catalog.md, Phase 4): these strings
+//! move verbatim; the frontend catalog is where they get edited.
 //!
 //! Adding a variant here means adding its code to the frontend's
-//! `AppErrorCode` union and `copy.errors` map, or `npm run check` fails — the
-//! same completeness gate the copy catalog uses. `code_of` + the unit test
+//! `AppErrorCode` union and `copy.errors` map, or `npm run check` fails (the
+//! same completeness gate the copy catalog uses). `code` + the unit test
 //! below are the Rust side of that contract.
 
 use std::fmt;
@@ -24,7 +25,7 @@ pub enum AppError {
     NotConfigured,
     BusyDictating,
     NoActiveRecording,
-    /// A second start arrived while one recording was already running —
+    /// A second start arrived while one recording was already running:
     /// the record button, the hotkey, and auto-start all reach the same
     /// command, and nothing downstream of it is idempotent.
     AlreadyRecording,
@@ -58,17 +59,17 @@ pub enum AppError {
     ImportFailed { detail: String },
     DictationStartFailed { detail: String },
     CloudUnreachable,
-    /// Cloud transcription is selected but no device is signed in — the
-    /// recording lands on the configured fallback instead of waiting out
+    /// Cloud transcription is selected but no device is signed in; the
+    /// recording uses the configured fallback instead of waiting out
     /// a handshake that cannot succeed.
     CloudSignedOut,
 
     /// A webhook test delivery failed; `detail` is the transport's own
-    /// words (a refused connection, a status code) — the diagnostic the
+    /// words (a refused connection, a status code), the diagnostic the
     /// settings row exists to show.
     WebhookTestFailed { detail: String },
 
-    /// Everything currently `.map_err(|e| e.to_string())?` — a DB/IO/serde
+    /// Everything currently `.map_err(|e| e.to_string())?`: a DB/IO/serde
     /// failure or a "shouldn't happen" race. Shown as a generic sentence; the
     /// `detail` is for the log, not the screen.
     Internal { detail: String },
@@ -187,7 +188,7 @@ impl std::error::Error for AppError {}
 
 // A bare string error (the pervasive `.map_err(|e| e.to_string())?` and
 // `state.db().await?`) folds into `Internal` so `?` keeps working unchanged in
-// commands that now return `AppError`. Both arms are std types — no dependency
+// commands that now return `AppError`. Both arms are std types; no dependency
 // creeps into this crate.
 impl From<String> for AppError {
     fn from(detail: String) -> Self {
@@ -208,9 +209,9 @@ mod tests {
     use super::*;
 
     /// Every variant, so the code strings are pinned against the frontend
-    /// `AppErrorCode` union. A new variant added without a line here fails to
-    /// compile (non-exhaustive match), which is the reminder to update the
-    /// frontend too.
+    /// `AppErrorCode` union. The compile-time reminder lives in `code()`'s
+    /// exhaustive match; this list is maintained by hand alongside it, so a
+    /// new variant should be added here too.
     fn all_variants() -> Vec<AppError> {
         use AppError::*;
         let sample = || "x".to_string();

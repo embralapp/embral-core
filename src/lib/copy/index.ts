@@ -1,4 +1,4 @@
-// The copy catalog — every user-facing string in the frontend (docs/copy.md).
+// The copy catalog: every user-facing string in the frontend (docs/copy.md).
 //
 // Read a surface file top to bottom and you read that screen's copy in the
 // order a user meets it. Components never hold display strings.
@@ -21,7 +21,7 @@ import type { Widen } from './types';
 export type Copy = Widen<typeof en>;
 
 // The completeness gate. `npm run check` fails here if `en` grows a value the
-// schema can't widen — caught while it is being written rather than when a
+// schema can't widen; caught while it is being written rather than when a
 // second locale is added.
 const _schema: Copy = en;
 void _schema;

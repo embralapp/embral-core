@@ -9,7 +9,7 @@
 use embral_types::TranscriptionSegment;
 
 // Paragraph segmentation thresholds. Keep in sync with the TypeScript
-// counterpart in `src/lib/components/LiveTranscript.svelte`.
+// counterpart in `src/lib/utils/transcriptBreaks.ts`.
 pub const STRONG_GAP: f64 = 4.0;
 pub const SOFT_GAP: f64 = 2.0;
 pub const MAX_PARAGRAPH_CHARS: usize = 800;
@@ -17,6 +17,14 @@ pub const MAX_PARAGRAPH_CHARS: usize = 800;
 fn ends_sentence(text: &str) -> bool {
     text.trim_end()
         .ends_with(|c: char| matches!(c, '.' | '!' | '?'))
+}
+
+/// Paragraph length in characters, not bytes. The TypeScript mirror counts
+/// the same way, so the live view and the stored markdown break in the same
+/// places; counting bytes here broke a Cyrillic or CJK transcript at half
+/// the intended length while the live view used the full one.
+fn char_len(text: &str) -> usize {
+    text.chars().count()
 }
 
 /// Whether `curr` should start a new paragraph after `prev`.
@@ -35,7 +43,7 @@ pub fn starts_new_paragraph(
     if gap >= SOFT_GAP && ends_sentence(&prev.text) {
         return true;
     }
-    running_len + curr.text.len() + 1 > MAX_PARAGRAPH_CHARS
+    running_len + char_len(&curr.text) + 1 > MAX_PARAGRAPH_CHARS
 }
 
 /// One paragraph's worth of consecutive segments: the same grouping
@@ -54,7 +62,7 @@ pub struct Paragraph {
 }
 
 /// Group segments into paragraphs by the break rules above. The one
-/// definition — `format_transcript` renders from this.
+/// definition: `format_transcript` renders from this.
 pub fn paragraphs(segments: &[TranscriptionSegment]) -> Vec<Paragraph> {
     let mut out: Vec<Paragraph> = Vec::new();
     let mut current: Option<Paragraph> = None;
@@ -78,12 +86,12 @@ pub fn paragraphs(segments: &[TranscriptionSegment]) -> Vec<Paragraph> {
                 end: seg.end,
                 text: seg.text.clone(),
             });
-            running_len = seg.text.len();
+            running_len = char_len(&seg.text);
         } else if let Some(p) = current.as_mut() {
             p.text.push(' ');
             p.text.push_str(&seg.text);
             p.end = seg.end;
-            running_len += seg.text.len() + 1;
+            running_len += char_len(&seg.text) + 1;
         }
     }
     if let Some(p) = current {
@@ -107,7 +115,7 @@ fn format_paragraphs(segments: &[TranscriptionSegment]) -> String {
 
 /// Group finalized segments into Markdown paragraphs (blank-line separated).
 ///
-/// Segments are assumed to arrive in monotonic finalization order and are **not**
+/// Segments are assumed to arrive in monotonic finalization order and are not
 /// re-sorted (a non-load-bearing sort would mask ordering bugs). Consecutive
 /// same-speaker segments join with a single space until a paragraph break fires
 /// (speaker change, long pause, sentence-end + moderate pause, runaway length).
@@ -115,7 +123,7 @@ pub fn format_transcript(segments: &[TranscriptionSegment]) -> String {
     format_paragraphs(segments)
 }
 
-/// Deduplicated speaker labels in first-seen order — the attendee seed.
+/// Deduplicated speaker labels in first-seen order: the attendee seed.
 pub fn speakers(segments: &[TranscriptionSegment]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for s in segments {
@@ -140,7 +148,7 @@ pub fn delete_segment(segments: &mut Vec<TranscriptionSegment>, index: usize) {
 
 /// Set the speaker label of the segment at `index` (e.g. "Speaker 2" → "Dana").
 /// An empty/whitespace name clears the label (`None`). Any registry link is
-/// dropped — the caller re-links when the new label is a known person.
+/// dropped; the caller re-links when the new label is a known person.
 pub fn reassign_speaker(segments: &mut [TranscriptionSegment], index: usize, speaker: &str) {
     if let Some(seg) = segments.get_mut(index) {
         let s = speaker.trim();
@@ -153,7 +161,7 @@ pub fn reassign_speaker(segments: &mut [TranscriptionSegment], index: usize, spe
     }
 }
 
-/// Reassign a whole inclusive range — a turn renamed in one edit, however
+/// Reassign a whole inclusive range: a turn renamed in one edit, however
 /// long. Bounds are clamped; an inverted range does nothing.
 pub fn reassign_speaker_range(
     segments: &mut [TranscriptionSegment],
@@ -227,6 +235,27 @@ mod tests {
     fn empty_is_empty() {
         assert_eq!(format_transcript(&[]), "");
         assert!(paragraphs(&[]).is_empty());
+    }
+
+    /// Paragraph length counts characters, not bytes. Cyrillic is two bytes
+    /// per character, so counting bytes broke this paragraph at roughly half
+    /// the intended length while the TypeScript mirror, which counts
+    /// characters, kept going. The two surfaces have to agree.
+    #[test]
+    fn a_non_latin_paragraph_measures_in_characters() {
+        // 300 Cyrillic characters is 600 bytes: over the byte budget when
+        // doubled, comfortably under the character budget.
+        let text: String = "я".repeat(300);
+        let a = seg(Some("A"), &text, 0.0, 1.0);
+        let b = seg(Some("A"), &text, 1.0, 2.0);
+
+        assert_eq!(char_len(&text), 300);
+        assert!(text.len() > MAX_PARAGRAPH_CHARS / 2);
+        assert!(
+            !starts_new_paragraph(&a, &b, char_len(&text)),
+            "600 characters is under the 800-character budget, so these join"
+        );
+        assert_eq!(paragraphs(&[a, b]).len(), 1);
     }
 
     #[test]

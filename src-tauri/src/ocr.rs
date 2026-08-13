@@ -1,8 +1,8 @@
 //! Reading the text out of a meeting's pasted images and keeping it true to
 //! what is on disk ([storage.md](../../docs/storage.md) §The chunk index).
 //!
-//! The OS call is behind the platform seam; this module owns the *when* and
-//! the *what*: which files still need reading, what gets stored, and the
+//! The OS call is behind the platform layer; this module owns the when and
+//! the what: which files still need reading, what gets stored, and the
 //! background sweep that catches everything finalize did not.
 //!
 //! The sweep is also the backfill. It works by diffing `assets/{id}/`
@@ -22,7 +22,7 @@ use crate::platform::types::Recognized;
 pub const SWEEP_BATCH: usize = 8;
 
 /// Which engine wrote a passage. Recorded so a library that has moved
-/// between machines says where each reading came from — Vision and
+/// between machines says where each reading came from: Vision and
 /// `Windows.Media.Ocr` are not equally good, and the column is the only
 /// place that difference is visible after the fact.
 fn engine_name() -> &'static str {
@@ -30,7 +30,7 @@ fn engine_name() -> &'static str {
 }
 
 /// One image, start to finish. A file we cannot read is `Failed` rather
-/// than `Unavailable`: it is an answer about *this file*, so the caller
+/// than `Unavailable`: it is an answer about this file, so the caller
 /// retires it instead of retrying it forever.
 fn read_file(path: &Path) -> Recognized {
     match std::fs::read(path) {
@@ -42,9 +42,9 @@ fn read_file(path: &Path) -> Recognized {
 /// Read these images and hand back what each one says, in the order given.
 ///
 /// Storing is deliberately not done here: at finalize the meeting row does
-/// not exist yet, so the caller decides when the rows can land. A `Failed`
-/// image comes back with empty text — an answer, so it is stamped and not
-/// retried — while `Unavailable` stops the run, because nothing after it
+/// not exist yet, so the caller decides when the rows can be written. A
+/// `Failed` image comes back with empty text (an answer, so it is stamped
+/// and not retried); `Unavailable` stops the run, because nothing after it
 /// would fare any better.
 pub fn read_images(base: &Path, meeting_id: &str, filenames: &[String]) -> Vec<(String, String)> {
     let Some(dir) = meeting_asset_dir(base, meeting_id) else {
@@ -103,7 +103,7 @@ fn meeting_asset_dir(base: &Path, meeting_id: &str) -> Option<PathBuf> {
 /// library, and re-index every meeting that gained text.
 ///
 /// Only meetings that exist are considered: a live recording has no row
-/// yet, which is exactly the behaviour we want — OCR must not compete with
+/// yet, which is exactly the behaviour we want. OCR must not compete with
 /// transcription for the CPU while the meeting is still running.
 ///
 /// Returns how many images were read, so the caller knows whether to come
@@ -125,7 +125,7 @@ pub fn sweep(db: &Db, base: &Path, budget: usize) -> usize {
         let meeting_id = entry.file_name().to_string_lossy().to_string();
         match db.get_meeting(&meeting_id) {
             Ok(Some(_)) => {}
-            // No row: a live recording, or an orphan the janitor will take.
+            // No row: a live recording, or an orphan the janitor will remove.
             Ok(None) => continue,
             Err(e) => {
                 tracing::warn!("looking up {meeting_id} failed: {e:#}");
@@ -167,7 +167,7 @@ mod tests {
     use super::*;
 
     /// The smallest valid PNG: 1×1, transparent. It has no text in it, so
-    /// the engine answers with an empty string — which is still an answer,
+    /// the engine answers with an empty string, which is still an answer,
     /// and the point of the test is what happens to the row afterwards.
     const TINY_PNG: &[u8] = &[
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
@@ -178,7 +178,7 @@ mod tests {
     ];
 
     /// Whether this platform has an OCR engine at all. Windows and macOS
-    /// read with an in-box one; Linux ships none by design
+    /// read with a built-in one; Linux ships none by design
     /// (`platform/linux/ocr.rs`), and `Recognized::Unavailable` means the
     /// sweep stamps nothing and leaves images pending. The two sweep tests
     /// below assert both shapes rather than skipping on the stub platform,
@@ -221,7 +221,7 @@ mod tests {
 
         if !ocr_available() {
             // No engine here: nothing is stamped, so the image stays pending
-            // and a platform that grows an engine would still find it. The
+            // and a platform that later gains an engine would still find it. The
             // sweep is a no-op rather than a destructive one, which is the
             // whole of the contract on this platform.
             assert_eq!(sweep(&db, &base, SWEEP_BATCH), 0);
@@ -234,7 +234,7 @@ mod tests {
         assert_eq!(db.image_text_filenames("m1").unwrap(), vec!["img-01.png"]);
         assert!(db.image_text_filenames("live").unwrap().is_empty());
 
-        // A second pass has nothing left to do — the stamp is what says so,
+        // A second pass has nothing left to do; the stamp is what says so,
         // even though the reading itself was empty.
         assert_eq!(sweep(&db, &base, SWEEP_BATCH), 0);
 
@@ -260,7 +260,7 @@ mod tests {
 
         if !ocr_available() {
             // Without an engine there is no way to tell "not an image" from
-            // "not read yet", so nothing is retired — the file stays pending
+            // "not read yet", so nothing is retired; the file stays pending
             // rather than being wrongly stamped as answered.
             assert_eq!(sweep(&db, &base, SWEEP_BATCH), 0);
             assert!(db.image_text("m1").unwrap().is_empty());

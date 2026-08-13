@@ -9,11 +9,11 @@
 
 /// Live in-flight utterance. `text` is the stable committed portion, while
 /// `tentative_text` (when present) is an unstable trailing hypothesis that
-/// may change on the next update — render it with reduced emphasis.
+/// may change on the next update; render it with reduced emphasis.
 ///
-/// The tail's LEADING space is meaningful: present means it opens a new
+/// The tail's leading space is meaningful: present means it opens a new
 /// word; absent means it continues `text`'s last word (the vendor splits
-/// mid-word — "keep tal" + "king"). Concatenate verbatim; never insert a
+/// mid-word: "keep tal" + "king"). Concatenate verbatim; never insert a
 /// separator.
 export interface InterimSegment {
   speaker: string | null;
@@ -21,13 +21,6 @@ export interface InterimSegment {
   start: number;
   end: number;
   tentative_text: string | null;
-}
-
-export interface ProviderCapabilities {
-  /** Provider labels are final; false = live labels are a provisional
-   * preview the post-meeting pipeline overwrites. */
-  labels_authoritative: boolean;
-  max_session_minutes: number;
 }
 
 export interface MeetingRecord {
@@ -82,7 +75,7 @@ export interface SpeakerProfile {
   last_seen: string | null;
 }
 
-// One meeting a person spoke in — a row of the profile pane's record
+// One meeting a person spoke in: a row of the profile pane's record
 // (mirrors src-tauri SpeakerMeeting).
 export interface SpeakerMeeting {
   meeting_id: string;
@@ -106,28 +99,22 @@ export type SegmentEdit =
   | { kind: 'relabel_all'; from: string; to: string; speaker_id?: string | null }
   | { kind: 'clear_label'; label: string };
 
-export interface MeetingSummary {
-  id: string;
-  title: string;
-  date: string;
-  duration_seconds: number;
-}
-
 // 'cloud' exists only in cloud-edition builds (embral's metered backend).
 export type TranscriptionProvider = 'local' | 'cloud';
 
-// The language transcription runs in — owned above the provider choice and
-// read by both. 'multilingual' means "detect it as it is spoken".
+// The language transcription runs in. It sits above the provider choice
+// and both providers read it. 'multilingual' means "detect it as it is
+// spoken".
 export type TranscriptionLanguage = 'english' | 'multilingual';
 
-// What a cloud recording does when the account's hours — subscription plus
-// purchased — run out. 'disabled' keeps recording and note-taking but writes
-// no transcript. A dropped connection always lands on the device regardless.
+// What a cloud recording does when the account's hours (subscription plus
+// purchased) run out. 'disabled' keeps recording and note-taking but writes
+// no transcript. A dropped connection always falls back to the device.
 export type CloudOutOfHours = 'local' | 'disabled';
 
 // Whether the machine's power source overrides the meeting provider:
 // 'cloud_on_battery' means cloud while on battery, this device while plugged
-// in. Read once per recording, backend-side — the frontend only edits it.
+// in. Read once per recording, backend-side; the frontend only edits it.
 export type PowerPolicy = 'off' | 'cloud_on_battery';
 
 // One local speech model from the engine catalog (mirrors
@@ -156,7 +143,7 @@ export interface ModelProgress {
   total_bytes: number;
 }
 
-// The palette's hybrid search results (search_library) — meetings grouped
+// The palette's hybrid search results (search_library): meetings grouped
 // best-passage-per-meeting, dictations alongside. Snippets carry [match]
 // markers when the keyword leg produced them.
 export interface LibraryMeetingHit {
@@ -164,7 +151,7 @@ export interface LibraryMeetingHit {
   title: string;
   started_at: string;
   snippet: string;
-  /** Which document matched — names the tab to open. */
+  /** Which document matched; it names the tab to open. */
   source: ChunkSource;
   /** Where in the recording the passage runs, for transcript passages. */
   start_secs: number | null;
@@ -178,12 +165,12 @@ export interface LibraryMeetingHit {
  * meeting hit; it is here because the column's vocabulary is one list. */
 export type ChunkSource = 'transcript' | 'user_notes' | 'summary' | 'dictation' | 'image_text';
 
-/** Where in a meeting a search result was pointing — carried from the
+/** Where in a meeting a search result was pointing, carried from the
  * palette to the detail pane, which opens the right tab and scrolls to the
  * passage instead of dumping the user at the top of the document. */
 export interface PassageLanding {
   source: ChunkSource;
-  /** Where the *passage* runs, for transcript hits. A passage is packed
+  /** Where the passage runs, for transcript hits. A passage is packed
    * paragraphs, so `start_secs` can be minutes before the line that
    * matched: it is the fallback, and the pair bounds the search for the
    * query so a word that recurs elsewhere cannot win. */
@@ -195,7 +182,7 @@ export interface PassageLanding {
   image: string | null;
   /** What the user actually typed. Tried first, because it is the thing
    * they asked to be taken to; `lead` and `start_secs` only say which
-   * *passage* matched, which for a short summary is the whole document. */
+   * passage matched, which for a short summary is the whole document. */
   query: string;
 }
 export interface LibraryDictationHit {
@@ -212,7 +199,7 @@ export type Theme = 'system' | 'light' | 'dark';
 export type AutoStartPolicy = 'always' | 'selective' | 'prompt' | 'manual';
 export type AutoStopScope = 'never' | 'auto_started' | 'all';
 export type SilenceUnanswered = 'stop' | 'keep';
-// Mirrors platform::types::PermissionState — 'not_required' on platforms
+// Mirrors platform::types::PermissionState; 'not_required' on platforms
 // that never gate the capability (Windows).
 export type PermissionState = 'granted' | 'denied' | 'not_determined' | 'not_required';
 export type DiarizationSensitivity = 'low' | 'medium' | 'high';
@@ -226,7 +213,7 @@ export type OpenMeetingTab = 'summary' | 'notes' | 'transcript';
 export type DictationCleanup = 'cloud' | 'on_device' | 'off';
 
 // One synthesis engine (mirrors embral-types::LlmProfile). The list is
-// fixed per edition — see utils/llmProfiles.ts availableProfiles().
+// fixed per edition; see utils/llmProfiles.ts availableProfiles().
 export interface LlmProfile {
   id: string;
   name: string;
@@ -256,7 +243,7 @@ export type WebhookMethod = 'post' | 'put';
 export interface WebhookDestination {
   url: string;
   method: WebhookMethod;
-  /** Full content rides along only when true; metadata-only otherwise. */
+  /** The full content is included only when true; metadata-only otherwise. */
   include_content: boolean;
 }
 
@@ -269,7 +256,7 @@ export interface AudioDevices {
 export interface AppConfig {
   transcription_provider: TranscriptionProvider;
   transcription_language: TranscriptionLanguage;
-  // Cloud edition only — absent from the offline build's config. Mirrored
+  // Cloud edition only, absent from the offline build's config. Mirrored
   // (rather than left out) because save_config round-trips the whole object:
   // an unmirrored cfg-gated field would reset to its default on every save.
   transcription_power_policy?: PowerPolicy;
@@ -303,8 +290,8 @@ export interface AppConfig {
   audio_retention_days: number;
   meeting_retention_days: number;
   onboarding_completed: boolean;
-  // Telemetry (telemetry.md) — cloud edition only, absent from the offline
-  // build's config: opt-in flag, per-install id (minted on enable, cleared
+  // Telemetry (telemetry.md), cloud edition only, absent from the offline
+  // build's config: opt-in flag, per-install id (created on enable, cleared
   // on opt-out), and the daily config_snapshot date gate.
   telemetry_enabled?: boolean;
   telemetry_install_id?: string;
@@ -334,10 +321,10 @@ export interface AppConfig {
   open_meeting_tab: OpenMeetingTab;
   llm_keep_warm: boolean;
   llm_idle_minutes: number;
-  // Dictation — its own transcription tree, independent of meetings.
+  // Dictation: its own transcription tree, independent of meetings.
   dictation_hotkey: string;
   dictation_provider: TranscriptionProvider;
-  // Cloud edition only — absent from the offline build's config.
+  // Cloud edition only, absent from the offline build's config.
   dictation_out_of_hours?: CloudOutOfHours;
   dictation_language: TranscriptionLanguage;
   dictation_asr_model: string;

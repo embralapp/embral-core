@@ -1,5 +1,5 @@
 <script lang="ts">
-    // The notice window's page ([shell.md] §Notices) — embral's own
+    // The notice window's page ([shell.md] §Notices): embral's own
     // notification chrome on Windows. A separate WebView from main: it
     // loads config and theme itself and installs its own listeners, like
     // the dictation overlay.
@@ -35,9 +35,9 @@
     let starting = $state(false);
     let unlisteners: UnlistenFn[] = [];
 
-    // The countdown chip's clock — the interval only refreshes `now`, and
+    // The countdown chip's clock: the interval only refreshes `now`, and
     // runs only while a deadline is on screen. The chip rests at 0 once
-    // the deadline passes: the decision lands on the backend's next tick,
+    // the deadline passes: the decision arrives on the backend's next tick,
     // and the card comes down with it (`silence-cleared`).
     let now = $state(Date.now());
     const remaining = $derived(
@@ -55,7 +55,8 @@
     });
 
     // Action ids → the commands they run; the answers are the same ones
-    // the in-app banners invoke, so telemetry and state ride along.
+    // the in-app banners invoke, so telemetry and state are handled the
+    // same way.
     const ACTION_COMMANDS: Record<string, string> = {
         accept: "accept_detected_meeting",
         dismiss: "dismiss_detected_meeting",
@@ -89,7 +90,7 @@
         fading = true;
         cancelDismiss();
         fadeTimer = setTimeout(() => {
-            // The window only hides — the page persists. Drop the payload
+            // The window only hides; the page persists. Drop the payload
             // too, so nothing (like the countdown interval) keeps running
             // behind a hidden window.
             notice = null;
@@ -100,12 +101,12 @@
     function runAction(id: string) {
         const command = ACTION_COMMANDS[id];
         if (command) {
-            // Never awaited — the click's feedback must not wait on model
+            // Never awaited: the click's feedback must not wait on model
             // spin-up or the stop handshake.
             void invoke(command).catch(() => {});
         }
         if (id === "accept") {
-            // Held on screen as "starting" until recording-started lands.
+            // Held on screen as "starting" until recording-started arrives.
             starting = true;
         } else {
             fadeThenHide();
@@ -119,7 +120,7 @@
         fadeThenHide();
     }
 
-    /// The ✕. On the call notice it IS the Dismiss answer (a separate
+    /// The ✕. On the call notice it is the Dismiss answer (a separate
     /// Dismiss button next to a close would say the same thing twice);
     /// everywhere else it just puts the card away.
     function close() {
@@ -157,7 +158,7 @@
             listen("meeting-dismissed", () => hideIf("call_detected")),
             listen("recording-started", () => hideIf("call_detected")),
         ]);
-        // The first show races this page's load — the emit that triggered
+        // The first show races this page's load: the emit that triggered
         // window creation is long gone by the time the listener above
         // exists. The backend keeps the payload; ask for it.
         if (!notice) {
@@ -195,9 +196,9 @@
                 {starting ? t.starting : notice.title}
             </p>
             {#if remaining !== null && !starting}
-                <!-- The decision deadline, as plain ticking text — a ring
-                     would read as a second logo. It rests at 0 until the
-                     backend's next tick lands the decision. -->
+                <!-- The decision deadline, as plain ticking text (a ring
+                     would read as a second logo). It rests at 0 until the
+                     backend's next tick delivers the decision. -->
                 <span
                     class="shrink-0 text-xs tabular-nums text-muted-foreground"
                     role="timer"

@@ -1,4 +1,4 @@
-//! Vector storage behind a trait — sqlite-vec today (owner decision, eyes
+//! Vector storage behind a trait: sqlite-vec today (owner decision, eyes
 //! open on pre-1.0), swappable without touching retrieval. Vectors are
 //! always rebuildable from `chunks.embedding_text`, so drop + re-embed is
 //! the universal escape hatch.
@@ -16,11 +16,11 @@ const TABLE: &str = "chunk_vectors";
 pub trait VectorIndex {
     /// Create the vector table for the current model; a recorded identity
     /// mismatch (different model or dims) drops it and marks every chunk
-    /// pending again. App-side only — readers never call this.
+    /// pending again. App-side only; readers never call this.
     fn ensure(&self, conn: &Connection) -> Result<()>;
     fn upsert(&self, conn: &Connection, chunk_id: i64, vector: &[f32]) -> Result<()>;
     /// Nearest chunks as `(chunk_id, distance)`, best first. A missing
-    /// table is the model-less library — empty result, not an error.
+    /// table is the model-less library: empty result, not an error.
     fn knn(&self, conn: &Connection, query: &[f32], k: usize) -> Result<Vec<(i64, f64)>>;
     /// Remove vectors whose chunk row is gone (chunks cascade from their
     /// owners; vec0 has no foreign keys).

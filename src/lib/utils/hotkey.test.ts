@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { comboFromEvent, formatCombo } from './hotkey';
 
 /**
- * These guard one seam: every combo we save has to parse in `global-hotkey`'s
- * `parse_key` (src-tauri/src/hotkey.rs calls `Shortcut::from_str`). That table
- * knows physical key names and unshifted glyphs only, and a combo that misses
- * it fails at registration time — in a log line, not in the UI — so the user
- * sees a hotkey that simply doesn't work. `KeyboardEvent.key` walks straight
- * into that: it reports the *character*, so Shift rewrites it.
+ * These guard one contract: every combo we save has to parse in
+ * `global-hotkey`'s `parse_key` (src-tauri/src/hotkey.rs calls
+ * `Shortcut::from_str`). That table knows physical key names and unshifted
+ * glyphs only, and a combo that misses it fails at registration time (in a
+ * log line, not in the UI), so the user sees a hotkey that doesn't work.
+ * `KeyboardEvent.key` walks straight into that: it reports the character,
+ * so Shift rewrites it.
  */
 
 /** The fields `comboFromEvent` reads. `code` is the physical key. */
@@ -18,7 +19,7 @@ function press(code: string, mods: Partial<Record<'ctrlKey' | 'altKey' | 'shiftK
 describe('comboFromEvent', () => {
   it('names the key pressed, not the character Shift turns it into', () => {
     // The bug: this combo used to save as "Shift+Alt+Super+}", which the Rust
-    // parser rejects — `}` is a shifted glyph and is not in its table.
+    // parser rejects; `}` is a shifted glyph and is not in its table.
     const combo = comboFromEvent(press('BracketRight', { shiftKey: true, altKey: true, metaKey: true }));
     expect(combo).toBe('Alt+Shift+Super+BracketRight');
     expect(combo).not.toContain('}');

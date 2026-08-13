@@ -33,8 +33,8 @@
     let loadedId = $state<string | null>(null);
     let confirmDelete = $state(false);
 
-    // The record: the meetings this person spoke in, and — fetched when a
-    // meeting is expanded — what they said in it.
+    // The record: the meetings this person spoke in, and (fetched when a
+    // meeting is expanded) what they said in it.
     let record = $state<SpeakerMeeting[]>([]);
     let expanded = $state<string[]>([]);
     let lines = $state<Record<string, TranscriptionSegment[]>>({});
@@ -81,7 +81,7 @@
         }
     }
 
-    /** A line lands the reader on itself in the transcript — the same
+    /** A line takes the reader to itself in the transcript: the same
      * landing a palette search result takes. */
     function jumpTo(meetingId: string, seg: TranscriptionSegment) {
         appState.setView("idle");

@@ -1,7 +1,7 @@
 //! The embedding model's identity lives twice on purpose: the download
 //! side in embral-engine's catalog (which can't depend on ort) and the
 //! inference side in embral-search's model.rs (which can't depend on
-//! sherpa). This test is what keeps the pair from drifting — byte sizes
+//! sherpa). This test is what keeps the pair from drifting, byte sizes
 //! included, so a silently re-uploaded HF file fails here, not at query
 //! time.
 

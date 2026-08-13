@@ -52,7 +52,7 @@
         </SettingRow>
     </SettingsGroup>
 
-    <!-- Dictation's own transcription tree — independent of the Meetings
+    <!-- Dictation's own transcription tree, independent of the Meetings
          one, because cloud meetings with on-device dictation is legitimate. -->
     <SettingsGroup label={t.transcription._group}>
         <TranscriptionBlock

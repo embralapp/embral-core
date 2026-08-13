@@ -16,7 +16,7 @@ dirs = { workspace = true }
 tracing = "0.1"
 sha2 = "0.10"
 # NO ort/tokenizers here, deliberately: the app links this crate and also
-# links sherpa's /MT onnxruntime — ort's /MD objects cannot share that exe
+# links sherpa's /MT onnxruntime; ort's /MD objects cannot share that exe
 # (LNK2038, proven), and workspace feature unification would drag any
 # optional dep in anyway. Inference lives in embral-embedder, which only
 # the MCP binary links; this crate consumes vectors it is handed.

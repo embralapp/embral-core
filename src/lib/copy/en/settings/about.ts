@@ -29,8 +29,8 @@ export const about = {
       button: 'Open logs folder'
     },
     notesFolder: {
-      label: 'Notes folder',
-      button: 'Open notes folder'
+      label: 'Storage folder',
+      button: 'Open storage folder'
     },
     reset: {
       label: 'Reset app',

@@ -1,10 +1,10 @@
 //! TCC permission state ([shell.md](../../../../docs/shell.md) §Onboarding).
 //!
 //! The microphone is the boot milestone's one gate: the OS prompts on
-//! first capture, and a denial makes every later stream silently useless —
+//! first capture, and a denial makes every later stream silently useless,
 //! so onboarding asks up front and settings can point at System Settings
 //! when denied. Accessibility gates dictation's auto-paste (posting
-//! synthetic keystrokes). System-audio TCC has no public query API — that
+//! synthetic keystrokes). System-audio TCC has no public query API; that
 //! stays probe-only in `loopback.rs`.
 
 use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
@@ -36,7 +36,7 @@ pub fn check_microphone() -> PermissionState {
 /// ignores repeat requests otherwise); resolves once the user answers.
 pub async fn request_microphone() -> PermissionState {
     let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
-    // The block is scoped so only ObjC's own copy survives the call — the
+    // The block is scoped so only ObjC's own copy survives the call; the
     // RcBlock handle is !Send and must not be held across the await.
     {
         let tx = std::sync::Mutex::new(Some(tx));
@@ -47,7 +47,7 @@ pub async fn request_microphone() -> PermissionState {
         });
         // SAFETY: the documented request API; it copies the escaping
         // handler, which fires exactly once on an arbitrary dispatch
-        // queue — the oneshot absorbs that.
+        // queue; the oneshot absorbs that.
         unsafe {
             AVCaptureDevice::requestAccessForMediaType_completionHandler(
                 media_type_audio(),
@@ -63,7 +63,7 @@ pub async fn request_microphone() -> PermissionState {
 }
 
 /// Whether this process is a trusted Accessibility client (the gate on
-/// posting synthetic keystrokes). AX has no "never asked" query — an
+/// posting synthetic keystrokes). AX has no "never asked" query; an
 /// untrusted process reads as denied, and [`request_accessibility`]'s
 /// prompt is how the ask happens.
 pub fn check_accessibility() -> PermissionState {
@@ -78,7 +78,7 @@ pub fn check_accessibility() -> PermissionState {
 /// Ask for Accessibility: shows the system's one-time prompt (it opens
 /// System Settings; granting needs an app restart to matter for an
 /// already-running event post, but the state itself reads live). Returns
-/// the current state — the prompt resolves out-of-band.
+/// the current state; the prompt resolves out-of-band.
 pub fn request_accessibility() -> PermissionState {
     use objc2_foundation::{NSDictionary, NSNumber, NSString};
 

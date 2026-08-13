@@ -1,6 +1,6 @@
 /* pyke's prebuilt onnxruntime is compiled against glibc >= 2.38, where C23
  * renamed the strtol family to __isoc23_*. The release lane links on glibc
- * 2.35 (ubuntu-22.04, the declared floor), which has no such symbols — so
+ * 2.35 (ubuntu-22.04, the declared floor), which has no such symbols, so
  * provide them as forwarders. The C23 difference is 0b-prefix parsing,
  * which onnxruntime's number parsing never relies on.
  *

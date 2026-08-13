@@ -3,7 +3,7 @@
 //! open is pending, the lane state a recording's streams share, and the
 //! pump that carries one stream's events onto the recording's channel.
 //!
-//! A recording can run more than one session over its lifetime — the
+//! A recording can run more than one session over its lifetime; the
 //! cloud→local fallback, and a cloud stream closed at pause and reopened
 //! at resume ([transcription.md]). This module is what makes those
 //! handovers safe: audio buffers rather than drops while no session is
@@ -22,19 +22,19 @@ use super::{TranscriptionEvent, TranscriptionSession, SOURCE_SAMPLE_RATE};
 /// 16 kHz source rate. A handshake takes a couple of seconds; the cap only
 /// matters when a connect hangs, and the recording itself is never at risk
 /// (the WAV has everything).
-const MAX_BUFFERED_SAMPLES: usize = 60 * 16_000;
+const MAX_BUFFERED_SAMPLES: usize = 60 * crate::audio::SAMPLE_RATE_HZ as usize;
 
 /// Time the post-stop pipeline (and every retired-session cleanup) is
 /// willing to block waiting for a session to finalize tail audio. A
 /// streaming provider can hold its socket open for ~60 s post-stop with
-/// empty heartbeats while processing a backlog — but no NEW tokens arrive
+/// empty heartbeats while processing a backlog, but no new tokens arrive
 /// during that window; waiting past ~5–10 s buys nothing.
 pub(crate) const SESSION_FINISH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
 /// Ceiling on one send into a session while the slot lock is held (the
 /// bridge's live sends, install's buffered drain). Every provider's
 /// `send_audio` already bounds itself ([transcription.md] §Provider
-/// contract — the relay's socket deadline fires first, with the precise
+/// contract; the relay's socket deadline fires first, with the precise
 /// error); this is the backstop that keeps the hold bounded whatever a
 /// provider does, because pause, stop, and the watchers all queue on this
 /// lock ([recording.md] §Lifecycle).
@@ -53,7 +53,7 @@ pub enum SessionSlot {
 pub type SharedSlot = Arc<Mutex<SessionSlot>>;
 
 /// Audio captured while no session is live, bounded by
-/// [`MAX_BUFFERED_SAMPLES`]. Overflow drops the oldest chunks — the newest
+/// [`MAX_BUFFERED_SAMPLES`]. Overflow drops the oldest chunks; the newest
 /// audio is the most likely to still matter to a session that eventually
 /// opens, and the offset math self-corrects because dropped chunks were
 /// counted into the stream clock but are absent from the buffer.
@@ -86,7 +86,7 @@ impl AudioBuffer {
 }
 
 /// What a stream reopened after a pause asks the vendor for: the
-/// recording's start-time choices, not the current settings — the lane is
+/// recording's start-time choices, not the current settings; the stream is
 /// fixed for the meeting. The session token is deliberately absent; it is
 /// read fresh at reopen, so signing out during a pause fails the
 /// handshake into the ordinary fallback.
@@ -98,10 +98,10 @@ pub struct CloudStreamRequest {
 
 /// State one recording's streams share, whoever currently holds the slot.
 /// A fresh one is made per recording (`AppState` swaps the `Arc`), so
-/// there is no reset choreography — tasks from a previous recording hold
+/// there is no reset sequence; tasks from a previous recording hold
 /// their own retired lane and can never confuse the new one.
 pub struct StreamLane {
-    /// Samples fed through the bridge so far — the recording's stream
+    /// Samples fed through the bridge so far: the recording's stream
     /// clock. Excludes paused spans (paused capture callbacks discard
     /// before the bridge), like the WAV and the segment timeline.
     pub samples_sent: AtomicU64,
@@ -115,7 +115,7 @@ pub struct StreamLane {
     /// last pump drains.
     pub event_tx: std::sync::Mutex<Option<mpsc::UnboundedSender<TranscriptionEvent>>>,
     /// Whether the installed (or last-installed) stream is a cloud
-    /// stream — only those are closed at pause and reopened at resume,
+    /// stream; only those are closed at pause and reopened at resume,
     /// and a lane that fell back to local stays local ([transcription.md]).
     pub stream_is_cloud: AtomicBool,
     /// Highest "Speaker N" any stream has produced this recording,
@@ -187,8 +187,8 @@ impl StreamLane {
 }
 
 /// End the current stream at pause, when the lane is a cloud lane: bump
-/// the generation — an open still in flight must retire on arrival, not
-/// install a live, metering stream into a paused recording — and take the
+/// the generation (an open still in flight must retire on arrival, not
+/// install a live, metering stream into a paused recording) and take the
 /// session out for a detached bounded finish (the finish flushes in-flight
 /// text, so the transcript catches up to the pause point). Local streams
 /// stay put: they cost nothing while idle and keep their clustering
@@ -211,7 +211,7 @@ pub async fn pause_stream(lane: &Arc<StreamLane>, slot: &SharedSlot) {
     }
 }
 
-/// Finish a session this recording will not stream to — off the caller's
+/// Finish a session this recording will not stream to, off the caller's
 /// path, bounded. Dropping one instead would leave its socket open: a
 /// session owns a receive task that only `finish` reels in, and for a
 /// cloud stream an open socket is an open metering row ([server.md]).
@@ -239,9 +239,9 @@ pub enum Delivered {
     Off,
     /// The live session refused the chunk (send error) or sat on it past
     /// [`BRIDGE_SEND_TIMEOUT`]. The slot has already been flipped to
-    /// buffering — with this chunk as its first entry, so the audio still
-    /// reaches whatever session comes next — and the session is handed
-    /// back for the caller to retire and report **off** the slot lock.
+    /// buffering (with this chunk as its first entry, so the audio still
+    /// reaches whatever session comes next), and the session is handed
+    /// back for the caller to retire and report off the slot lock.
     Stalled {
         session: Box<dyn TranscriptionSession>,
         why: String,
@@ -250,7 +250,7 @@ pub enum Delivered {
 
 /// Feed one captured chunk to whatever holds the slot. This is the audio
 /// bridge's hot path, and it is the one place a send happens under the
-/// slot lock — bounded by [`BRIDGE_SEND_TIMEOUT`], because a send that
+/// slot lock, bounded by [`BRIDGE_SEND_TIMEOUT`], because a send that
 /// could pend indefinitely would hold pause, stop, and the watchers with
 /// it (the 2026-08 stop hang). The sample count and the buffer/send
 /// decision stay under one hold so the install-time offset math is exact.
@@ -290,7 +290,7 @@ pub async fn deliver_chunk(lane: &Arc<StreamLane>, slot: &SharedSlot, chunk: Vec
 /// How stop's step one left the stream.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FinishOutcome {
-    /// The live session flushed its tail (or errored trying — either way
+    /// The live session flushed its tail (or errored trying; either way
     /// it returned) in time.
     Finished,
     /// The live session's finish outlived its deadline; the segments
@@ -301,7 +301,7 @@ pub enum FinishOutcome {
     PendingOpen(usize),
     /// Transcription was already over for this recording.
     Off,
-    /// The slot lock itself could not be had in time — something wedged is
+    /// The slot lock itself could not be had in time; something stuck is
     /// holding it. A detached reaper finishes whatever it finds once the
     /// hold clears; stop proceeds without it.
     SlotHeld,
@@ -311,15 +311,15 @@ pub enum FinishOutcome {
 /// take first (a stalled bridge send can hold the lock for a few seconds;
 /// nothing may hold it forever, but stop does not bet the meeting on
 /// that), then the session's own finish. The finish's return value is
-/// deliberately unused — segments come from the recording's accumulator —
+/// deliberately unused (segments come from the recording's accumulator)
 /// so every outcome here lets finalize proceed.
 pub async fn finish_current_stream(slot: &SharedSlot, deadline: std::time::Duration) -> FinishOutcome {
     let Ok(mut guard) = tokio::time::timeout(deadline, slot.lock()).await else {
         tracing::warn!(
             "the session slot is still held after {deadline:?} — finalizing without it"
         );
-        // Off the stop path, take as long as it takes: whatever wedged the
-        // slot eventually lets go (bounded sends see to it), and the
+        // Off the stop path, take as long as it takes: whatever is stuck
+        // on the slot eventually lets go (bounded sends see to it), and the
         // session it leaves behind still owns a socket worth closing.
         let reaper_slot = slot.clone();
         tokio::spawn(async move {
@@ -369,8 +369,8 @@ pub async fn finish_current_stream(slot: &SharedSlot, deadline: std::time::Durat
 
 /// Put a freshly opened session behind the audio bridge: deliver the audio
 /// that buffered while the open was pending, then stream, with a pump
-/// carrying its events onto the recording's channel. Returns `false` —
-/// after finishing the newcomer, which is what closes its socket — when
+/// carrying its events onto the recording's channel. Returns `false`
+/// (after finishing the newcomer, which is what closes its socket) when
 /// the recording has moved past this open (pause or stop advanced the
 /// generation) or the slot is no longer waiting for a session.
 ///
@@ -378,9 +378,9 @@ pub async fn finish_current_stream(slot: &SharedSlot, deadline: std::time::Durat
 /// every install because the guard counts one clustering run, not the
 /// union of every stream's numbering ([speakers.md]).
 ///
-/// `liveness_clock` is the silence check-in's clock, rebaselined here —
+/// `liveness_clock` is the silence check-in's clock, rebaselined here;
 /// under the slot lock, so a watcher tick that sees the slot streaming
-/// always reads a clock that already restarted — because the quiet before
+/// always reads a clock that already restarted, because the quiet before
 /// this install was a stretch with no transcriber, not silence
 /// ([detection.md] §Auto-stop on silence).
 pub async fn install_stream(
@@ -417,7 +417,7 @@ pub async fn install_stream(
         (lane.samples_sent.load(Ordering::Acquire) as f64 - buffered as f64) / SOURCE_SAMPLE_RATE;
     for chunk in buf.take() {
         // Bounded like every send under this lock. A session whose first
-        // sends fail (or stall) is dead on arrival; install it anyway —
+        // sends fail (or stall) is dead on arrival; install it anyway;
         // its own failure report, or the bridge retiring it on the next
         // live chunk, drives the fallback.
         match tokio::time::timeout(BRIDGE_SEND_TIMEOUT, session.send_audio(&chunk)).await {
@@ -448,12 +448,12 @@ pub async fn install_stream(
 }
 
 /// Carry one stream's events onto the recording's channel, shifted onto
-/// the recording clock. Finalized `Segment`s always land — a stream being
+/// the recording clock. Finalized `Segment`s always get through; a stream being
 /// drained after a pause still owes its tail. `Interim`s and `Failed`
 /// stop once the stream's generation is stale: a retired stream's preview
 /// must not overwrite the live one, and its death throes must not raise
 /// banners or trigger the fallback machinery. `Done` ends the pump and
-/// never reaches the forwarder — one stream ending is not the recording's
+/// never reaches the forwarder; one stream ending is not the recording's
 /// transcription ending.
 fn spawn_pump(
     mut stream_rx: mpsc::UnboundedReceiver<TranscriptionEvent>,
@@ -764,7 +764,7 @@ mod tests {
         assert_eq!(clock.load(Ordering::Acquire), 0);
     }
 
-    /// A session whose sends never resolve — the wedged socket of the
+    /// A session whose sends never resolve: the stuck socket of the
     /// 2026-08 stop hang.
     struct WedgedSession;
 
@@ -936,7 +936,7 @@ mod tests {
     async fn a_held_slot_never_blocks_stop() {
         let (session, finished, _) = StubSession::new();
         let slot: SharedSlot = Arc::new(Mutex::new(SessionSlot::Streaming(session)));
-        // Someone is sitting on the slot lock — the wedged-bridge shape.
+        // Someone is sitting on the slot lock: the stuck-bridge shape.
         let held = slot.clone().lock_owned().await;
 
         let outcome =

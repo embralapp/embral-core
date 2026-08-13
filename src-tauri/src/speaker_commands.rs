@@ -37,7 +37,7 @@ pub struct NameSuggestionView {
     pub name: String,
 }
 
-/// One meeting a person spoke in — a row of the profile pane's record.
+/// One meeting a person spoke in: a row of the profile pane's record.
 #[derive(serde::Serialize)]
 pub struct SpeakerMeeting {
     pub meeting_id: String,
@@ -59,7 +59,7 @@ pub enum SegmentEdit {
         speaker: String,
         speaker_id: Option<String>,
     },
-    /// Set a whole inclusive index range's speaker in one edit — renaming a
+    /// Set a whole inclusive index range's speaker in one edit: renaming a
     /// turn, however long, costs one regeneration instead of one per
     /// sentence. The range form exists because a stripped meeting has no
     /// label for `relabel_all` to key on ([speakers.md]).
@@ -80,7 +80,7 @@ pub enum SegmentEdit {
     ClearLabel { label: String },
 }
 
-/// How a segment edit ripples into the meeting's attendee list.
+/// How a segment edit affects the meeting's attendee list.
 pub(crate) enum AttendeeFix<'a> {
     /// A rename/merge: swap the old name for the new one.
     Swap(&'a str, &'a str),
@@ -124,7 +124,7 @@ fn save_name_suggestions(
 }
 
 /// Drop pending suggestions for a label that no longer exists (cleared or
-/// manually renamed) — a stale suggestion's Apply would rename nothing.
+/// manually renamed); a stale suggestion's Apply would rename nothing.
 fn prune_name_suggestions(db: &Db, meeting_id: &str, label: &str) -> Result<(), AppError> {
     let mut suggestions = load_name_suggestions(db, meeting_id)?;
     let before = suggestions.len();
@@ -138,7 +138,7 @@ fn prune_name_suggestions(db: &Db, meeting_id: &str, label: &str) -> Result<(), 
 /// Rebuild a meeting's transcript document (markdown + file + index export)
 /// from its current segments, and return the fresh detail payload. The
 /// attendee list is fixed up along the way per `fix`. Every caller is a
-/// text mutation, so the search index re-syncs here too — one shared spot,
+/// text mutation, so the search index re-syncs here too: one shared spot,
 /// like the export.
 fn regenerate_transcript(
     db: &Db,
@@ -183,8 +183,8 @@ fn regenerate_transcript(
     meeting_detail(db, base, row)
 }
 
-/// Build the frontend profile for one person. Takes the *activity* row so the
-/// list's ordering data (created/last seen) rides along with the identity.
+/// Build the frontend profile for one person. Takes the activity row so the
+/// list's ordering data (created/last seen) comes with the identity.
 fn profile(list_row: embral_db::SpeakerListRow) -> SpeakerProfile {
     let row = list_row.speaker;
     SpeakerProfile {
@@ -196,7 +196,7 @@ fn profile(list_row: embral_db::SpeakerListRow) -> SpeakerProfile {
     }
 }
 
-/// One person's profile as the frontend sees it, fetched fresh — used by the
+/// One person's profile as the frontend sees it, fetched fresh; used by the
 /// commands that return the profile they just changed.
 fn profile_by_id(db: &Db, id: &str) -> Result<SpeakerProfile, AppError> {
     let row = db
@@ -273,7 +273,7 @@ pub async fn upsert_speaker(
     profile_by_id(&db, &row.id)
 }
 
-/// The meetings a person spoke in, newest first — the profile pane's record.
+/// The meetings a person spoke in, newest first: the profile pane's record.
 #[tauri::command]
 pub async fn speaker_meetings(
     state: State<'_, AppState>,
@@ -293,7 +293,7 @@ pub async fn speaker_meetings(
         .collect())
 }
 
-/// What one person said in one meeting — fetched when the pane expands
+/// What one person said in one meeting, fetched when the pane expands
 /// that meeting, because a frequent speaker's whole history would be huge.
 #[tauri::command]
 pub async fn speaker_segments(
@@ -416,7 +416,7 @@ pub async fn confirm_name_suggestion(
     suggestions.remove(pos);
     suggestions.retain(|s| s.label != label);
 
-    // Find the registry person by name, or create them — the user's
+    // Find the registry person by name, or create them: the user's
     // approval is the explicit intent that justifies a new profile.
     let speaker_id = match db
         .list_speakers()
@@ -494,8 +494,8 @@ pub async fn edit_segments(
         return Err(AppError::NoStructuredTranscript);
     }
     // Whoever these segments pointed at before the edit may be about to
-    // lose their last link — remembered so the orphans can be pruned once
-    // the edit lands.
+    // lose their last link; remembered so the orphans can be pruned once
+    // the edit is saved.
     let mut linked_before: Vec<String> = segments
         .iter()
         .filter_map(|s| s.speaker_id.clone())

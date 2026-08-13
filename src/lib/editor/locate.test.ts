@@ -4,7 +4,7 @@ import { Editor } from '@tiptap/core';
 import { markdownExtensions } from './extensions';
 import { findImagePos, findMatchIndex, findTextPos } from './locate';
 
-/** A real document through the real schema — the same path a tab takes when
+/** A real document through the real schema: the same path a tab takes when
  * it mounts, so what the locator walks is what the user is looking at. */
 function docFrom(markdown: string) {
   const element = document.createElement('div');
@@ -46,7 +46,7 @@ describe('findTextPos', () => {
   });
 
   /** The indexer strips an image link to its alt text, which the editor
-   * holds as a node rather than characters — so the two sides genuinely
+   * holds as a node rather than characters, so the two sides genuinely
    * disagree about this paragraph, and an exact match would fail. */
   it('still lands when the passage and the document disagree about an image', () => {
     const doc = docFrom('the numbers are in ![the chart](assets/m1/img-01.png) as promised');
@@ -55,11 +55,11 @@ describe('findTextPos', () => {
     expect(doc.nodeAt(pos!)?.textContent).toContain('the numbers are in');
   });
 
-  /** The lead is a line of *markdown*; the document holds its rendered
+  /** The lead is a line of markdown source; the document holds its rendered
    * text. A bullet's `- `, a heading's `## `, and `**bold**` asterisks are
    * all syntax the editor turns into structure, so they exist on one side
    * of the match and not the other. A real summary is almost entirely
-   * these — which is exactly where this first failed. */
+   * these, which is exactly where this first failed. */
   it('matches a bullet whose lead still carries its markdown marker', () => {
     const doc = docFrom('## Key Takeaways\n\n- Matt reviewed the deck and endorsed it.\n- Doug scored it 85.');
     const pos = findTextPos(doc, '- Matt reviewed the deck and endorsed it.');
@@ -90,7 +90,7 @@ describe('findTextPos', () => {
 
   /** A common word occurs all over a long document; only the one inside
    * the passage the palette showed is the right one. `from` is what bounds
-   * it — searching "north" without it stops at "North Carolina". */
+   * it; searching "north" without it stops at "North Carolina". */
   it('starts looking where it is told to', () => {
     const doc = docFrom(
       'Throughout North Carolina, right?\n\nsomething else\n\nKathy said Northstar, Northstar.'
@@ -111,8 +111,8 @@ describe('findTextPos', () => {
   });
 });
 
-/** A transcript is segments, not a document — the same match against a
- * list. It exists because a passage's `start_secs` is where the *passage*
+/** A transcript is segments, not a document: the same match against a
+ * list. It exists because a passage's `start_secs` is where the passage
  * begins, which for packed paragraphs is routinely minutes before the line
  * the user searched for. */
 describe('findMatchIndex', () => {
@@ -159,7 +159,7 @@ describe('findImagePos', () => {
     expect(String(doc.nodeAt(pos!)?.attrs.src)).toContain('img-02.png');
   });
 
-  /** Images outlive their links by design — the file is kept so the summary
+  /** Images outlive their links by design: the file is kept so the summary
    * cannot break when the notes drop it. So a hit can name an image this
    * document no longer shows, and that has to be quiet, not an error. */
   it('returns null for an image the document no longer shows', () => {

@@ -3,7 +3,7 @@
 
 use crate::platform::types::PowerSource;
 
-/// `BatteryFlag` value meaning "this system has no battery" — a desktop.
+/// `BatteryFlag` value meaning "this system has no battery": a desktop.
 /// Reported alone, never OR'd with the charge-level bits (1/2/4/8), and
 /// distinct from 255, which means the flag itself is unreadable.
 const BATTERY_FLAG_NO_BATTERY: u8 = 128;
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn an_unreadable_line_status_is_unknown_not_a_guess() {
-        // 255 in *both* fields is "the OS won't say" — not "no battery",
+        // 255 in both fields is "the OS won't say", not "no battery",
         // which is the specific value 128.
         assert_eq!(classify(255, 255), PowerSource::Unknown);
     }

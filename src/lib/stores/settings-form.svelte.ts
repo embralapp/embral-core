@@ -14,7 +14,7 @@ export const settingsForm = {
     return _draft;
   },
 
-  /// (Re)initialize the draft from persisted config — call when Settings opens
+  /// (Re)initialize the draft from persisted config: call when Settings opens
   /// (and on sign-in/out, which rewrites config backend-side) so edits from
   /// other sources are picked up. Drops any queued save: a snapshot taken
   /// before the reset is stale by definition.

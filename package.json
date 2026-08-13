@@ -1,6 +1,6 @@
 {
   "name": "embral",
-  "version": "26.8.3",
+  "version": "26.8.4",
   "description": "Meeting transcription and notes, on your machine.",
   "type": "module",
   "scripts": {

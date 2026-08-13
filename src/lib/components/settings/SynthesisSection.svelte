@@ -19,7 +19,7 @@
     });
 
     // This page manages the on-device model's files and runtime behavior.
-    // *Choosing* an engine lives with its feature: summaries on Meetings,
+    // Choosing an engine lives with its feature: summaries on Meetings,
     // cleanup on Dictation.
     let llmModels = $derived(modelsStore.statuses.filter((m) => m.kind === "llm"));
     // The semantic-search model sits here with the other text-understanding
@@ -29,7 +29,7 @@
     );
 
     // The performance knobs only mean something while a summary or cleanup
-    // engine actually lives on the device — the backend stops honoring
+    // engine actually lives on the device; the backend stops honoring
     // keep-warm at the same boundary (llm::uses_local_llm).
     let localLlmInUse = $derived(usesLocalLlm(draft));
 </script>

@@ -1,7 +1,7 @@
 <script lang="ts">
     /**
-     * "These are the same person" — pick the name that stays; the others
-     * fold into it. Hand-rolled like ConfirmDialog and for the same reason:
+     * "These are the same person": pick the name that stays; the others
+     * merge into it. Hand-rolled like ConfirmDialog and for the same reason:
      * a small two-button question, not a modal surface.
      */
     import type { SpeakerProfile } from "$lib/types";
@@ -24,7 +24,7 @@
 
     let targetId = $state<string | null>(null);
 
-    // Default survivor: whoever was in a meeting most recently — the name
+    // Default survivor: whoever was in a meeting most recently; the name
     // in active use is the one worth keeping.
     $effect(() => {
         if (!open) {

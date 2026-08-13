@@ -9,7 +9,7 @@ describe('recording pause state', () => {
 
   it('does not leak a paused flag into the next recording', () => {
     // Regression (260725): stopping a meeting while paused left `_isPaused`
-    // set — the next meeting's timer effect never started and the header
+    // set; the next meeting's timer effect never started and the header
     // showed Resume while the backend recorded unpaused.
     appState.setRecording(true);
     appState.startRecordingClock(Date.now() - 60_000);

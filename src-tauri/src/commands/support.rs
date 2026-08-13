@@ -190,7 +190,7 @@ pub(crate) fn remove_indexed_file(base: &Path, indexed_path: &str) -> Result<(),
 }
 
 /// Remove a meeting's asset directory and everything in it. Missing is not
-/// an error — most meetings never had one.
+/// an error; most meetings never had one.
 pub(crate) fn remove_meeting_assets(base: &Path, meeting_id: &str) {
     let rel = embral_notes::assets::asset_dir_rel(meeting_id);
     let Ok(dir) = resolve_indexed_path(base, &rel) else {

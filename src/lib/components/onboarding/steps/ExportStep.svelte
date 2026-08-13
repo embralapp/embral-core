@@ -1,7 +1,6 @@
 <script lang="ts">
     // Markdown export: the switch and the folder. Template editing stays in Settings
-    import { invoke } from "@tauri-apps/api/core";
-    import { open } from "@tauri-apps/plugin-dialog";
+        import { open } from "@tauri-apps/plugin-dialog";
     import { Switch } from "$lib/components/ui/switch";
     import { Button } from "$lib/components/ui/button";
     import SettingRow from "$lib/components/settings/SettingRow.svelte";
@@ -17,7 +16,7 @@
         const dir = await open({ directory: true });
         if (typeof dir === "string") {
             draft.obsidian_vault_dir = dir;
-            // Picking a folder is the intent — don't make them find the
+            // Picking a folder is the intent; don't make them find the
             // switch too.
             draft.obsidian_export_enabled = true;
         }

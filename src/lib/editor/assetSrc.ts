@@ -2,16 +2,16 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 
 /** An image's `src` has two forms and the editor sees both.
  *
- * **Stored** is what lives in the markdown: a path relative to the storage
- * root, `assets/{meeting_id}/img-01.png`. It is portable — it survives a
+ * Stored is what lives in the markdown: a path relative to the storage
+ * root, `assets/{meeting_id}/img-01.png`. It is portable: it survives a
  * meeting rename, a library moved to another drive, and the trip into an
  * Obsidian vault.
  *
- * **Display** is what the webview can actually load: an absolute path
+ * Display is what the webview can actually load: an absolute path
  * through Tauri's asset protocol.
  *
- * Both directions are **idempotent**, which is what makes copying an image
- * from one document and pasting it into another safe — the round trip
+ * Both directions are idempotent, which is what makes copying an image
+ * from one document and pasting it into another safe: the round trip
  * through the DOM hands back a display src, and converting it again must
  * not double-prefix. Remote and inline images pass through untouched; they
  * are not ours to resolve. */

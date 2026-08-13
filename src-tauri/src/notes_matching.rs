@@ -1,10 +1,10 @@
-//! Naming diarized speakers from the user's typed notes — orchestration.
+//! Naming diarized speakers from the user's typed notes: orchestration.
 //!
 //! The pure half (line splitting, evidence scoring, the prompt, reply
 //! parsing) lives in `embral_notes::matching`; this module owns the async
 //! pieces: embeddings through the search runtime's embed child, the one
 //! LLM call per meeting, and applying the outcome per `notes_naming_mode`.
-//! Every failure degrades to "no names" — the meeting is never blocked or
+//! Every failure degrades to "no names"; the meeting is never blocked or
 //! altered by a confused pass ([speakers.md](../../docs/speakers.md)).
 
 use embral_db::Db;
@@ -30,7 +30,7 @@ const CANDIDATE_CAP: usize = 200;
 /// Run the naming pass over a finalized meeting's segments. Suggest mode
 /// returns the pending suggestions to persist; automatic mode renames
 /// `segments` in place and returns nothing. Runs regardless of where the
-/// labels came from — cloud live diarization and the local pipeline both
+/// labels came from: cloud live diarization and the local pipeline both
 /// produce the generic "Speaker N" labels this matches on.
 pub async fn run(
     search: &SearchRuntime,
@@ -44,7 +44,7 @@ pub async fn run(
         return Vec::new();
     }
 
-    // The generic labels in play, first-seen order — the only ones the
+    // The generic labels in play, first-seen order: the only ones the
     // pass may name (user-given names are already better information).
     let mut labels: Vec<String> = Vec::new();
     for seg in segments.iter() {
@@ -69,7 +69,7 @@ pub async fn run(
         return Vec::new();
     }
 
-    // The semantic leg — degrading to keyword-only scoring when the
+    // The semantic part, degrading to keyword-only scoring when the
     // embedding model is absent or the embed child fails. The child
     // self-spawns if cold (~1 s), which finalize can afford.
     let (note_vecs, cand_vecs) = if embral_search::model::present() {

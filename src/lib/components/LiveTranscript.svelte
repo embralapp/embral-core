@@ -6,7 +6,7 @@
     import { speakersStore } from "$lib/stores/speakers.svelte";
     import { formatTime } from "$lib/utils/meetingFormat";
     import { nameClass } from "$lib/utils/speakerColors";
-    import { startsNewParagraph } from "$lib/utils/transcriptBreaks";
+    import { charLen, startsNewParagraph } from "$lib/utils/transcriptBreaks";
     import SpeakerNameInput from "./SpeakerNameInput.svelte";
     import Tip from "./Tip.svelte";
     import { copy } from "$lib/copy";
@@ -33,7 +33,7 @@
         // A star between two segments is a hard paragraph break: the
         // session split the utterance at the star, and joining the halves
         // back into one group would pull the post-star words above the
-        // marker (a group carries its FIRST segment's start time).
+        // marker (a group carries its first segment's start time).
         const starBetween = (prev: TranscriptionSegment, curr: TranscriptionSegment) =>
             starSeconds.some((s) => s > prev.start && s <= curr.start);
 
@@ -43,7 +43,7 @@
             texts: [segs[0].text],
             start: segs[0].start,
         };
-        let runningLen = segs[0].text.length;
+        let runningLen = charLen(segs[0].text);
 
         for (let i = 1; i < segs.length; i++) {
             if (
@@ -56,10 +56,10 @@
                     texts: [segs[i].text],
                     start: segs[i].start,
                 };
-                runningLen = segs[i].text.length;
+                runningLen = charLen(segs[i].text);
             } else {
                 current.texts.push(segs[i].text);
-                runningLen += segs[i].text.length + 1; // +1 for the join-space
+                runningLen += charLen(segs[i].text) + 1; // +1 for the join-space
             }
         }
         groups.push(current);
@@ -86,7 +86,7 @@
         return items;
     });
 
-    // Speaker labels in first-appearance order — drives the name colors and
+    // Speaker labels in first-appearance order; drives the name colors and
     // the speaker row (rendered only when live labels exist at all).
     let labels = $derived.by(() => {
         const seen: string[] = [];
@@ -154,7 +154,7 @@
     });
     // The raw tail's leading space (or its absence) is the word boundary
     // (see the interim contract in types.ts): a spaceless tail continues
-    // the last stable word — "keep tal" + "king" — so that word must not
+    // the last stable word ("keep tal" + "king"), so that word must not
     // render its trailing space.
     let tentativeJoinsWord = $derived.by(() => {
         const tail = appState.interim?.tentative_text;
@@ -175,11 +175,12 @@
     }
 
     // Speaker labeling for this recording. Turning it off drops the
-    // labels already on screen too — a half-labeled transcript reads as
+    // labels already on screen too: a half-labeled transcript reads as
     // the app having lost track. The backend is the source of truth, so we
     // re-read its segments rather than editing ours.
     async function toggleDiarization() {
-        // After a runaway trip the control is disabled; this is the belt.
+        // After a runaway trip the control is disabled; this check backs
+        // that up.
         // Re-enabling would re-trip on the kept label set, and the
         // stripped labels would not come back ([speakers.md]).
         if (appState.diarizationRunaway) return;
@@ -194,9 +195,9 @@
         scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
     }
 
-    // Leaving shadow mode lands on the latest line ([shell.md]
+    // Leaving shadow mode jumps to the latest line ([shell.md]
     // §Recording): the zero-width span invalidated whatever place the
-    // reader had, so the live edge is the one honest position — the same
+    // reader had, so the live edge is the one honest position, the same
     // answer the pill gives. Entering shadow changes nothing here.
     let wasShadowed = false;
     $effect(() => {
@@ -228,7 +229,7 @@
             <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
                 {#if !appState.liveDiarization}
                     <!-- Why labeling is off, not just that it is: the
-                         guard standing it down is the app's doing, and
+                         guard turning it off is the app's doing, and
                          reads as a bug unless the row says otherwise. -->
                     <span class="text-[11px] text-muted-foreground italic">
                         {appState.diarizationRunaway
@@ -270,8 +271,8 @@
                 {/each}
             </div>
 
-            <!-- After a runaway trip the toggle stands down for the rest of
-                 the recording, wearing the reason; the next recording
+            <!-- After a runaway trip the toggle is disabled for the rest of
+                 the recording and its tooltip says why; the next recording
                  re-enables it ([speakers.md] §The runaway guard). -->
             <Tip
                 text={appState.diarizationRunaway
@@ -401,7 +402,7 @@
 </div>
 
 <style>
-    /* A live feed doesn't need a visible scrollbar — content length swings
+    /* A live feed doesn't need a visible scrollbar: content length swings
        with the interim tail, and the thumb popping in and out reads as
        jitter. Wheel scrolling and the jump pill cover navigation. */
     .no-scrollbar {

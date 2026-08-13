@@ -14,7 +14,7 @@ use super::pipeline::{Pipeline, TARGET_SAMPLE_RATE};
 /// How far the loopback (system-audio) buffer may run ahead of the mic before
 /// the oldest samples are dropped. The mic is the master clock; the loopback
 /// stream fills a buffer that the mic drains and mixes. Bounds added latency
-/// and unbounded growth from clock drift between the two capture devices —
+/// and unbounded growth from clock drift between the two capture devices;
 /// fires rarely at realistic drift, and the discontinuity when it does is small
 /// and bounded.
 const MAX_LOOPBACK_LAG_SECS: usize = 2;
@@ -28,13 +28,13 @@ const FLUSH_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
 /// How long stopping waits for the capture thread. Teardown is normally
 /// milliseconds; the wait exists because the thread's exit ends by
 /// dropping OS audio streams, and a wedged driver can park that call
-/// indefinitely — which must cost a leaked thread, not a stop that never
+/// indefinitely, which must cost a leaked thread, not a stop that never
 /// returns ([recording.md] §Dual-stream capture).
 const CAPTURE_JOIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Join `thread`, giving up after `deadline`. `true` means it exited. On
 /// `false` the thread is left running detached (along with the helper
-/// waiting on it) — the caller carries on, and the leak is the accepted
+/// waiting on it); the caller carries on, and the leak is the accepted
 /// cost of never hanging on a wedged OS call.
 fn join_with_deadline(thread: std::thread::JoinHandle<()>, deadline: std::time::Duration) -> bool {
     let (done_tx, done_rx) = std::sync::mpsc::channel();
@@ -46,8 +46,8 @@ fn join_with_deadline(thread: std::thread::JoinHandle<()>, deadline: std::time::
         });
     match waiter {
         Ok(_) => done_rx.recv_timeout(deadline).is_ok(),
-        // The helper failed to spawn (resource exhaustion); its closure —
-        // and the join handle inside it — are gone, so the capture thread
+        // The helper failed to spawn (resource exhaustion); its closure,
+        // and the join handle inside it, are gone, so the capture thread
         // is left detached exactly as on a timeout.
         Err(e) => {
             tracing::warn!("no thread for the bounded join ({e}); capture left detached");
@@ -60,8 +60,8 @@ fn join_with_deadline(thread: std::thread::JoinHandle<()>, deadline: std::time::
 /// the master clock to drain them.
 type Ring = Arc<Mutex<VecDeque<f32>>>;
 
-/// Every secondary source currently feeding the mix — output endpoints, per
-/// app captures, extra microphones. Sources join and leave *during* a
+/// Every secondary source currently feeding the mix: output endpoints, per
+/// app captures, extra microphones. Sources join and leave during a
 /// recording (the source picker), so this is a live registry rather than a
 /// fixed pair: whoever holds it can add a ring, and dropping a source's
 /// handle removes it.
@@ -95,8 +95,8 @@ impl SourceMix {
     }
 
     /// Drain up to `len` samples from every source and sum them. Each ring
-    /// contributes what it has — a source that is silent, just added, or
-    /// mid-reopen simply contributes less, so one source stalling never
+    /// contributes what it has: a source that is silent, just added, or
+    /// mid-reopen contributes less, so one source stalling never
     /// silences the others.
     fn drain_sum(&self, len: usize) -> Vec<f32> {
         let mut mixed = vec![0.0f32; len];
@@ -113,7 +113,7 @@ impl SourceMix {
 
 /// One secondary source's place in the mix, for as long as its capture
 /// lives. Dropping it (with the stream whose sink owns it) takes the ring
-/// back out — without this, every reopened endpoint left a dead ring behind
+/// back out; without this, every reopened endpoint left a dead ring behind
 /// for the mic callback to lock on every single block.
 struct Membership {
     mix: SourceMix,
@@ -129,14 +129,14 @@ impl Drop for Membership {
 /// What a capture stream does with each block of resampled 16 kHz mono output.
 ///
 /// Capture streams run on independent clocks and fire callbacks at unrelated
-/// times, so we can't just append them into one file — doing so interleaves
+/// times, so we can't just append them into one file; doing so interleaves
 /// ~64 ms chunks and yields a doubled-length, garbled recording. Instead the
 /// primary mic acts as the master clock: input devices deliver callbacks
 /// continuously (silence samples included), whereas system-audio capture goes
-/// quiet — no callbacks — when nothing is playing.
+/// quiet (no callbacks) when nothing is playing.
 #[derive(Clone)]
 enum MixSink {
-    /// Mic — the master clock. Owns the WAV writer and the transcription
+    /// Mic, the master clock. Owns the WAV writer and the transcription
     /// channel. For each resampled block it drains an equal number of samples
     /// from every secondary source (silence-padded when a source is short),
     /// sums them, and writes the single mixed stream out.
@@ -147,12 +147,12 @@ enum MixSink {
         /// Live ~10 Hz spectrum tap for the recording view's meter.
         level: Option<Arc<Mutex<LevelTap>>>,
     },
-    /// A secondary source — pushes resampled samples into its own ring for
+    /// A secondary source; pushes resampled samples into its own ring for
     /// the primary to drain. Produces no WAV / transcription output itself.
     /// Holding the membership is what keeps the ring registered: when this
     /// sink dies with its stream, the ring leaves the mix.
     Secondary { source: Arc<Membership> },
-    /// Stream blocks straight into a channel — dictation's mic-only live
+    /// Stream blocks straight into a channel: dictation's mic-only live
     /// path (no WAV, no loopback). Dropping the stream drops this sender,
     /// which is how the consumer learns the capture ended.
     Tx {
@@ -184,8 +184,8 @@ impl MixSink {
                 level,
             } => {
                 // Mix in every secondary source aligned sample-for-sample.
-                // A source with nothing buffered — silent, absent, or
-                // mid-reopen — contributes silence, so the mix degrades to
+                // A source with nothing buffered (silent, absent, or
+                // mid-reopen) contributes silence, so the mix degrades to
                 // whatever is actually producing audio.
                 let others = sources.drain_sum(resampled.len());
                 if let Some(level) = level {
@@ -223,17 +223,17 @@ impl MixSink {
 ///
 /// `cpal::Stream` is `!Send` on every platform, so a dedicated capture
 /// thread builds and owns the streams; this façade holds the thread's join
-/// handle and a stop channel and is genuinely `Send` — no `unsafe impl`.
+/// handle and a stop channel and is genuinely `Send`, no `unsafe impl`.
 pub struct Recorder {
     paused: Arc<AtomicBool>,
     wav_path: PathBuf,
     wav_writer: Arc<Mutex<Option<WavWriter<BufWriter<std::fs::File>>>>>,
-    /// Wakes the system-audio lane when the source selection changes, so a
+    /// Wakes the system-audio capture when the source selection changes, so a
     /// checkbox applies at once instead of on the next supervision tick.
-    /// **Closing it is also how that lane learns to stop**, so `shutdown`
+    /// Closing it is also how that capture learns to stop, so `shutdown`
     /// must drop it rather than leave it to the struct's own drop.
     reconfigure_tx: Option<std::sync::mpsc::Sender<crate::platform::types::CaptureCommand>>,
-    /// The same, for the extra-microphone supervisor — which is the loop the
+    /// The same, for the extra-microphone supervisor, which is the loop the
     /// capture thread parks on, so this sender is the stop signal.
     mic_reconfigure_tx: Option<std::sync::mpsc::Sender<crate::platform::types::CaptureCommand>>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -246,7 +246,7 @@ impl Recorder {
         mic_device: Option<&str>,
         output_device: Option<&str>,
         level_cb: Option<Box<dyn Fn(&[f32], &[f32]) + Send>>,
-        // The source picker's live choices, read whenever a lane rebuilds.
+        // The source picker's live choices, read whenever a capture rebuilds.
         wanted: Box<dyn Fn() -> crate::platform::types::SystemAudioWanted + Send>,
         extra_mics: Box<dyn Fn() -> Vec<String> + Send>,
     ) -> Result<Self> {
@@ -281,7 +281,7 @@ impl Recorder {
         let output_device = output_device.map(str::to_owned);
         let thread_paused = paused.clone();
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<()>>();
-        // Created here so the façade can wake the lane; the receiver moves
+        // Created here so the façade can wake the capture; the receiver moves
         // into the capture thread below.
         let (sys_stop_tx, sys_stop_rx) =
             std::sync::mpsc::channel::<crate::platform::types::CaptureCommand>();
@@ -314,9 +314,9 @@ impl Recorder {
                 tracing::info!("Mic input stream started");
 
                 // Ready on the mic alone: recording must start instantly.
-                // The system-audio capture lives on its own detached thread
-                // — on macOS its first use can block on the OS consent
-                // prompt for as long as the user takes to answer, and
+                // The system-audio capture lives on its own detached
+                // thread: on macOS its first use can block on the OS
+                // consent prompt for as long as the user takes to answer, and
                 // neither recording start nor stop may wait on that. The
                 // mixer runs mic-only until the loopback buffer fills; if
                 // the recorder stops while consent is still pending, the
@@ -326,8 +326,8 @@ impl Recorder {
                 let spawned = std::thread::Builder::new()
                     .name("system-audio".into())
                     .spawn(move || {
-                        // The platform owns the lane's whole lifecycle
-                        // (open, supervise, reopen) on this thread — the
+                        // The platform owns the capture's whole lifecycle
+                        // (open, supervise, reopen) on this thread; the
                         // capture handles are !Send. Every capture it opens
                         // asks for its own ring, so sources sum rather than
                         // interleave and one closing never disturbs another.
@@ -432,7 +432,7 @@ impl Recorder {
         })
     }
 
-    /// The source selection changed — rebuild the system-audio lane now
+    /// The source selection changed: rebuild the system-audio capture now
     /// rather than on its next tick.
     pub fn reconfigure_sources(&self) {
         if let Some(tx) = &self.reconfigure_tx {
@@ -459,12 +459,12 @@ impl Recorder {
         self.paused.store(false, Ordering::SeqCst);
     }
 
-    /// Stop every capture and wait — bounded — for the thread that owns
+    /// Stop every capture and wait (bounded) for the thread that owns
     /// them.
     ///
-    /// Dropping the senders *before* the join is the whole point: the
+    /// Dropping the senders before the join is the whole point: the
     /// capture thread parks on the extra-microphone channel, so a join that
-    /// still held `mic_reconfigure_tx` could never return — stop hung, the
+    /// still held `mic_reconfigure_tx` could never return; stop hung, the
     /// WAV was never finalized, and the next record press stacked a second
     /// recording on top of the first. The join itself is bounded too: the
     /// thread's exit ends by dropping OS audio streams, and a wedged
@@ -509,7 +509,7 @@ impl Drop for Recorder {
     }
 }
 
-/// A live mic-only 16 kHz stream feeding a channel — dictation's capture.
+/// A live mic-only 16 kHz stream feeding a channel: dictation's capture.
 /// Dropping it stops the stream and closes the channel (the capture thread
 /// owns the `!Send` stream; the drop joins it, so the channel is closed by
 /// the time drop returns).
@@ -571,7 +571,7 @@ impl Drop for MicStream {
 }
 
 /// Resolve the configured-or-default input device and build its stream.
-/// A configured-but-missing device falls back to the default with a warning —
+/// A configured-but-missing device falls back to the default with a warning;
 /// an unplugged USB mic must not break recording.
 fn build_mic_stream(
     preferred: Option<&str>,
@@ -641,8 +641,8 @@ pub(crate) fn build_stream(
     config: &cpal::SupportedStreamConfig,
     paused: Arc<AtomicBool>,
     on_block: Box<dyn Fn(&[f32]) + Send>,
-    // Set on any stream error, so a supervisor can reopen — errors were
-    // once log-only and a dead loopback lane meant silent mic-only.
+    // Set on any stream error, so a supervisor can reopen; errors were
+    // once log-only and a dead loopback capture meant silent mic-only.
     dead: Option<Arc<AtomicBool>>,
 ) -> Result<cpal::Stream> {
     let channels = config.channels() as usize;
@@ -838,7 +838,7 @@ mod mix_tests {
 
     #[test]
     fn the_bounded_join_gives_up_on_a_stuck_thread() {
-        // A thread that never exits — the wedged-driver shape. It leaks
+        // A thread that never exits: the hung-driver shape. It leaks
         // with the test process, which is the same bargain the recorder
         // makes.
         let (never_tx, never_rx) = std::sync::mpsc::channel::<()>();
@@ -854,7 +854,7 @@ mod mix_tests {
 }
 
 /// Starting and stopping a real recorder. Needs a working input device, so
-/// it is `#[ignore]`d like the other hardware probes — run it with
+/// it is `#[ignore]`d like the other hardware probes; run it with
 /// `cargo test -p embral -- --ignored recorder_stops`.
 #[cfg(test)]
 mod hardware_tests {

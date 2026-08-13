@@ -1,6 +1,6 @@
 //! The OS shell theme the tray icons follow ([shell.md](../../../../docs/shell.md)).
 //!
-//! Everything reads through `NSUserDefaults`' global domain — thread-safe,
+//! Everything reads through `NSUserDefaults`' global domain: thread-safe,
 //! no AppKit: `AppleInterfaceStyle` is `"Dark"` in dark mode and absent in
 //! light; `AppleAccentColor` is the accent's palette index and absent for
 //! the default (multicolour, which renders blue). The idle menu-bar icon
@@ -12,7 +12,7 @@ use objc2_foundation::{ns_string, NSUserDefaults};
 
 use crate::platform::ThemeSnapshot;
 
-/// macOS's default accent (system blue) — used for the absent
+/// macOS's default accent (system blue), used for the absent
 /// (multicolour) setting and any unknown index.
 const FALLBACK_ACCENT: [u8; 3] = [0x00, 0x7a, 0xff];
 
@@ -47,7 +47,7 @@ pub fn theme_snapshot() -> ThemeSnapshot {
     ThemeSnapshot { is_light, accent_rgb }
 }
 
-/// Fire `on_change` when the appearance or accent changes. A lazy poll —
+/// Fire `on_change` when the appearance or accent changes. A lazy poll:
 /// the reads are two defaults lookups, and a theme flip taking a few
 /// seconds to reach a menu-bar tint is imperceptible. (A
 /// distributed-notification observer is the upgrade if it ever matters.)

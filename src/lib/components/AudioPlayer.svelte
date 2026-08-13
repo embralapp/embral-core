@@ -38,11 +38,11 @@
 
   // On Linux the asset URL cannot feed a media element directly. WebKitGTK
   // plays media through GStreamer, which does not go through WebKit's custom
-  // URI scheme handlers — measured in the live webview: the same file errors
+  // URI scheme handlers. Measured in the live webview: the same file errors
   // with MEDIA_ERR_SRC_NOT_SUPPORTED as `asset://localhost/…` and plays as a
   // blob URL, while `fetch()` of the asset URL works either way. Fetching the
   // bytes ourselves and handing over a blob sidesteps the media path entirely.
-  // (The blob keeps whatever Content-Type the asset protocol sent — GStreamer
+  // (The blob keeps whatever Content-Type the asset protocol sent; GStreamer
   // typefinds from the bytes, so the type does not matter.)
   //
   // Only Linux pays for it: Windows and macOS keep the streaming asset URL, so
@@ -97,7 +97,7 @@
     }
   });
 
-  /** Play/pause — the play button and the Space key. */
+  /** Play/pause: the play button and the Space key. */
   export async function toggle() {
     if (!audioEl) return;
     if (audioEl.paused) {
@@ -115,7 +115,7 @@
     }
   }
 
-  /** Jump to an absolute offset and start playing — chapter and transcript
+  /** Jump to an absolute offset and start playing: chapter and transcript
    * clicks. */
   export async function seekTo(seconds: number) {
     if (!audioEl) return;
@@ -223,7 +223,7 @@
     <div class="flex items-center gap-3">
       <!-- The app has one transport vocabulary, set by the live recording
            header: a ghost icon button. Playback is the same kind of action, so
-           it is the same control — at full contrast rather than muted, because
+           it is the same control, at full contrast rather than muted, because
            it is this pane's primary action. Ranking by contrast is how this app
            ranks things; a filled circle belongs to a different one. -->
       <Tip text={playing ? t.pause : t.play}>
@@ -250,7 +250,7 @@
       <!-- The timeline: filled progress, a drag handle, and the starred moments. -->
       <!-- `outline-none`: clicking the track focuses it (it is `tabindex="-1"`,
            so it is click-focusable but never keyboard-reachable), and the app's
-           global focus ring then drew a hard outline around the whole bar — most
+           global focus ring then drew a hard outline around the whole bar, most
            visibly when Space toggled playback with the track still focused.
            There is no focus state worth showing on something the keyboard cannot
            reach. -->
@@ -273,16 +273,16 @@
             class="absolute inset-y-0 left-0 rounded-full bg-foreground/70"
             style="width: {progress}%"
           ></div>
-          <!-- The stars *are* the timeline's marks, sitting on the line itself.
-               A star has to read on both halves of that line — the played part
-               is near-`foreground`, the rest is `muted` — so it carries both
-               colours and simply **swaps them as the playhead passes**: ahead of
+          <!-- The stars are the timeline's marks, sitting on the line itself.
+               A star has to read on both halves of that line (the played part
+               is near-`foreground`, the rest is `muted`), so it carries both
+               colours and swaps them as the playhead passes: ahead of
                the playhead it is muted-filled with a foreground outline (light
                on the dark track), behind it the two trade places (dark on the
                light fill). Either way one colour is the track's own, so the star
                always has an edge against it, and the pair inverts together
                between themes. The boundary is `progress` itself, so the swap
-               lands exactly as the playhead crosses.
+               happens exactly as the playhead crosses.
 
                Clicking a star seeks (and scrolls the active tab); its
                pointerdown stops there, or the track beneath would also start a
@@ -291,7 +291,7 @@
             {#if duration > 0}
               {@const passed = star.seconds <= currentTime}
               <!-- No focus ring: a hard outline round a 13px star on a 6px line
-                   is all ring and no star. These *are* keyboard-reachable
+                   is all ring and no star. These are keyboard-reachable
                    though (unlike the track), so the focus state borrows the
                    hover scale rather than disappearing entirely. -->
               <Tip text={t.playFrom(formatTime(star.seconds))}>

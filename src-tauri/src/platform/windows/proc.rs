@@ -38,8 +38,8 @@ pub(super) async fn bounded_output(
 }
 
 /// First `where.exe` hit, preferring `.exe` over `.cmd` (npm shims are
-/// `.cmd`; `Command::new("claude")` alone would miss them — CreateProcess
-/// only appends `.exe`).
+/// `.cmd`; `Command::new("claude")` alone would miss them, since
+/// CreateProcess only appends `.exe`).
 pub async fn find_cli(name: &str) -> Option<PathBuf> {
     let output = bounded_output(Path::new("where.exe"), &[name]).await.ok()?;
     if !output.status.success() {

@@ -66,14 +66,14 @@ pub struct AppState {
     /// imports during recordings) are rejected.
     pub importing: Arc<std::sync::atomic::AtomicBool>,
     /// True when the current recording was started by meeting detection (or
-    /// by accepting its prompt) — only such recordings may auto-stop.
+    /// by accepting its prompt); only such recordings may auto-stop.
     pub auto_started: std::sync::atomic::AtomicBool,
     /// The active session provider's `labels_authoritative` capability,
     /// snapshotted at start so `stop_recording` can tell the finalize
     /// pipeline whether provider labels must be kept or re-diarized.
     pub labels_authoritative: std::sync::atomic::AtomicBool,
-    /// Whether *this recording* is labeling speakers. Starts from
-    /// `diarization_enabled` and can go false mid-recording — the
+    /// Whether this recording is labeling speakers. Starts from
+    /// `diarization_enabled` and can go false mid-recording: the
     /// transcript header's toggle, or the runaway guard when the clusterer
     /// keeps inventing people ([speakers.md]). It is the flag finalize
     /// honors, not the config field.
@@ -102,25 +102,25 @@ pub struct AppState {
     pub system_audio_wanted: std::sync::Mutex<platform::types::SystemAudioWanted>,
     pub extra_mics: std::sync::Mutex<Vec<String>>,
     /// The frontend's notes/title drafts, mirrored (debounced) during a
-    /// recording so a stop the frontend never answers — the handshake
-    /// fallback — still saves the human's words. Cleared at start.
+    /// recording so a stop the frontend never answers (the handshake
+    /// fallback) still saves the human's words. Cleared at start.
     pub recording_drafts: std::sync::Mutex<Option<(String, String)>>,
-    /// Epoch-ms the current recording started — `recording_status`'s clock
+    /// Epoch-ms the current recording started: `recording_status`'s clock
     /// source, so a window that missed `recording-started` (hidden webviews
     /// get throttled and drop events) can rebuild the timer on focus.
     pub recording_started_at_ms: std::sync::atomic::AtomicU64,
-    /// Epoch-ms of the current recording's last sign of life — the silence
+    /// Epoch-ms of the current recording's last sign of life, the silence
     /// check-in's clock ([detection.md]): advanced by transcribed words as
     /// they arrive (new final tokens in an interim, a segment closing) and
     /// by notes or title edits reaching `sync_recording_drafts`.
     /// Rebaselined at start, on resume, by "Keep recording", and by every
-    /// session install (`install_stream`) — a transcription outage is not
+    /// session install (`install_stream`); a transcription outage is not
     /// silence.
     pub last_liveness_at: std::sync::atomic::AtomicU64,
-    /// The silence check-in's standing: 0 = none showing, `u64::MAX` =
-    /// stood down until liveness resumes, else the epoch-ms it fired.
+    /// The silence check-in's state: 0 = none showing, `u64::MAX` =
+    /// suppressed until liveness resumes, else the epoch-ms it fired.
     pub silence_notice_at: std::sync::atomic::AtomicU64,
-    /// Which recording the silence watcher belongs to — bumped at every
+    /// Which recording the silence watcher belongs to; bumped at every
     /// start. A watcher whose generation moved on exits instead of racing
     /// the successor's watcher on the shared check-in state (a stop and
     /// restart inside one 15 s tick would otherwise leave two running).
@@ -128,7 +128,7 @@ pub struct AppState {
     /// The built-in LLM child process (llama-server), started on demand.
     pub llm: llm::LlmSidecar,
     /// The search-index runtime: the embed child process (`embral-mcp
-    /// embed`) and the worker's wake-up bell.
+    /// embed`) and the worker's wake-up signal.
     pub search: search_index::SearchRuntime,
     /// The running dictation session, if any.
     pub dictation: tokio::sync::Mutex<Option<dictation::ActiveDictation>>,
@@ -137,7 +137,7 @@ pub struct AppState {
     pub dictating: std::sync::atomic::AtomicBool,
     /// When the dictation hotkey press that started the session happened.
     pub dictation_pressed_at: std::sync::Mutex<Option<std::time::Instant>>,
-    /// Opt-in telemetry queue + enabled mirror — cloud edition only; the
+    /// Opt-in telemetry queue + enabled mirror (cloud edition only); the
     /// shared call sites go through `telemetry`'s no-op facade
     /// ([telemetry.md]).
     #[cfg(feature = "cloud")]
@@ -189,7 +189,7 @@ impl AppState {
         self.importing.clone()
     }
 
-    /// The database for the *currently configured* storage dir, opening (and
+    /// The database for the currently configured storage dir, opening (and
     /// importing any legacy index.json) on first use or after the dir changes.
     pub async fn db(&self) -> Result<Arc<embral_db::Db>, String> {
         let base = {
@@ -209,7 +209,7 @@ impl AppState {
     }
 }
 
-/// Milliseconds since the Unix epoch — the one wall-clock read behind
+/// Milliseconds since the Unix epoch: the one wall-clock read behind
 /// event timestamps and the check-in's liveness clock.
 pub(crate) fn epoch_ms() -> u64 {
     std::time::SystemTime::now()
@@ -218,7 +218,7 @@ pub(crate) fn epoch_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// `%LOCALAPPDATA%/embral/logs` — next to the models dir, not user data.
+/// `%LOCALAPPDATA%/embral/logs`: next to the models dir, not user data.
 pub fn logs_dir() -> std::path::PathBuf {
     dirs::data_local_dir()
         .or_else(dirs::home_dir)
@@ -228,16 +228,16 @@ pub fn logs_dir() -> std::path::PathBuf {
 }
 
 /// The `--child-reaper` subprocess body (see `platform::supervisor`).
-/// Every platform supplies one — a no-op where the OS already covers orphan
-/// cleanup (Windows' job object, Linux's `PR_SET_PDEATHSIG`) and the flag is
-/// never passed — so this call needs no `cfg`.
+/// Every platform supplies one; it is a no-op where the OS already covers
+/// orphan cleanup (Windows' job object, Linux's `PR_SET_PDEATHSIG`) and the
+/// flag is never passed, so this call needs no `cfg`.
 pub fn run_child_reaper() {
     platform::run_reaper();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // **embral is an X11 application on Linux.** Ask GTK for the X11 backend
+    // embral is an X11 application on Linux. Ask GTK for the X11 backend
     // before anything initialises it, so a Wayland session runs us through
     // Xwayland rather than as a native Wayland client.
     //
@@ -248,22 +248,22 @@ pub fn run() {
     // keystrokes (dictation's auto-paste), and asking which window has focus.
     // Supporting both meant three degraded paths and a settings surface
     // apologising for them; running on X11 everywhere means one path that
-    // works. Xwayland ships with every Wayland desktop, so this costs users
-    // nothing but honesty in the docs.
+    // works. Xwayland ships with every Wayland desktop, so the only cost is
+    // saying so in the docs.
     //
-    // The one residue: on a Wayland session, auto-paste reaches X11 and
-    // Xwayland targets but not windows that are natively Wayland — XTEST
+    // The one remaining gap: on a Wayland session, auto-paste reaches X11 and
+    // Xwayland targets but not windows that are natively Wayland; XTEST
     // cannot see them. Recording, transcription, notes and search are
     // unaffected either way.
     #[cfg(target_os = "linux")]
     std::env::set_var("GDK_BACKEND", "x11");
 
     // Default to `info`: a clean recording emits only the standardized
-    // per-session spine (connect → ready → ~20s heartbeat → finish) plus any
-    // warn/error. The per-message/per-frame firehose lives at `trace` — opt in
-    // with e.g. `RUST_LOG=embral_lib=trace` for deep protocol debugging.
+    // per-session sequence (connect → ready → ~20s heartbeat → finish) plus
+    // any warn/error. The per-message/per-frame detail lives at `trace`; opt
+    // in with e.g. `RUST_LOG=embral_lib=trace` for deep protocol debugging.
     //
-    // Logs go to stderr AND a daily-rolling file under
+    // Logs go to stderr and a daily-rolling file under
     // `%LOCALAPPDATA%/embral/logs` (surfaced via Settings → About → Open logs
     // folder) so users can attach them to bug reports.
     {
@@ -278,7 +278,7 @@ pub fn run() {
         let file_appender = tracing_appender::rolling::daily(&logs_dir, "embral.log");
         let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
         // The guard flushes on drop; the app runs for the process lifetime,
-        // so parking it forever is the correct lifetime.
+        // so leaking it is the correct lifetime.
         Box::leak(Box::new(guard));
 
         tracing_subscriber::registry()
@@ -312,7 +312,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         // Registered first, so a second launch bails out before any heavy
         // init: the app lives in the tray, so re-launching the installed
-        // shortcut must surface the running window, not stack a new process.
+        // shortcut must surface the running window, not start a second
+        // process.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
@@ -367,13 +368,13 @@ pub fn run() {
                 &storage::storage_base(&startup_storage_dir),
             );
             tray::create_tray(app)?;
-            // The app lives in the tray: launches land there rather than
-            // opening the window (users open it from the tray icon), and
-            // launch-at-login is always on — both by design, neither is a
-            // setting. The exception is first run: until onboarding is
-            // finished the window opens, so the installer's "run after
-            // closing" box lands on the setup wizard instead of a silent
-            // tray icon. The frontend already gates on the same flag.
+            // The app lives in the tray: launching does not open the window
+            // (users open it from the tray icon), and launch-at-login is
+            // always on. Both are by design; neither is a setting. The
+            // exception is first run: until onboarding is finished the
+            // window opens, so the installer's "run after closing" box leads
+            // to the setup wizard instead of a silent tray icon. The
+            // frontend already gates on the same flag.
             if let Some(w) = app.get_webview_window("main") {
                 // The state plugin restored geometry at window-ready (before
                 // this closure); repair it if the monitors changed since it
@@ -420,7 +421,7 @@ pub fn run() {
                                 storage::storage_base(&config.storage_dir),
                             )
                         };
-                        // Orphaned asset directories are residue, not a
+                        // Orphaned asset directories are leftovers, not a
                         // retention policy, so this runs whatever the
                         // retention settings say.
                         if let Ok(db) = state.db().await {
@@ -530,8 +531,8 @@ pub fn run() {
                 let enabled = {
                     let mut config = state.config.blocking_lock();
                     // Default-on means the id must exist before the first
-                    // flush — a first boot mints it here; opt-out clears
-                    // it and re-enabling mints a fresh one (save_config).
+                    // flush: a first boot creates it here; opt-out clears
+                    // it and re-enabling creates a fresh one (save_config).
                     if config.telemetry_enabled && config.telemetry_install_id.is_empty() {
                         config.telemetry_install_id = uuid::Uuid::new_v4().to_string();
                         if let Err(e) = config::save_config(&config) {
@@ -610,7 +611,6 @@ macro_rules! app_handler_with {
             commands::dismiss_detected_meeting,
             commands::get_meetings,
             commands::get_meeting_records,
-            commands::get_meeting,
             commands::get_meeting_detail,
             commands::update_meeting_title,
             commands::update_meeting_summary,
@@ -643,7 +643,6 @@ macro_rules! app_handler_with {
             commands::asr_models_status,
             commands::download_asr_model,
             commands::delete_asr_model,
-            commands::llm_status,
             commands::get_summary_prompt_parts,
             commands::start_dictation,
             commands::stop_dictation,

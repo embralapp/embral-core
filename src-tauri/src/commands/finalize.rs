@@ -47,7 +47,7 @@ pub(crate) async fn finalize_meeting(
     user_notes: Option<String>,
     user_title: Option<String>,
     // Names renamed away from during the live session. A profile created
-    // for one never gets linked — the pipeline only links final names — so
+    // for one never gets linked (the pipeline only links final names), so
     // this is the only place it can be recognized as an orphan. Imports and
     // crash recovery have no live session and pass none.
     superseded_labels: Vec<String>,
@@ -92,7 +92,7 @@ pub(crate) async fn finalize_meeting(
         }
     }
 
-    // --- Name speakers from the user's typed notes ([speakers.md]) — before
+    // --- Name speakers from the user's typed notes ([speakers.md]), before
     // formatting for the same reason as the pipeline above. Automatic mode
     // renames segments here; suggest mode returns pending suggestions that
     // persist below and surface in the meeting view.
@@ -117,8 +117,8 @@ pub(crate) async fn finalize_meeting(
     // Encode MP3 (non-fatal on failure; we can still write notes).
     let mp3_path = base.join("audio").join(format!("{}.mp3", meeting_id));
     // The recorder's WAV is deleted once the meeting is committed, not
-    // here: everything between this point and the DB write — the speaker
-    // pipeline, LLM refinement — can take a while, and a crash inside it
+    // here: everything between this point and the DB write (the speaker
+    // pipeline, LLM refinement) can take a while, and a crash inside it
     // must leave crash recovery something to re-run from
     // ([recording.md] §Crash recovery).
     let mut wav_to_delete: Option<PathBuf> = None;
@@ -126,7 +126,7 @@ pub(crate) async fn finalize_meeting(
         AudioSource::Wav(wav_path) => {
             match encoder::encode_wav_to_mp3(&wav_path, &mp3_path) {
                 Ok(()) => {
-                    // Audio is playable well before the notes finish — let
+                    // Audio is playable well before the notes finish; let
                     // the pending meeting mount its player now. (The file
                     // is renamed at persist time; the completed detail
                     // brings the final path.)
@@ -149,7 +149,7 @@ pub(crate) async fn finalize_meeting(
         }
         AudioSource::Samples(samples) => {
             if config.retain_audio {
-                if let Err(e) = encoder::encode_samples_to_mp3(samples.as_slice(), 16_000, &mp3_path) {
+                if let Err(e) = encoder::encode_samples_to_mp3(samples.as_slice(), crate::audio::SAMPLE_RATE_HZ, &mp3_path) {
                     tracing::error!("MP3 encode failed: {}", e);
                     let _ = app.emit("processing-error", &AppError::EncodeFailed { detail: e.to_string() });
                     crate::telemetry::track(
@@ -165,7 +165,7 @@ pub(crate) async fn finalize_meeting(
     // LLM refinement.
     let _ = app.emit("notes-generation-started", ());
 
-    // No segments — transcription was disabled or produced nothing. The
+    // No segments: transcription was disabled or produced nothing. The
     // wall clock is the only duration signal left.
     let duration_minutes = segments
         .last()
@@ -184,7 +184,7 @@ pub(crate) async fn finalize_meeting(
     // the right screenshot rather than guessing from the prose around it.
     // It also means a just-finished meeting is searchable by its images at
     // once instead of waiting on the background sweep. The rows cannot land
-    // yet — the meeting row does not exist until further down — so the
+    // yet (the meeting row does not exist until further down), so the
     // readings are held and stored after `upsert_meeting`.
     let image_readings = {
         let filenames = crate::ocr::stored_images(&base, &meeting_id);
@@ -210,7 +210,7 @@ pub(crate) async fn finalize_meeting(
 
     // `None` = this meeting has no summary: either summaries are off, or the
     // engine failed, or there is nothing to summarize. Nothing fake is
-    // written in its place — a "summary" that is a copy of the transcript
+    // written in its place; a "summary" that is a copy of the transcript
     // (or, on an empty one, an invention) is worse than no summary at all.
     let summary: Option<String> = match crate::refinement::summaries_profile(&config)
         .filter(|_| !segments.is_empty())
@@ -323,7 +323,7 @@ pub(crate) async fn finalize_meeting(
     let final_stem = format!("{} - {}", ts_prefix, safe_title);
     let final_audio_filename = format!("{}.mp3", final_stem);
 
-    // No segments, no transcript document — same rule as the summary: an
+    // No segments, no transcript document: same rule as the summary: an
     // empty shell helps nobody. Both documents go to the database below;
     // audio is the only file this meeting writes.
     let transcript_markdown = if segments.is_empty() {
@@ -396,14 +396,14 @@ pub(crate) async fn finalize_meeting(
         );
         return;
     }
-    // Committed. The recorder's WAV has done its job — everything above
+    // Committed. The recorder's WAV has done its job; everything above
     // could still have needed it, and the early return on a failed save
     // deliberately leaves it for crash recovery to re-run from.
     if let Some(wav_path) = wav_to_delete {
         let _ = std::fs::remove_file(&wav_path);
     }
     // The meeting row exists now, so what the images said can be recorded
-    // against it — and the sync below indexes it in the same breath.
+    // against it, and the sync below indexes it right after.
     crate::ocr::store(&db, &meeting_id, &image_readings);
     crate::search_index::sync_meeting(&db, &app.state::<AppState>().search, &meeting_id);
 
@@ -440,7 +440,7 @@ pub(crate) async fn finalize_meeting(
     }
 
     // Best-effort fan-out to the Markdown export and the webhooks. The copy
-    // carries what the include switches say — summary, the user's own notes,
+    // carries what the include switches say (summary, the user's own notes,
     // transcript, each defaulting in; the webhook payload takes the parts
     // separately, and only for destinations that opted into content.
     let summary_body = summary.as_deref().unwrap_or("");

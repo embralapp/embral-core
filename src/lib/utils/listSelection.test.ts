@@ -3,7 +3,7 @@ import { ListSelection } from './listSelection.svelte';
 
 /**
  * The selection model behind both lists (meetings and profiles). It is the
- * branchiest logic on the frontend and the easiest to get subtly wrong — a
+ * branchiest logic on the frontend and the easiest to get subtly wrong: a
  * shift-range that creeps, a primary that points at a deleted row.
  *
  * (This file is also why the vitest config carries the SvelteKit plugin:
@@ -57,8 +57,8 @@ describe('ListSelection', () => {
     sel.click('b', plain, ORDER);
     sel.click('d', shift, ORDER);
     expect(sel.ids).toEqual(['b', 'c', 'd']);
-    // The primary is the row actually clicked, not the end of the array — a
-    // range dragged upwards ends on its *first* id.
+    // The primary is the row actually clicked, not the end of the array: a
+    // range dragged upwards ends on its first id.
     expect(sel.primary).toBe('d');
 
     sel.click('d', plain, ORDER);
@@ -69,7 +69,7 @@ describe('ListSelection', () => {
 
   it('keeps the shift anchor where it was', () => {
     // Re-ranging must measure from the original anchor, not creep along behind
-    // the pointer — otherwise a second shift-click grows the selection instead
+    // the pointer; otherwise a second shift-click grows the selection instead
     // of redrawing it.
     sel.click('b', plain, ORDER);
     sel.click('d', shift, ORDER);

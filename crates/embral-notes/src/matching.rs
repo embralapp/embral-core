@@ -1,4 +1,4 @@
-//! Naming diarized speakers from the user's typed notes — the pure half.
+//! Naming diarized speakers from the user's typed notes: the pure half.
 //!
 //! The user often writes lines like "John: we need a new plan" while the
 //! transcript reads "Speaker 1: We need to come up with a new plan for
@@ -15,7 +15,7 @@ use crate::transcript::Paragraph;
 const EVIDENCE_PER_LINE: usize = 3;
 /// Combined-score floor below which a pair is noise, not evidence. The
 /// keyword leg is an overlap coefficient in [0,1]; the semantic leg is a
-/// cosine that lands ~0.7-0.9 for related e5 sentence pairs, so 0.3 keeps
+/// cosine of ~0.7-0.9 for related e5 sentence pairs, so 0.3 keeps
 /// paraphrases while dropping lines that merely share a stopword-ish term.
 const EVIDENCE_FLOOR: f32 = 0.3;
 /// Total evidence pairs across the whole meeting (prompt-size bound).
@@ -42,7 +42,7 @@ pub struct Candidate {
     pub text: String,
 }
 
-/// A session-generated numbered label ("Speaker 3") — the only labels the
+/// A session-generated numbered label ("Speaker 3"): the only labels the
 /// naming pass may rename. Lives in embral-types so the registry layer can
 /// apply the same rule.
 pub fn is_generic_label(label: &str) -> bool {
@@ -224,7 +224,7 @@ pub fn build_naming_message(
 /// Parse the model's reply into validated `(label, name)` assignments.
 /// Lenient about wrapping (reasoning blocks, prose, code fences) and
 /// strict about content: unknown labels, generic or oversized names, and
-/// duplicates are dropped. Anything unparseable is an empty list — a
+/// duplicates are dropped. Anything unparseable is an empty list: a
 /// confused model must never rename a transcript.
 pub fn parse_assignments(reply: &str, valid_labels: &[String]) -> Vec<(String, String)> {
     let cleaned = crate::providers::strip_reasoning(reply);
@@ -258,7 +258,7 @@ pub fn parse_assignments(reply: &str, valid_labels: &[String]) -> Vec<(String, S
         {
             continue;
         }
-        // One name per label, one label per name — first wins.
+        // One name per label, one label per name; first wins.
         if out.iter().any(|(l, n)| l == label || n.eq_ignore_ascii_case(name)) {
             continue;
         }

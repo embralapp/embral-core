@@ -12,8 +12,8 @@
 
 <!--
 	The highlight is `bg-accent`, not `bg-muted`. In the dark theme `--muted` is
-	`oklch(0.269 0 0)` — byte-identical to `--popover`, the surface this list is
-	drawn on — so the selected row painted exactly like an unselected one and the
+	`oklch(0.269 0 0)` (byte-identical to `--popover`, the surface this list is
+	drawn on), so the selected row painted exactly like an unselected one and the
 	arrow keys looked broken. They were never broken; the selection was invisible.
 	(`command-link-item` already used `bg-accent`; the two variants disagreed.)
 

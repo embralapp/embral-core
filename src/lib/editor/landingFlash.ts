@@ -6,11 +6,11 @@ import { FLASH_CLASS, FLASH_MS } from '$lib/utils/flash';
 /**
  * Marking the passage a search result landed on, inside the editor.
  *
- * It has to be a **decoration**, not a class on the node's element:
+ * It has to be a decoration, not a class on the node's element:
  * ProseMirror owns that DOM and rebuilds it from document state, so a
- * `classList.add` survives only until the next redraw — which, for a
- * document the user is about to type in, is immediately. A decoration is
- * part of the state ProseMirror redraws *from*, so it stays put, and it
+ * `classList.add` survives only until the next redraw, which for a
+ * document the user is about to type in is immediate. A decoration is
+ * part of the state ProseMirror redraws from, so it stays put, and it
  * leaves the document itself untouched (unlike a star, which is a node
  * attribute, because a star is content and this is not).
  */
@@ -57,7 +57,7 @@ export function landingFlash() {
 export function flashNodeAt(view: EditorView, pos: number, durationMs = FLASH_MS): boolean {
   const node = view.state.doc.nodeAt(pos);
   if (!node) return false;
-  // `addToHistory: false` keeps the mark out of the undo stack — undo is
+  // `addToHistory: false` keeps the mark out of the undo stack: undo is
   // for the user's text, not for where a search sent them. The transaction
   // changes no content, so the editor's save guard ignores it either way.
   const set = (action: FlashAction) =>

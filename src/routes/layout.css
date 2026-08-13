@@ -3,7 +3,7 @@
 @plugin "@tailwindcss/typography";
 @custom-variant dark (&:is(.dark *));
 
-/* Libre Baskerville (SIL OFL) — the display face for the things the app is
+/* Libre Baskerville (SIL OFL): the display face for the things the app is
    about: meeting titles, page headings, onboarding headlines. Self-hosted
    (the app is offline); body text and UI chrome stay on the sans stack. */
 @font-face {
@@ -73,7 +73,7 @@
 	--accent-foreground: oklch(0.205 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
 	/* The one warning colour. The palette is otherwise greyscale on purpose, so
-	   a hue here means something is running out — today only the cloud hours
+	   a hue here means something is running out; today only the cloud hours
 	   ring, which turns amber under 5 h before it turns destructive under 1 h.
 	   Darker in light mode so it holds contrast on a white background. */
 	--warning: oklch(0.68 0.15 75);
@@ -111,7 +111,7 @@
 	--accent: oklch(0.371 0 0);
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
-	/* Lighter than its light-mode twin — the pale amber the dark UI wants. */
+	/* Lighter than its light-mode twin: the pale amber the dark UI wants. */
 	--warning: oklch(0.82 0.14 82);
 	--border: oklch(1 0 0 / 10%);
 	--input: oklch(1 0 0 / 15%);
@@ -179,7 +179,7 @@
 	}
 
 	/* Desktop apps don't rubber-band: no elastic pull past the page edge.
-	   Root-only on purpose — the earlier universal (`*`) rule made every
+	   Root-only on purpose; the earlier universal (`*`) rule made every
 	   element a scroll-chaining boundary, which broke touchpad gestures:
 	   a two-finger scroll latches onto the scroller under the pointer at
 	   its first tick, and a gesture starting at a scroll limit latched
@@ -188,12 +188,12 @@
 	   And the document itself never scrolls: the shell is a fixed-viewport
 	   layout and every scrolling pane is an inner container, so a document
 	   scrollbar is always an accident. It stops being cosmetic where
-	   scrollbars consume layout space (they do here — the themed
+	   scrollbars consume layout space (they do here: the themed
 	   `::-webkit-scrollbar` opts out of overlay bars; on GTK they always
 	   do): a tooltip that lands half a pixel past the window edge spawns a
 	   document scrollbar, the viewport narrows, the tooltip's collision
 	   logic pulls it back in, the scrollbar leaves, and the layout
-	   oscillates forever — measured on Linux (`scrollWidth` flapping
+	   oscillates forever, measured on Linux (`scrollWidth` flapping
 	   960↔961 with the stop-recording tip at `right: 960.5`). */
 	html,
 	body {
@@ -206,7 +206,6 @@
 	   Scoped to the overflow-auto utilities on purpose: overflow-hidden
 	   elements also count as scroll containers, and a global rule made every
 	   hidden wrapper (shell, titlebar) reserve a phantom 10px gutter. */
-	.overflow-auto,
 	.overflow-y-auto {
 		scrollbar-gutter: stable;
 	}
@@ -215,7 +214,7 @@
 		@apply bg-background text-foreground;
 	}
 
-	/* Number inputs: no native spinner buttons — units render as text labels
+	/* Number inputs: no native spinner buttons; units render as text labels
 	   beside the field instead. */
 	input[type="number"]::-webkit-inner-spin-button,
 	input[type="number"]::-webkit-outer-spin-button {
@@ -248,7 +247,7 @@
 	}
 
 	/* Where a search result landed. Applied by `utils/flash.ts` and removed
-	   on a timer — it fades on its own rather than becoming state the user
+	   on a timer; it fades on its own rather than becoming state the user
 	   has to clear. The tint is the same one the palette marks matches with,
 	   so arriving looks like a continuation of the search. */
 	.embral-flash {

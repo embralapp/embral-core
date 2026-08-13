@@ -18,15 +18,15 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
 /// 16 kHz mono is the canonical source rate fed to every provider (the recorder
 /// resamples to it before fan-out), so audio-seconds == samples / 16000
 /// uniformly, even for providers that re-resample internally.
-pub(crate) const SOURCE_SAMPLE_RATE: f64 = 16_000.0;
+pub(crate) const SOURCE_SAMPLE_RATE: f64 = crate::audio::SAMPLE_RATE_HZ as f64;
 
 /// Lock-free counters backing the standardized session heartbeat and finish
 /// summary shared by every provider, so the log shape can't drift between
 /// them.
 ///
-/// - `frames` — audio ingest calls (one per `send_audio` / processed chunk).
-/// - `samples` — 16 kHz source samples ingested, for the audio-seconds figure.
-/// - `segments` — finalized utterances emitted.
+/// - `frames`: audio ingest calls (one per `send_audio` / processed chunk).
+/// - `samples`: 16 kHz source samples ingested, for the audio-seconds figure.
+/// - `segments`: finalized utterances emitted.
 ///
 /// Providers call [`on_audio`](SessionStats::on_audio) from their audio-ingest
 /// path (which also emits the throttled heartbeat), [`on_segment`] whenever they
@@ -110,7 +110,7 @@ pub enum TranscriptionEvent {
     /// frontend replaces any prior `Interim` with the latest one; `Interim`s
     /// are cleared automatically when a `Segment` arrives.
     ///
-    /// `segment.text` holds the **stable** portion of the in-flight utterance
+    /// `segment.text` holds the stable portion of the in-flight utterance
     /// (tokens the provider has already finalized). `tentative` carries the
     /// unstable trailing hypothesis that should be rendered with reduced
     /// emphasis since it can change on the next message. Providers without a
@@ -119,13 +119,13 @@ pub enum TranscriptionEvent {
         segment: TranscriptionSegment,
         tentative: Option<String>,
     },
-    /// A finalized utterance — appended to the persistent transcript.
+    /// A finalized utterance, appended to the persistent transcript.
     Segment(TranscriptionSegment),
     /// The session died mid-recording (connection lost, hours used up).
     /// The forwarder may swap in a replacement session that keeps feeding
     /// this same channel; `Done` still ends it. Only the cloud session
     /// constructs it today, but the variant (and its forwarder arm) stay
-    /// ungated — any provider may fail.
+    /// ungated; any provider may fail.
     #[cfg_attr(not(feature = "cloud"), allow(dead_code))]
     Failed { message: String },
     /// Session has ended; no more events will arrive on this channel.
@@ -145,7 +145,7 @@ pub trait TranscriptionProvider: Send + Sync {
 /// A streaming transcription session.
 ///
 /// Implementations normalize their provider's native event stream into
-/// [`TranscriptionSegment`]s under the following contract — downstream
+/// [`TranscriptionSegment`]s under the following contract; downstream
 /// consumers (`LiveTranscript.svelte`, `format_transcript` in `commands.rs`)
 /// rely on these invariants:
 ///
@@ -154,7 +154,7 @@ pub trait TranscriptionProvider: Send + Sync {
 ///    Concatenating consecutive segments of the same speaker with a single
 ///    space yields a correctly-formatted transcript line.
 /// 2. **Speaker labels.** `speaker` is `Some(_)` when the provider labels
-///    utterances — either authoritatively
+///    utterances, either authoritatively
 ///    (`capabilities().labels_authoritative`, kept by the post-meeting
 ///    pipeline) or as the local provider's provisional live preview
 ///    (overwritten by the pipeline). Unlabeled utterances carry `None`.
@@ -165,7 +165,7 @@ pub trait TranscriptionProvider: Send + Sync {
 ///    preview of the current utterance; emit `Segment` only when the
 ///    utterance has stabilized (speaker change, sentence-final punctuation,
 ///    pause-based timeout, VAD endpoint, or session end). `finish()` returns
-///    only finalized Segments — never interim previews.
+///    only finalized Segments, never interim previews.
 #[async_trait]
 pub trait TranscriptionSession: Send + Sync + 'static {
     async fn send_audio(&self, pcm_f32: &[f32]) -> Result<()>;
@@ -180,7 +180,7 @@ pub trait TranscriptionSession: Send + Sync + 'static {
     }
 }
 
-/// `provider` is this recording's lane — the config's standing choice as
+/// `provider` is what this recording runs on: the config's standing choice as
 /// bent by the power policy (`config::provider_for_power`), which is why it
 /// is passed rather than read off `config`.
 pub fn build_provider(
@@ -203,7 +203,7 @@ pub fn build_provider(
 }
 
 /// Dictation's provider: its own provider/language/model tree, and never
-/// live speaker labels (one person is talking — it's dictation).
+/// live speaker labels (one person is talking; it's dictation).
 pub fn build_dictation_provider(
     config: &AppConfig,
     engine: Arc<embral_engine::Engine>,
@@ -223,6 +223,8 @@ pub fn build_dictation_provider(
 }
 
 /// The dictation fallback provider, for when the cloud refuses at start.
+/// Only the cloud build has a caller, since only it can be refused.
+#[cfg_attr(not(feature = "cloud"), allow(dead_code))]
 pub fn build_local_dictation_provider(
     config: &AppConfig,
     engine: Arc<embral_engine::Engine>,

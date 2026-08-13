@@ -1,8 +1,8 @@
-//! Keystroke synthesis + focused-app identity — the dictation output's
+//! Keystroke synthesis + focused-app identity: the dictation output's
 //! platform surface ([dictation.md](../../../../docs/dictation.md)).
 //!
-//! Posting synthetic events is gated on the **Accessibility** permission
-//! (not Input Monitoring — we post, never listen), so the paste checks it
+//! Posting synthetic events is gated on the Accessibility permission
+//! (not Input Monitoring; we post, never listen), so the paste checks it
 //! first and reports a denial instead of posting into the void; the text
 //! is on the clipboard and in history either way.
 
@@ -34,7 +34,7 @@ pub fn paste_keystroke() -> Result<()> {
     chord(false)
 }
 
-/// The app that currently has focus — the paste target (the overlay never
+/// The app that currently has focus: the paste target (the overlay never
 /// takes focus). NSWorkspace belongs to the main thread; a synchronous
 /// hop covers callers on the runtime.
 pub fn focused_app() -> Option<AppId> {

@@ -10,8 +10,8 @@
    * meetings page collapses to a single panel on narrow windows).
    *
    * With `collapsible`, dragging the fixed pane well under its minimum
-   * shuts it instead of stopping at the floor — animated, so it reads as
-   * the pane closing rather than the drag breaking. The divider is then
+   * shuts it instead of stopping at the floor (animated, so it reads as
+   * the pane closing rather than the drag breaking). The divider is then
    * the way back: click it, or drag it out again. */
   let {
     left,
@@ -44,7 +44,7 @@
      * persisted `collapsed` state, so the caller can borrow the collapse
      * (shadow mode does) and give the layout back untouched. */
     forceCollapsed?: boolean;
-    /** The divider defeated `forceCollapsed` — the caller drops the force
+    /** The divider defeated `forceCollapsed`; the caller drops the force
      * so the reopen sticks. */
     onForceReopen?: () => void;
     fixedClass?: string;
@@ -62,13 +62,13 @@
   let size = $state(defaultSize);
   let containerEl = $state<HTMLElement | null>(null);
   let dragging = $state(false);
-  /** Whether this drag ever moved — a press that didn't is a click, which
+  /** Whether this drag ever moved: a press that didn't is a click, which
    * is how a shut pane is reopened. */
   let moved = false;
 
   const collapsedKey = $derived(`${storageKey}:collapsed`);
 
-  /** What actually renders shut — the user's own collapse or a caller's
+  /** What actually renders shut: the user's own collapse or a caller's
    * display-only force. Only `collapsed` ever persists. */
   const shut = $derived(collapsed || forceCollapsed);
 
@@ -87,7 +87,7 @@
     restored = true;
   });
 
-  // Persist wherever the change came from — the divider, or a caller
+  // Persist wherever the change came from: the divider, or a caller
   // flipping the bound value.
   $effect(() => {
     if (!collapsible || !restored) return;
@@ -124,7 +124,7 @@
     if (!dragging) return;
     dragging = false;
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    // A press with no drag on a shut pane opens it — the divider is the
+    // A press with no drag on a shut pane opens it: the divider is the
     // only affordance left once the pane has no width.
     if (collapsible && shut && !moved) {
       if (forceCollapsed) onForceReopen?.();

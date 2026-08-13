@@ -1,6 +1,6 @@
-//! The tool bodies, as plain functions over an open database — testable
+//! The tool bodies, as plain functions over an open database, testable
 //! without a transport. Search runs through embral-search's hybrid engine;
-//! the caller supplies the query vector (or `None` — keyword-only, the
+//! the caller supplies the query vector (or `None`: keyword-only, the
 //! degrade path when the embedding model is absent).
 
 use chrono::{DateTime, NaiveDate, SecondsFormat, Utc};
@@ -72,7 +72,7 @@ fn hit_json(h: &Hit) -> Value {
     }
     body.insert("source".into(), json!(h.source));
     // Which image an `image_text` passage was read out of, so a caller can
-    // say *where* it saw something rather than only that it did.
+    // say where it saw something rather than only that it did.
     if let Some(image) = &h.image_filename {
         body.insert("image".into(), json!(image));
     }
@@ -97,7 +97,7 @@ fn hit_json(h: &Hit) -> Value {
 }
 
 /// Does a requested name cover a profile's display name? True when its
-/// words are a contiguous run of the profile's words, case-insensitively —
+/// words are a contiguous run of the profile's words, case-insensitively:
 /// "john" and "john smith" both cover "John Smith Jr", "smith john" covers
 /// nothing.
 fn name_covers(requested: &str, profile_name: &str) -> bool {
@@ -114,8 +114,8 @@ fn push_name(names: &mut Vec<String>, name: &str) {
 
 /// Expand each requested speaker name through the registry so "what has
 /// John said" finds what the labels call "John Smith". The requested name
-/// itself always stays in the list — a label that never got a profile
-/// keeps matching as typed — and an ambiguous first name includes every
+/// itself always stays in the list (a label that never got a profile
+/// keeps matching as typed), and an ambiguous first name includes every
 /// profile it covers: search is recall-oriented and each hit carries the
 /// full name.
 fn resolve_speakers(db: &Db, requested: &[String]) -> Result<Vec<String>, ToolError> {
@@ -287,7 +287,7 @@ pub fn passage_context(
         "passage": chunk.text,
         "after": neighbor(1)?,
     });
-    // Which image an image_text passage was read out of — the handle
+    // Which image an image_text passage was read out of: the handle
     // `get_meeting_image` takes, kept through expansion like the search
     // hit that led here.
     if let Some(image) = &chunk.image_filename {
@@ -397,7 +397,7 @@ pub fn list_meetings(
     }))
 }
 
-/// Never errors on a missing library — reporting that state is its job.
+/// Never errors on a missing library; reporting that state is its job.
 pub fn storage_status(store: &Store, embedder_loaded: bool) -> Result<Value, ToolError> {
     let db_path = store.db_path();
     if !db_path.is_file() {
@@ -467,7 +467,7 @@ mod tests {
         }
     }
 
-    /// A seeded library on disk plus a read-only handle — the production
+    /// A seeded library on disk plus a read-only handle: the production
     /// arrangement in miniature.
     fn fixture(dir: &std::path::Path) -> Db {
         let path = dir.join("embral.db");
@@ -571,7 +571,7 @@ mod tests {
         let db = fixture(dir.path());
 
         // "what has Dana said": the labels say "Dana Smith", the caller
-        // says "dana" — the registry bridges them.
+        // says "dana"; the registry bridges them.
         let mut by_first = params("offers");
         by_first.speakers = Some(vec!["dana".into()]);
         assert_eq!(search_meetings(&db, &by_first, None).unwrap()["count"], 1);
@@ -674,7 +674,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("assets/m-budget")).unwrap();
         std::fs::write(dir.path().join("assets/m-budget/img-01.png"), b"x").unwrap();
         std::fs::write(dir.path().join("assets/m-budget/img-02.png"), b"x").unwrap();
-        // One usable reading, one unread — written by a writer handle; the
+        // One usable reading, one unread, written by a writer handle; the
         // fixture's is read-only, like production's.
         {
             let writer = Db::open(&dir.path().join("embral.db")).unwrap();

@@ -6,7 +6,8 @@ import type { AppConfig } from '$lib/types';
  * These mirror `AppConfig::meeting_asr_model` and `dictation_asr_model_id` in
  * `crates/embral-types`. Two implementations of one rule will drift, and drift
  * between them is silent: the settings page would show one model while the
- * engine loaded another. This is the seam a test guards and review does not.
+ * engine loaded another. This is the drift point a test guards and review
+ * does not.
  */
 function config(fields: Partial<AppConfig>): AppConfig {
   return {
@@ -26,7 +27,7 @@ describe('meetingAsrModel', () => {
   it('is overridden — not overwritten — by the multilingual language', () => {
     // The tier the user picked survives in config while another language is
     // selected, so switching back restores it instead of resetting to default.
-    // That is the whole reason the language *overrides* rather than writing the
+    // That is the whole reason the language overrides rather than writing the
     // model id.
     const multilingual = config({
       local_asr_model: 'parakeet-tdt-en',

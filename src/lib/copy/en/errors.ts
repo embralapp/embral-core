@@ -2,8 +2,8 @@
 // (crates/embral-types/src/error.rs); a caught command rejection or error
 // event is mapped to one of these by errorMessage() in src/lib/copy/errors.ts.
 //
-// Strings are verbatim from the Rust Display text — wording is Phase 4's, not
-// this extraction's. Functions carry the structured data the variant holds (a
+// Strings are verbatim from the Rust Display text; wording belongs to the
+// owner's editing pass (260720-copy-catalog.md, Phase 4), not this extraction. Functions carry the structured data the variant holds (a
 // path, an id, a technical detail). `internal` is the catch-all for every
 // incidental DB/IO/vendor failure: it shows the backend detail as-is, exactly
 // as the raw error string did before typed errors.

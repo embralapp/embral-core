@@ -14,16 +14,16 @@ fn job_handle() -> Option<windows::Win32::Foundation::HANDLE> {
         .map(|&h| windows::Win32::Foundation::HANDLE(h as *mut core::ffi::c_void))
 }
 
-/// Create a job object that kills every *registered* child when this
-/// process dies — *however* it dies. A clean quit already stops the
+/// Create a job object that kills every registered child when this
+/// process dies, however it dies. A clean quit already stops the
 /// sidecars (`RunEvent::Exit`), but a dev-loop rebuild, a crash, or a
 /// task-manager kill skips that path and used to orphan `llama-server.exe`,
 /// which then held its own files open and made every re-download fail with
 /// "access denied" (the NTFS delete-pending trap).
 ///
-/// This process itself must **never** join the job: a job member's children
+/// This process itself must never join the job: a job member's children
 /// inherit membership, and the updater launches the new installer in the
-/// instant this process exits — a whole-process job killed that installer
+/// instant this process exits. A whole-process job killed that installer
 /// before it ran, which silently broke auto-update on every version that
 /// shipped one (v0.4.0–v26.7.0). Membership is opt-in per child via
 /// [`watch_child`]; whatever a registered sidecar spawns still inherits
@@ -61,15 +61,15 @@ pub fn kill_children_with_us() {
 /// runs. Present so the caller needs no `cfg` (`platform/mod.rs`).
 pub fn run_reaper() {}
 
-/// Job membership is assigned after spawn ([`watch_child`]) — nothing
+/// Job membership is assigned after spawn ([`watch_child`]); nothing
 /// to do on the command.
 pub fn prepare_spawn(_cmd: &mut std::process::Command) {}
 
-/// [`prepare_spawn`] for tokio-spawned children — nothing per-spawn.
+/// [`prepare_spawn`] for tokio-spawned children; nothing per-spawn.
 pub fn prepare_spawn_tokio(_cmd: &mut tokio::process::Command) {}
 
 /// Put a spawned child into the job so it dies with us. The instants
-/// between spawn and registration are unguarded — the same window macOS
+/// between spawn and registration are unguarded, the same window macOS
 /// accepts between spawn and the reaper pipe write. Failures degrade to
 /// clean-quit-only cleanup, never fatal.
 pub fn watch_child(pid: u32) {
@@ -108,7 +108,7 @@ mod tests {
     }
 
     /// The regression shipped in v0.4.0–v26.7.0: the app itself sat in the
-    /// job, so the updater's installer — spawned as the app exits — died
+    /// job, so the updater's installer (spawned as the app exits) died
     /// with the job before it could run. The process must stay out; a
     /// watched child must be in.
     #[test]
@@ -136,8 +136,8 @@ mod tests {
     }
 
     /// Manual probe for the half the in-process test can't reach: the job
-    /// handle leaks until process death, and that death — however it comes
-    /// — must kill the watched child. Run with
+    /// handle leaks until process death, and that death, however it comes,
+    /// must kill the watched child. Run with
     /// `cargo test -p embral --lib watched_child_outlives -- --ignored --nocapture`,
     /// kill the test process externally (`taskkill /F /PID <printed pid>`),
     /// and confirm the printed ping pid is gone.

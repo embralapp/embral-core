@@ -1,7 +1,7 @@
 //! Where the library lives and how the server reaches it.
 //!
 //! The app is the only writer; this process opens the database **read-only,
-//! per tool call** — the server outlives the app (clients keep it running),
+//! per tool call**: the server outlives the app (clients keep it running),
 //! and a held handle would block the app's own storage resets on Windows.
 
 use std::path::PathBuf;
@@ -13,8 +13,8 @@ pub struct Store {
 }
 
 impl Store {
-    /// `EMBRAL_STORAGE_DIR` (non-empty) wins — it's what the `.mcpb`
-    /// user_config feeds — else the app's own `config.json` in the default
+    /// `EMBRAL_STORAGE_DIR` (non-empty) wins, since it's what the `.mcpb`
+    /// user_config feeds; else the app's own `config.json` in the default
     /// storage location, else that default itself.
     pub fn from_env() -> Store {
         if let Ok(dir) = std::env::var("EMBRAL_STORAGE_DIR") {
@@ -44,8 +44,8 @@ impl Store {
     /// Open the database read-only, refusing any schema this build was
     /// not compiled against. Older means the app hasn't migrated yet
     /// (running it once catches the library up). Newer means the app
-    /// moved on while this server kept running — an update landed
-    /// mid-session — and this binary's reads can no longer be trusted;
+    /// moved on while this server kept running (an update installed
+    /// mid-session) and this binary's reads can no longer be trusted;
     /// the client has to restart to pick up the new server.
     pub fn open(&self) -> Result<Db, ToolError> {
         let db_path = self.db_path();
@@ -61,8 +61,8 @@ impl Store {
 
 /// The schema handshake: this server serves exactly the schema it was
 /// built against, in both directions. A mismatch is always someone else's
-/// move — the app's (migrate by opening it) or the client's (restart to
-/// relaunch the server) — and which one is the message's job to say.
+/// move: the app's (migrate by opening it) or the client's (restart to
+/// relaunch the server), and which one is the message's job to say.
 pub(crate) fn check_schema(found: i64, expected: i64) -> Result<(), ToolError> {
     if found == expected {
         Ok(())
@@ -71,7 +71,7 @@ pub(crate) fn check_schema(found: i64, expected: i64) -> Result<(), ToolError> {
     }
 }
 
-/// Tool failures the calling model can react to — rendered as execution
+/// Tool failures the calling model can react to: rendered as execution
 /// results (`is_error`), never protocol errors, in the envelope
 /// `{ok:false, error:{code, message}}`.
 #[derive(Debug)]
@@ -137,7 +137,7 @@ impl ToolError {
 }
 
 /// The one embedder this process holds, loaded lazily and retried gently.
-/// Every failure shape degrades to `None` — search stays keyword-accurate
+/// Every failure shape degrades to `None`: search stays keyword-accurate
 /// with no semantic leg, never erroring because a model is missing.
 pub struct EmbedderSlot(std::sync::Mutex<SlotState>);
 
@@ -192,7 +192,7 @@ impl EmbedderSlot {
         }
     }
 
-    /// For `get_storage_status` — whether semantic search is live right now.
+    /// For `get_storage_status`: whether semantic search is live right now.
     pub fn loaded(&self) -> bool {
         matches!(&*self.0.lock().expect("embedder slot poisoned"), SlotState::Loaded(_))
     }

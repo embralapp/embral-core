@@ -5,7 +5,7 @@
 
   const t = $derived(copy.meetings.processing);
 
-  // Imports only — a stopped recording goes straight back to the Meetings
+  // Imports only: a stopped recording goes straight back to the Meetings
   // page as a pending entry instead of a processing screen. The step ids are
   // matched against appState.processingStep (data); labels come from the
   // catalog by key.

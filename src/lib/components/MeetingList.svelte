@@ -29,7 +29,7 @@
   );
 
   /** The menu acts on the selection, so a right-click outside it moves the
-   * selection first — exactly what a plain click would have done. */
+   * selection first, exactly what a plain click would have done. */
   function onRowContextMenu(id: string, event: MouseEvent) {
     if (!selection.has(id)) void meetingsStore.clickRow(id, event, visibleOrder);
   }
@@ -38,7 +38,7 @@
   type Row = { kind: 'pending' } | { kind: 'record'; record: MeetingRecord };
 
   // Rows under date headers, preserving the store's newest-first order. The
-  // pending meeting joins **Today** — it is grouped by now rather than by when
+  // pending meeting joins Today: it is grouped by now rather than by when
   // it started, because "Finishing up…" is a statement about the present (and
   // that also settles the meeting that ended before midnight and is still
   // processing this morning).
@@ -64,7 +64,7 @@
     return groups;
   });
 
-  /** The rows as they appear on screen, headers ignored — a Shift-range is
+  /** The rows as they appear on screen, headers ignored: a Shift-range is
    * measured over this, so it crosses date groups the way the eye expects. */
   let visibleOrder = $derived(
     groups.flatMap((group) =>
@@ -74,7 +74,7 @@
 
   function onRowClick(id: string, event: MouseEvent) {
     void meetingsStore.clickRow(id, event, visibleOrder);
-    // A modified click is building a selection, not opening a meeting — on a
+    // A modified click is building a selection, not opening a meeting: on a
     // narrow window it must not swap the pane out from under the user.
     if (!event.shiftKey && !event.ctrlKey && !event.metaKey) onSelect?.();
   }
@@ -86,6 +86,45 @@
       ? formatMeetingTime(record.date)
       : formatMeetingDate(record.date);
   }
+
+  /** The row under the oldest loaded meeting. Scrolling it into view is what
+   * asks for the next page, so the list has no bottom until the library
+   * does. */
+  let sentinel = $state<HTMLElement | null>(null);
+  const loaded = $derived(meetingsStore.records.length);
+
+  /** The element that actually scrolls, which is inside OverlayScroll, not
+   * the window. An observer rooted anywhere else would treat rows clipped by
+   * that box as visible and fetch the whole library at once. */
+  function scrollBox(node: HTMLElement): HTMLElement | null {
+    for (let el = node.parentElement; el; el = el.parentElement) {
+      const overflow = getComputedStyle(el).overflowY;
+      if (overflow === 'auto' || overflow === 'scroll') return el;
+    }
+    return null;
+  }
+
+  // Rebuilt whenever rows arrive, and that is the point: an observer reports
+  // changes, so a page that did not push the sentinel back out of view would
+  // leave it sitting there "already visible" and the page after it would
+  // never be asked for. Observing afresh re-reports where things stand.
+  $effect(() => {
+    const node = sentinel;
+    // Read so the effect re-runs on a new page; without rows there is
+    // nothing to continue from anyway.
+    if (!node || loaded === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void meetingsStore.loadMore();
+      },
+      // A screenful of margin, so the rows are already there by the time the
+      // user scrolls onto them.
+      { root: scrollBox(node), rootMargin: '600px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  });
 
   /** The primary row (the one the detail pane shows) carries the accent edge;
    * the other rows in a multi-selection get the wash alone, so it is always
@@ -103,7 +142,7 @@
   };
 </script>
 
-<!-- No search bar here — the titlebar command bar owns meeting search. -->
+<!-- No search bar here; the titlebar command bar owns meeting search. -->
 <div
   class="relative flex flex-col flex-1 w-full min-w-0 min-h-0 bg-muted/20 min-[960px]:border-r min-[960px]:border-border"
 >
@@ -180,6 +219,11 @@
           {/if}
         {/each}
       {/each}
+      {#if meetingsStore.hasMore}
+        <p bind:this={sentinel} class="px-3 py-4 text-sm text-muted-foreground">
+          {t.loadingMore}
+        </p>
+      {/if}
     {/if}
     </div>
   </OverlayScroll>

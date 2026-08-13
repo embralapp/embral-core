@@ -1,11 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type {
-  InterimSegment,
-  MeetingRecord,
-  ProviderCapabilities,
-  TranscriptionSegment
-} from '$lib/types';
+import type { InterimSegment, MeetingRecord, TranscriptionSegment } from '$lib/types';
 import { appState } from '$lib/stores/app-state.svelte';
 import { modelsStore } from '$lib/stores/models.svelte';
 import { meetingsStore, PENDING_MEETING_ID } from '$lib/stores/meetings.svelte';
@@ -19,7 +14,7 @@ import { fixtureActive } from '$lib/fixture';
 import type { ModelProgress } from '$lib/types';
 
 /// Whether a notification event may fire, per the user's notification config.
-/// There is no master switch — each event owns its own toggle.
+/// There is no master switch; each event has its own toggle.
 function notificationsAllowed(
   event: 'summary_ready' | 'recording_started' | 'call_detected'
 ): boolean {
@@ -39,7 +34,7 @@ function notificationsAllowed(
 // `setupEventListeners` call. Vite HMR can remount the page component
 // (which calls `setupEventListeners` again from `onMount`) without
 // destroying the prior Tauri listeners, so without this guard each HMR
-// cycle stacks another full set of listeners — observed in practice as
+// cycle stacks another full set of listeners; observed in practice as
 // transcript segments being persisted N× (one duplicate per HMR cycle).
 let _activeUnlisteners: UnlistenFn[] | null = null;
 
@@ -58,7 +53,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
   const unlisteners: UnlistenFn[] = [];
 
   unlisteners.push(
-    await listen<{ capabilities: ProviderCapabilities; started_at: number }>(
+    await listen<{ started_at: number }>(
       'recording-started',
       async (e) => {
         appState.setView('recording');
@@ -68,18 +63,17 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
         appState.setError(null);
         appState.setFallbackNotice(null);
         appState.setDetectedApp(null);
-        appState.setProviderCapabilities(e.payload.capabilities);
         // Labeling starts from the setting every recording, exactly as the
-        // backend's own per-recording flag does — otherwise a meeting that
-        // stood labeling down leaves the next one's header saying so while
-        // the backend is happily labeling. The guard history clears first:
+        // backend's own per-recording flag does. Otherwise a meeting that
+        // disabled labeling leaves the next one's header saying so while
+        // the backend is labeling normally. The guard history clears first:
         // with the setting off, adopting it is a no-op call, which now
         // preserves the reason by design.
         appState.clearDiarizationRunaway();
         appState.setLiveDiarization(configStore.config?.diarization_enabled ?? true);
 
-        // Notices fire whatever the window state — tray, minimized, or
-        // open; the per-event toggle is the only gate.
+        // Notices fire whatever the window state (tray, minimized, or
+        // open); the per-event toggle is the only gate.
         if (notificationsAllowed('recording_started')) {
           await invoke('notify', {
             payload: {
@@ -100,7 +94,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
     })
   );
 
-  // The encoded MP3 lands well before the notes finish — the pending
+  // The encoded MP3 arrives well before the notes finish, so the pending
   // meeting mounts its player as soon as it exists.
   unlisteners.push(
     await listen<string>('pending-audio-ready', (e) => {
@@ -113,7 +107,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
       'silence-notice',
       async (e) => {
         // The silence check-in ("Still recording?"): banner in-app plus the
-        // notice, whatever the window state — this event precedes a
+        // notice, whatever the window state. This event precedes a
         // possible auto-stop, so it has no per-event toggle; turning the
         // feature off is silence_stop_minutes = 0.
         appState.setSilenceNotice(e.payload.minutes);
@@ -128,7 +122,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
               { id: 'stop', label: copy.notifications.os.stillRecording.stop }
             ],
             sticky: true,
-            // The decision deadline — present only when unanswered means
+            // The decision deadline, present only when unanswered means
             // stop; the notice renders it as a countdown.
             countdown_until_ms: e.payload.stops_at_ms ?? null
           }
@@ -164,7 +158,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
   unlisteners.push(
     await listen<{ kind: string; id?: string }>('notice-navigate', async (e) => {
       // A notice's body-click: the backend already surfaced the window;
-      // land where the news lives.
+      // go to what the notice announced.
       if (e.payload.kind === 'meeting' && e.payload.id) {
         appState.setView('idle');
         await meetingsStore.refreshAndSelect(e.payload.id);
@@ -229,14 +223,11 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
     })
   );
 
-  // Cloud transcription died mid-recording and a local session took over
-  // (cloud builds only ever emit this). The recording continues; the
-  // banner explains the switch.
   unlisteners.push(
     await listen<{ speakers: number }>('diarization-disabled', (e) => {
       // The runaway guard: more voices than a meeting plausibly has, so
-      // the backend stood labeling down and stripped what it had. Say so
-      // in the error slot — silently losing the speaker names would read
+      // the backend disabled labeling and stripped the labels it had. Say
+      // so in the error slot: silently losing the speaker names would read
       // as the app breaking.
       appState.standDownDiarization();
       appState.stripSpeakers();
@@ -244,13 +235,17 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
     })
   );
 
+  // Cloud transcription died mid-recording and a local session took over
+  // (cloud builds only ever emit this). The recording continues; the
+  // banner explains the switch.
   unlisteners.push(
     await listen('transcription-fallback', async (e) => {
       appState.setFallbackNotice(
         copy.notifications.notices.switchedToLocal(errorMessage(e.payload))
       );
       // A mid-recording provider switch is news about the recording, so it
-      // rides the recording toggle now that there is no master switch.
+      // is gated by the recording toggle now that there is no master
+      // switch.
       if (notificationsAllowed('recording_started')) {
         await invoke('notify', {
           payload: {
@@ -276,7 +271,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
 
   // Cloud hours ran out (or the cloud refused) with "disable transcription"
   // chosen: the recording and notes continue, deliberately without a
-  // transcript. A notice, not an error — this is the configured behavior.
+  // transcript. A notice, not an error: this is the configured behavior.
   unlisteners.push(
     await listen('transcription-disabled', (e) => {
       appState.setFallbackNotice(
@@ -316,7 +311,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
       if (wasProcessing || pendingSelected || meetingsStore.selectedId === null) {
         await meetingsStore.refreshAndSelect(e.payload.id);
       } else {
-        // The user moved on to another meeting — don't steal the selection.
+        // The user moved on to another meeting; don't steal the selection.
         await meetingsStore.load();
       }
       // Clear the pending entry only after the real record took over the
@@ -342,7 +337,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
       'webhook-delivery-failed',
       async (e) => {
         // Fired after the backend's last retry. Configuring a webhook is
-        // the opt-in, so no notification toggle gates this — a silent
+        // the opt-in, so no notification toggle gates this: a silent
         // failure would be the worst outcome. The meeting is one click
         // away via the target; the URL and error are in the log.
         await invoke('notify', {
@@ -410,7 +405,7 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
     })
   );
 
-  // Local model downloads — handled globally so progress and the
+  // Local model downloads are handled globally so progress and the
   // configured-state refresh survive leaving the Settings view mid-download.
   unlisteners.push(
     await listen<ModelProgress>('model-download-progress', (e) => {
@@ -441,12 +436,8 @@ export async function setupEventListeners(): Promise<UnlistenFn[]> {
   return unlisteners;
 }
 
-// One quiet update check per app run, well after boot so it never competes
-// with the startup path — and skipped outright if a recording is already
-// live (an auto-detected meeting can start before the timer fires). The
-// flag lives at module level so HMR remounts don't stack timers.
 /// Reconcile the UI with what the backend is actually doing. All of this
-/// state normally arrives as events — but a hidden webview gets throttled
+/// state normally arrives as events, but a hidden webview gets throttled
 /// by the OS and can drop them wholesale (an auto-started recording once
 /// left the surfaced window showing a dead idle shell). Called on mount
 /// and whenever the window regains focus or visibility.
@@ -474,12 +465,6 @@ export async function syncRecordingStatus(): Promise<void> {
     appState.setRecording(true);
     appState.startRecordingClock(status.started_at_ms);
     appState.setPaused(status.paused);
-    // Only the label authority survives backend-side; the session cap is
-    // display-only and absent here (0 = no cap shown).
-    appState.setProviderCapabilities({
-      labels_authoritative: status.labels_authoritative,
-      max_session_minutes: 0
-    });
     appState.replaceSegments(status.segments);
     appState.setLiveDiarization(status.diarization);
     appState.setDetectedApp(null);
@@ -505,6 +490,10 @@ function installSyncHooks() {
   });
 }
 
+// One quiet update check per app run, well after boot so it never competes
+// with the startup path, and skipped outright if a recording is already
+// live (an auto-detected meeting can start before the timer fires). The
+// flag lives at module level so HMR remounts don't stack timers.
 let _updateCheckScheduled = false;
 function scheduleStartupUpdateCheck() {
   if (_updateCheckScheduled) return;

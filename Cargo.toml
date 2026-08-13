@@ -10,8 +10,8 @@ tokio = { version = "1", features = ["full"] }
 dirs = "5"
 anyhow = "1"
 
-# Debug info is the bulk of a debug build here — this workspace links
-# onnxruntime and sherpa-onnx, whose artifacts run to gigabytes each — and
+# Debug info is the bulk of a debug build here: this workspace links
+# onnxruntime and sherpa-onnx, whose artifacts run to gigabytes each, and
 # nobody steps into a dependency. Our own crates keep full debug info;
 # everything vendored keeps none, which leaves dependency frames in a
 # backtrace without file and line but changes nothing at runtime.

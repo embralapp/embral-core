@@ -17,7 +17,7 @@ use crate::{epoch_ms, AppState};
 use super::finalize::{finalize_meeting, AudioSource};
 use super::support::*;
 
-/// Whether the configured local model is on disk — the gate for falling
+/// Whether the configured local model is on disk: the gate for falling
 /// back from cloud transcription mid-recording.
 #[cfg(feature = "cloud")]
 fn local_model_present(config: &AppConfig) -> bool {
@@ -30,7 +30,7 @@ use crate::transcription::TranscriptionProvider;
 /// Distinct speakers past which live diarization is treated as having
 /// failed rather than having found a crowd. Meetings with more real voices
 /// than this exist, but a clusterer that keeps opening speakers is far
-/// commoner — and confidently wrong labels cost the reader more than no
+/// commoner, and confidently wrong labels cost the reader more than no
 /// labels do ([speakers.md]).
 const MAX_LIVE_SPEAKERS: usize = 6;
 
@@ -41,7 +41,7 @@ fn diarization_has_run_away(distinct_speakers: usize) -> bool {
 
 /// Drop every speaker label from the accumulated segments. Turning
 /// diarization off part-way through must not leave a half-labelled
-/// transcript — that reads as "the app lost track", which is worse than
+/// transcript; that reads as "the app lost track", which is worse than
 /// a transcript that never claimed to know.
 async fn strip_speakers(segments: &crate::SharedSegments) {
     for seg in segments.lock().await.iter_mut() {
@@ -52,7 +52,7 @@ async fn strip_speakers(segments: &crate::SharedSegments) {
 
 /// The label layer for one finalized segment ([speakers.md] §Live labels):
 /// when labeling is off, strip; otherwise count the provider's own label
-/// for the runaway guard — a rename changes the name, not the cluster —
+/// for the runaway guard (a rename changes the name, not the cluster),
 /// and then apply any user rename. Returns true when this very segment
 /// pushed the distinct-label count past the ceiling; the caller stands
 /// labeling down for the whole recording.
@@ -86,7 +86,7 @@ fn label_segment(
     false
 }
 
-/// The local provider for this recording's settings — the standing local
+/// The local provider for this recording's settings: the standing local
 /// choice, the signed-out swap, and the mid-recording fallback all build
 /// exactly this.
 fn local_provider(
@@ -122,7 +122,7 @@ const OPEN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Open a session off the recording's critical path and put it behind the
 /// bridge when it arrives; audio waits in the slot's buffer meanwhile. A
-/// connect failure — or a hang past [`OPEN_TIMEOUT`] — reports through
+/// connect failure, or a hang past [`OPEN_TIMEOUT`], reports through
 /// the recording's event channel like any mid-recording death, but only
 /// while this open is still the current generation's: nobody wants
 /// banners from a stream the recording already moved past.
@@ -171,9 +171,9 @@ fn spawn_stream_open(
     });
 }
 
-/// A stream failure — an open that never connected, or a live session the
-/// bridge retired for stalling — reports as `TranscriptionEvent::Failed`
-/// so the forwarder's one failure path handles it — unless the recording
+/// A stream failure (an open that never connected, or a live session the
+/// bridge retired for stalling) reports as `TranscriptionEvent::Failed`
+/// so the forwarder's one failure path handles it, unless the recording
 /// has already moved past the stream, in which case nobody is owed
 /// anything.
 fn report_stream_failure(lane: &StreamLane, generation: u64, message: String) {
@@ -214,8 +214,8 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
         return Err(AppError::AlreadyRecording);
     }
     // Who transcribes this meeting: the standing choice, bent by the power
-    // policy. Read once, here — the lane is fixed for the meeting, and the
-    // record gate has to ask about the lane the meeting is really taking.
+    // policy. Read once, here: the provider is fixed for the meeting, and the
+    // record gate has to ask about the provider the meeting really uses.
     let power = crate::platform::power_source();
     let provider_choice = crate::config::provider_for_power(&config, power);
     if provider_choice != config.transcription_provider {
@@ -241,7 +241,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     // populates it; stop_recording reads from it as source of truth.
     state.current_segments.lock().await.clear();
     // This recording's own diarization standing, from the setting. It can
-    // only go off from here — by the toggle or the runaway guard.
+    // only go off from here, by the toggle or the runaway guard.
     state.live_diarization.store(
         config.diarization_enabled,
         std::sync::atomic::Ordering::Release,
@@ -257,7 +257,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     let segments_acc = state.current_segments.clone();
 
     // Build transcription provider and open session. Signed out with
-    // cloud selected, the relay handshake cannot succeed — and waiting out
+    // cloud selected, the relay handshake cannot succeed, and waiting out
     // its timeout would cost the first seconds of every meeting, so the
     // configured fallback applies immediately instead.
     #[cfg(feature = "cloud")]
@@ -281,8 +281,8 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
         .store(capabilities.labels_authoritative, std::sync::atomic::Ordering::Release);
 
     // The recording's event channel, stream lane, and session slot. Every
-    // session this recording runs — the first, a mid-recording fallback, a
-    // post-pause reopen — reaches the forwarder below through a per-stream
+    // session this recording runs (the first, a mid-recording fallback, a
+    // post-pause reopen) reaches the forwarder below through a per-stream
     // pump on this one channel (`transcription::stream`).
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<TranscriptionEvent>();
     let lane = Arc::new(StreamLane::new(event_tx));
@@ -302,7 +302,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     // pausing a cloud lane, or the retired open would never be reopened.
     lane.stream_is_cloud
         .store(provider_is_cloud, std::sync::atomic::Ordering::Release);
-    // What a post-pause reopen asks the vendor for — the recording's
+    // What a post-pause reopen asks the vendor for: the recording's
     // start-time choices; only the token is read fresh at reopen.
     #[cfg(feature = "cloud")]
     if provider_is_cloud {
@@ -315,7 +315,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
         });
     }
 
-    // Audio bridge: drain audio chunks into whatever holds the slot — a
+    // Audio bridge: drain audio chunks into whatever holds the slot: a
     // live session, the buffer in front of a pending one, or nothing.
     let (audio_tx, mut audio_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
     let slot_for_bridge = slot.clone();
@@ -352,7 +352,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                     }
                 }
                 stream::Delivered::Off => {
-                    // Expected steady state when transcription is off — the
+                    // Expected steady state when transcription is off: the
                     // recorder keeps writing audio, nothing consumes the
                     // stream.
                     if !idle_logged {
@@ -365,7 +365,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                 }
                 stream::Delivered::Stalled { session, why } => {
                     // The session stopped taking audio. Retire it off the
-                    // slot lock and report through the one failure path —
+                    // slot lock and report through the one failure path;
                     // the forwarder falls back or turns the slot off. The
                     // slot is buffering again, so this cannot repeat for
                     // the same corpse. Stop's suppression is the taken
@@ -408,7 +408,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     let segments_acc_for_forwarder = segments_acc.clone();
     let recovery_base = base.clone();
     // Pinned here: a retired stream's tail segment can arrive while a
-    // successor recording is live, and it must land in *this* meeting's
+    // successor recording is live, and it must go into this meeting's
     // scratch, not whichever one is current by then.
     let recovery_meeting_id = meeting_id.clone();
     let lane_for_forwarder = lane.clone();
@@ -464,8 +464,8 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                             .max_speaker_number
                             .fetch_max(n, std::sync::atomic::Ordering::Relaxed);
                     }
-                    // The live label layer. Off — by the header toggle, or
-                    // because the guard tripped — means no label reaches
+                    // The live label layer. Off (by the header toggle, or
+                    // because the guard tripped) means no label reaches
                     // the transcript at all, for local and cloud alike
                     // ([speakers.md]).
                     let tripped = {
@@ -475,8 +475,8 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                         label_segment(&mut seg, labeling_on, &state.live_speaker_labels, &renames)
                     };
                     if tripped {
-                        // Not a crowd — a clusterer inventing people. Stand
-                        // down exactly as the button does, including for
+                        // Not a crowd, but a clusterer inventing people. Turn
+                        // labeling off exactly as the button does, including for
                         // what is already on screen.
                         use std::sync::atomic::Ordering;
                         state.live_diarization.store(false, Ordering::Release);
@@ -546,11 +546,11 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
                         // (the bridge retires a stalled session while its
                         // receive task notices the dropped socket), and a
                         // second `Failed` from the same corpse would read
-                        // as the *replacement* dying. Stale, the corpse's
-                        // pump filters it; its tail segments still land.
+                        // as the replacement dying. Stale, the dead session's
+                        // pump filters it; its tail segments still arrive.
                         lane_for_forwarder.bump_generation();
                         // Retire the dead session if it still holds the
-                        // slot — a failed *open* never installed one — and
+                        // slot (a failed open never installed one) and
                         // buffer audio while the lane decides what's next.
                         {
                             let mut guard = slot_for_forwarder.lock().await;
@@ -740,7 +740,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     *state.recorder.lock().await = Some(recorder);
     // Share the slot with AppState so stop_recording can take ownership
     // later. The bridge holds its own clone; the slot is never swapped out
-    // from under it — only its contents change hands.
+    // from under it; only its contents change hands.
     *state.session.lock().await = Some(slot.clone());
 
     // Fresh recording, fresh draft mirror.
@@ -748,7 +748,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     // Arm the silence check-in for this recording. The order is the
     // safety here: the clock rebaselines and the generation moves on
     // before the watcher spawns, and the slot cannot turn Streaming until
-    // the open below — so a straggler watcher from a recording stopped
+    // the open below, so a straggler watcher from a recording stopped
     // moments ago exits on the generation check, or at worst reads this
     // fresh clock and stays quiet.
     state
@@ -769,7 +769,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     crate::recovery::begin(&base, &meeting_id);
 
     // Emit recording-started with provider capabilities and the start
-    // instant — the frontend derives elapsed time from it, so the timer
+    // instant; the frontend derives elapsed time from it, so the timer
     // survives view remounts instead of restarting from a local counter.
     let started_at = epoch_ms();
     state
@@ -786,7 +786,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     }
 
     // Capture is already rolling; the session opens beside it, with audio
-    // waiting in the slot's buffer — the record button is instant and the
+    // waiting in the slot's buffer, so the record button is instant and the
     // first words still reach the transcript. A connect failure or
     // timeout lands in the forwarder's `Failed` machinery exactly like a
     // mid-recording death; the record gate has already refused the
@@ -802,7 +802,7 @@ async fn start_recording_inner(app: AppHandle, state: &State<'_, AppState>) -> R
     );
 
     // Say so: cloud was chosen, this recording is on-device. The same
-    // banner a mid-recording fallback raises — silently downgrading would
+    // banner a mid-recording fallback raises; silently downgrading would
     // leave the user believing they got cloud quality.
     if signed_out_cloud {
         let _ = app.emit("transcription-fallback", &AppError::CloudSignedOut);
@@ -849,7 +849,7 @@ pub async fn resume_recording(app: AppHandle, state: State<'_, AppState>) -> Res
     // Reopen the stream the pause ended: fresh socket, fresh clustering
     // (numbered past the labels already seen), the recording's start-time
     // hints, today's token. A reopen failure lands in the forwarder's
-    // `Failed` machinery like any mid-recording death — resume itself
+    // `Failed` machinery like any mid-recording death; resume itself
     // cannot fail ([transcription.md]).
     #[cfg(feature = "cloud")]
     {
@@ -884,7 +884,7 @@ pub async fn resume_recording(app: AppHandle, state: State<'_, AppState>) -> Res
             }
         }
     }
-    // A paused span is intentional quiet, not silence — the check-in's
+    // A paused span is intentional quiet, not silence; the check-in's
     // clock restarts here.
     state
         .last_liveness_at
@@ -899,11 +899,11 @@ pub async fn resume_recording(app: AppHandle, state: State<'_, AppState>) -> Res
 }
 
 /// Star the current moment of the running recording. Stars live in an
-/// AppState accumulator (like segments) so every stop path — button,
-/// hotkey, tray, auto-stop — persists them.
+/// AppState accumulator (like segments) so every stop path (button,
+/// hotkey, tray, auto-stop) persists them.
 /// Star the current moment. Splits the in-flight utterance so words spoken
 /// after the star start a new segment, and returns the star's timestamp on
-/// the **segment timeline** (the session's stream clock — the wall clock
+/// the segment timeline (the session's stream clock; the wall clock
 /// runs ahead of it by the processing backlog, and a wall-clock star would
 /// sort after the very words spoken before it). Falls back to the caller's
 /// wall-clock `seconds` when the session can't report a split point.
@@ -952,14 +952,14 @@ pub async fn star_moment(state: State<'_, AppState>, seconds: f64) -> Result<f64
     Ok(star_secs)
 }
 
-/// Turn speaker labeling on or off for the running recording — the
+/// Turn speaker labeling on or off for the running recording: the
 /// transcript header's toggle ([speakers.md] §Live labels).
 ///
 /// Off strips the labels already accumulated as well as every later one,
 /// so the transcript never reads as half-labelled, and it is what
 /// `finalize_meeting` honors: a recording stopped with labeling off gets
 /// no post-meeting speaker pass either. Turning it back on resumes
-/// labeling for new segments only — the discarded ones are not restored,
+/// labeling for new segments only; the discarded ones are not restored,
 /// because the post-meeting pass re-derives the whole meeting from its
 /// audio anyway.
 #[tauri::command]
@@ -989,7 +989,7 @@ pub async fn unstar_moment(state: State<'_, AppState>, seconds: f64) -> Result<(
     Ok(())
 }
 
-/// Record where each star sits in the user's notes — sent by the frontend
+/// Record where each star sits in the user's notes, sent by the frontend
 /// on `recording-stopped`, before finalize persists the stars.
 #[tauri::command]
 pub async fn set_star_anchors(
@@ -1037,8 +1037,8 @@ pub async fn rename_live_speaker(
 }
 
 /// The silence check-in ([detection.md] §Auto-stop on silence): watches
-/// the current recording for a configured stretch with no sign of life —
-/// no words arriving, no notes activity — raises "Still recording?", and
+/// the current recording for a configured stretch with no sign of life
+/// (no words arriving, no notes activity), raises "Still recording?", and
 /// acts on the setting when the fixed grace runs out unanswered. One task
 /// per recording, tied to it by `generation`: it exits with the recorder,
 /// or the moment a successor recording arms its own watcher. Paused spans
@@ -1064,11 +1064,11 @@ fn spawn_silence_watcher(app: AppHandle, generation: u64) {
             let config = state.config.lock().await.clone();
             let threshold_secs = u64::from(config.silence_stop_minutes) * 60;
             // Only a live session can produce the words this clock counts:
-            // transcription off — or an open still pending — must not run
+            // transcription off, or an open still pending, must not run
             // a word-based clock against a wordless recording
             // ([detection.md]). Two statements on purpose: the outer lock
             // (which start and stop queue on) must be released before the
-            // inner slot is awaited — the bridge can hold the slot for
+            // inner slot is awaited; the bridge can hold the slot for
             // seconds around a stalling send.
             let slot = state.session.lock().await.clone();
             let streaming = match slot {
@@ -1136,8 +1136,8 @@ fn spawn_silence_watcher(app: AppHandle, generation: u64) {
 }
 
 /// The frontend's notes/title drafts, mirrored into the backend while
-/// recording (debounced). A stop that arrives without them — the handshake
-/// fallback when the frontend never answers — substitutes this mirror, so
+/// recording (debounced). A stop that arrives without them (the handshake
+/// fallback when the frontend never answers) substitutes this mirror, so
 /// the human's words survive every stop path.
 #[tauri::command]
 pub async fn sync_recording_drafts(
@@ -1216,7 +1216,7 @@ pub async fn recording_status(state: State<'_, AppState>) -> Result<RecordingSta
 }
 
 /// The source picker's system-audio choice. `None` (nothing unchecked) is
-/// everything the machine plays — the default, and the lane that needs no
+/// everything the machine plays: the default, and the mode that needs no
 /// per-app capture. A list narrows the recording to those apps' own audio.
 #[tauri::command]
 pub async fn set_system_audio_sources(
@@ -1277,7 +1277,7 @@ pub async fn silence_keep_recording(
 
 /// Finish the recordings the last run never stopped ([recording.md]
 /// §Crash recovery). Called once from `setup()`; the rescued meetings run
-/// the ordinary finalize pipeline in the background — a recovered meeting
+/// the ordinary finalize pipeline in the background; a recovered meeting
 /// is just a meeting.
 ///
 /// Silent by design. Approving your own recording is a chore, and after a
@@ -1287,8 +1287,8 @@ pub async fn silence_keep_recording(
 pub fn recover_interrupted_recording(app: AppHandle) {
     // The synchronous part is the point: the worklist is frozen and the
     // dead process's current-marker retired before this returns, so
-    // nothing this run starts — detection is spawned right after, the
-    // user a moment later — can race the rescue's reads.
+    // nothing this run starts (detection is spawned right after, the
+    // user a moment later) can race the rescue's reads.
     let config = match crate::config::load_config() {
         Ok(config) => config,
         Err(e) => {
@@ -1347,7 +1347,7 @@ pub fn recover_interrupted_recording(app: AppHandle) {
                 Vec::new(),
             )
             .await;
-            // Committed (or the save failed and said so — the stop path's
+            // Committed (or the save failed and said so, the stop path's
             // exact semantics). Cleared only now: a crash anywhere above
             // retries at the next launch instead of losing the meeting.
             tracing::info!(meeting_id, "recovered meeting committed");
@@ -1357,10 +1357,10 @@ pub fn recover_interrupted_recording(app: AppHandle) {
 }
 
 /// Ask the frontend to perform the stop, so the notes draft and title
-/// travel with it exactly like a stop from the button — a direct backend
+/// travel with it exactly like a stop from the button; a direct backend
 /// stop would finalize the meeting without them. The webview runs even
-/// while the window is hidden; the timed fallback covers a wedged
-/// frontend, not a normal path.
+/// while the window is hidden; the timed fallback covers a frontend
+/// that has stopped responding, not a normal path.
 pub fn request_stop(app: &AppHandle) {
     let _ = app.emit("stop-requested", ());
     let app = app.clone();
@@ -1378,7 +1378,7 @@ pub fn request_stop(app: &AppHandle) {
 
 /// One choke point for every stop path (button, palette, silence stop,
 /// tray, handshake fallback): a failed stop is logged and counted once,
-/// whatever refused it — the mirror of `start_recording`'s wrapper.
+/// whatever refused it: the mirror of `start_recording`'s wrapper.
 #[tauri::command]
 pub async fn stop_recording(
     app: AppHandle,
@@ -1420,7 +1420,7 @@ async fn stop_recording_inner(
     let base = crate::storage::storage_base(&config.storage_dir);
     let db = state.db().await?;
     // Absent args mean a stop the frontend never answered (the handshake
-    // fallback) — the mirrored drafts stand in. A frontend stop always
+    // fallback); the mirrored drafts stand in. A frontend stop always
     // sends its strings, empty included, so `None` is never "cleared".
     let (user_notes, meeting_title) = if user_notes.is_none() && meeting_title.is_none() {
         let mirrored = state.recording_drafts.lock().expect("drafts poisoned").clone();
@@ -1435,7 +1435,7 @@ async fn stop_recording_inner(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    // Which meeting is in flight, from the recovery scratch. It is *not*
+    // Which meeting is in flight, from the recovery scratch. It is not
     // cleared here: finalize still has the slow part ahead of it (speaker
     // pipeline, LLM refinement), and a crash in there must still leave the
     // next launch something to re-run from. The background task below
@@ -1459,10 +1459,10 @@ async fn stop_recording_inner(
         .map_err(AppError::internal)?;
 
     // Bounded, not because anyone is expected to hold the outer lock for
-    // long — nobody may — but because a stop that cannot have it must
+    // long (nobody may) but because a stop that cannot have it must
     // surface as a failed stop (logged, counted, shown on screen) instead
     // of a command that never returns. The 2026-08 hang was exactly this
-    // lock, held by a watcher that was itself stuck behind a wedged
+    // lock, held by a watcher that was itself stuck behind a stalled
     // socket send.
     let session_arc = match tokio::time::timeout(SESSION_FINISH_TIMEOUT, state.session.lock()).await
     {
@@ -1478,8 +1478,8 @@ async fn stop_recording_inner(
 
     // The recording is moving past whatever stream is running: no open
     // resolving from here on may install, and dropping the lane's sender
-    // lets the forwarder end on channel close once the last stream drains
-    // — which is what the background task below waits on before it
+    // lets the forwarder end on channel close once the last stream drains,
+    // which is what the background task below waits on before it
     // snapshots the segments.
     let lane = state.lane.lock().expect("lane poisoned").clone();
     lane.bump_generation();
@@ -1497,8 +1497,8 @@ async fn stop_recording_inner(
         .labels_authoritative
         .load(std::sync::atomic::Ordering::Acquire);
 
-    // Starred moments accumulated during the recording (any stop path —
-    // button, hotkey, tray, auto-stop — picks them up here). Their notes
+    // Starred moments accumulated during the recording (any stop path,
+    // button, hotkey, tray, auto-stop, picks them up here). Their notes
     // anchors arrive from the frontend just after `recording-stopped`
     // fires, so the merge happens in the background task below.
     let star_seconds = std::mem::take(&mut *state.stars.lock().await);
@@ -1520,7 +1520,7 @@ async fn stop_recording_inner(
     // --- Background: bounded finish, encode, refine, write notes. ---
     let app_bg = app.clone();
     tokio::spawn(async move {
-        // 1. End the current stream, every part under a deadline — the
+        // 1. End the current stream, every part under a deadline, the
         //    slot take included, because a stalled bridge send can hold
         //    the lock for a few seconds and finalize must not bet the
         //    meeting on it clearing ([recording.md] §Lifecycle). Source of
@@ -1551,8 +1551,8 @@ async fn stop_recording_inner(
         });
         let started_at = meeting_start_time(&meeting_id);
 
-        // The *configured* provider: neither the power policy's per-meeting
-        // choice nor a mid-recording cloud→local fallback shows here — the
+        // The configured provider: neither the power policy's per-meeting
+        // choice nor a mid-recording cloud→local fallback shows here; the
         // latter is error{transcription_failed} ([telemetry.md]).
         let duration_secs = segments.last().map(|s| s.end as u64).unwrap_or_else(|| {
             chrono::Utc::now()
@@ -1574,7 +1574,7 @@ async fn stop_recording_inner(
         // the exact timestamp; a missing anchor just means no notes line).
         let anchors =
             std::mem::take(&mut *app_bg.state::<AppState>().star_anchors.lock().await);
-        // Names the user renamed away from during the session — finalize
+        // Names the user renamed away from during the session; finalize
         // prunes their profiles if nothing ends up linked to them. Generic
         // "Speaker N" labels never had profiles to begin with.
         let superseded_labels: Vec<String> =

@@ -13,12 +13,6 @@ pub async fn asr_models_status() -> Result<Vec<embral_engine::ModelStatus>, AppE
     Ok(embral_engine::catalog::statuses())
 }
 
-/// Whether the built-in LLM sidecar is currently loaded in memory.
-#[tauri::command]
-pub async fn llm_status(state: State<'_, AppState>) -> Result<serde_json::Value, AppError> {
-    Ok(serde_json::json!({ "running": state.llm.is_running() }))
-}
-
 /// The two halves of the summary prompt for the settings editor: the
 /// editable default body and the locked output contract.
 #[tauri::command]
@@ -60,7 +54,7 @@ pub async fn download_asr_model(
     };
 
     // The sidecar holds the runtime exe/DLLs and the weights open; extracting
-    // or renaming over them fails on Windows. Stop it first — it restarts on
+    // or renaming over them fails on Windows. Stop it first; it restarts on
     // next use.
     if matches!(model_id.as_str(), "llama-server" | "qwen3-4b") {
         state.llm.shutdown();

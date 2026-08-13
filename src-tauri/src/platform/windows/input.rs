@@ -1,4 +1,4 @@
-//! Keystroke synthesis + focused-app identity — the dictation output's
+//! Keystroke synthesis + focused-app identity: the dictation output's
 //! platform surface ([dictation.md](../../../../docs/dictation.md)).
 
 use anyhow::{bail, Result};

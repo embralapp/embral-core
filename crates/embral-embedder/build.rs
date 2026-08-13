@@ -17,7 +17,7 @@ fn main() {
         .compile("isoc23_shim");
 
     // +whole-archive: nothing in Rust references these symbols, and archive
-    // member extraction is single-pass — without it the linker can process
+    // member extraction is single-pass; without it the linker can process
     // ort's archives after ours and never pull the shim object in.
     let out_dir = env::var("OUT_DIR").unwrap();
     println!("cargo:rustc-link-search=native={out_dir}");

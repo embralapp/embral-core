@@ -11,7 +11,7 @@ describe('displayAppName', () => {
   });
 
   it('maps Linux identities, which are bare process names', () => {
-    // No `.exe` to strip here — pulse reports the binary name directly.
+    // No `.exe` to strip here; pulse reports the binary name directly.
     expect(displayAppName('zoom')).toBe('Zoom');
     // The Linux Teams client's binary; `teams` catches it by substring.
     expect(displayAppName('teams-for-linux')).toBe('Teams');
@@ -38,7 +38,7 @@ describe('displayAppName', () => {
 describe('groupAudioApps', () => {
   it('collapses one app holding several sessions into a single row', () => {
     // The field case: Zoom listed twice, two pids, nothing on screen to
-    // tell them apart — so the checkbox meant nothing.
+    // tell them apart, so the checkbox meant nothing.
     const groups = groupAudioApps([
       { pid: 100, name: 'Zoom.exe' },
       { pid: 200, name: 'Zoom.exe' }

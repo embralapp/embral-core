@@ -2,6 +2,7 @@
     // Meetings, distilled to the three decisions that matter on day one:
     // when to start, whether to summarize (and with what), and the hotkey.
     // Everything else keeps its default; Settings remains the full surface.
+    import { LLM_RUNTIME, LLM_WEIGHTS } from "$lib/utils/asrModel";
     import * as Select from "$lib/components/ui/select";
     import { Switch } from "$lib/components/ui/switch";
     import { Button } from "$lib/components/ui/button";
@@ -41,13 +42,13 @@
     // The summaries-on/no-model dead end: engine is on-device but the LLM
     // pack was declined at the models step. One tap fixes it here.
     let llmMissing = $derived.by(() => {
-        const runtime = modelsStore.status("llama-server");
-        const weights = modelsStore.status("qwen3-4b");
+        const runtime = modelsStore.status(LLM_RUNTIME);
+        const weights = modelsStore.status(LLM_WEIGHTS);
         if (!runtime || !weights) return false;
         const present = runtime.present && weights.present;
         const downloading =
-            modelsStore.isDownloading("llama-server") ||
-            modelsStore.isDownloading("qwen3-4b");
+            modelsStore.isDownloading(LLM_RUNTIME) ||
+            modelsStore.isDownloading(LLM_WEIGHTS);
         return !present && !downloading;
     });
     let needsLlmNudge = $derived(
@@ -115,8 +116,8 @@
                         variant="outline"
                         size="sm"
                         onclick={() => {
-                            void modelsStore.download("llama-server");
-                            void modelsStore.download("qwen3-4b");
+                            void modelsStore.download(LLM_RUNTIME);
+                            void modelsStore.download(LLM_WEIGHTS);
                         }}
                     >
                         {t.download}

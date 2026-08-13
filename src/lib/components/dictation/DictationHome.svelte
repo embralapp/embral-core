@@ -61,7 +61,7 @@
     <div class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <h2 class="font-display text-base tracking-tight">{t.title}</h2>
 
-        <!-- The hotkey is shown, not set: clicking it lands on the dictation
+        <!-- The hotkey is shown, not set: clicking it opens the dictation
              settings page where the capture control lives. -->
         <div class="flex shrink-0 items-center gap-2">
             <Tip text={t.hotkeyTip}>

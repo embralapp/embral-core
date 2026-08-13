@@ -1,6 +1,6 @@
 //! Building passages ("chunks") out of a meeting's four documents and out
 //! of dictations. The transcript chunker reuses the tested paragraph rules
-//! in `embral-notes::transcript` — a passage is packed paragraphs, never a
+//! in `embral-notes::transcript`: a passage is packed paragraphs, never a
 //! new segmentation theory.
 
 use chrono::{DateTime, Utc};
@@ -9,7 +9,7 @@ use embral_types::TranscriptionSegment;
 use sha2::{Digest, Sha256};
 
 /// Where a chunk's text came from. A user-written note is a stronger signal
-/// than a generated summary, and both differ from verbatim speech — search
+/// than a generated summary, and both differ from verbatim speech; search
 /// keeps them distinct rather than blending everything into one soup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -40,16 +40,16 @@ impl Source {
 pub struct BuiltChunk {
     pub source: Source,
     pub chunk_index: u32,
-    /// The verbatim passage — what results quote.
+    /// The verbatim passage: what results quote.
     pub text: String,
-    /// Context header + text — what gets embedded and hashed.
+    /// Context header + text: what gets embedded and hashed.
     pub embedding_text: String,
     pub start_secs: Option<f64>,
     pub end_secs: Option<f64>,
     pub speakers: Vec<String>,
     pub speaker_ids: Vec<String>,
     pub content_hash: String,
-    /// Which image this passage was read out of — `Some` only for
+    /// Which image this passage was read out of; `Some` only for
     /// [`Source::ImageText`]. A search hit has nothing in the document to
     /// scroll to for an image, so this is how it points at one.
     pub image_filename: Option<String>,
@@ -63,7 +63,7 @@ pub struct MeetingDocs<'a> {
     pub summary: &'a str,
     pub transcript: &'a str,
     /// What OCR read out of the images the documents above link to, as
-    /// `(filename, text)` in paste order — already filtered by
+    /// `(filename, text)` in paste order, already filtered by
     /// [`referenced_image_text`]. Not a document, so not a fifth string:
     /// each entry is one image, and the filename is what lets a hit point
     /// back at it.
@@ -75,7 +75,7 @@ pub struct MeetingDocs<'a> {
 /// length-capped for transcripts; prose blocks are rarely this long).
 const MAX_WORDS: usize = 400;
 /// Overlap: each chunk re-opens with its predecessor's final unit so a
-/// thought split across the boundary is findable from either side —
+/// thought split across the boundary is findable from either side;
 /// skipped when that unit alone is most of a budget.
 const MAX_OVERLAP_WORDS: usize = 120;
 
@@ -88,7 +88,7 @@ fn content_hash(embedding_text: &str) -> String {
     digest[..16].iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// One packable unit of text — a transcript paragraph, a prose block, or a
+/// One packable unit of text: a transcript paragraph, a prose block, or a
 /// slice of what one image said.
 #[derive(Default)]
 struct Unit {
@@ -214,7 +214,7 @@ fn strip_image_links(md: &str) -> String {
     out
 }
 
-/// Strip YAML frontmatter and a leading `# ` title line — document
+/// Strip YAML frontmatter and a leading `# ` title line: document
 /// scaffolding, not content.
 fn strip_scaffolding(md: &str) -> &str {
     let mut rest = md.trim_start();
@@ -229,7 +229,7 @@ fn strip_scaffolding(md: &str) -> &str {
     rest.trim()
 }
 
-/// Blank-line blocks of prose (headings ride with their block position).
+/// Blank-line blocks of prose (headings stay in their block position).
 fn prose_units(text: &str) -> Vec<Unit> {
     text.split("\n\n")
         .map(str::trim)
@@ -278,7 +278,7 @@ pub fn chunk_meeting(docs: &MeetingDocs) -> Vec<BuiltChunk> {
     } else {
         let body = strip_scaffolding(docs.transcript);
         // The transcript-less placeholder is document scaffolding, not
-        // content — indexed, it wins semantic queries it has no answer to.
+        // content; indexed, it wins semantic queries it has no answer to.
         if !body.is_empty() && body != "_No transcript segments were captured._" {
             let units = labeled_prose_units(body);
             out.extend(build(Source::Transcript, &units, docs.title, docs.started_at));
@@ -334,13 +334,13 @@ pub fn chunk_meeting(docs: &MeetingDocs) -> Vec<BuiltChunk> {
     out
 }
 
-/// The OCR text of the images a meeting's documents *currently* link, in
+/// The OCR text of the images a meeting's documents currently link, in
 /// paste order.
 ///
 /// An image's bytes are never collected when the user deletes it from their
-/// notes — the summary may still be showing the same file. Its text is a
+/// notes: the summary may still be showing the same file. Its text is a
 /// different matter: search quoting a screenshot the user removed from
-/// their writing, and cannot see anywhere, reads as a haunting. The row
+/// their writing, and cannot see anywhere, reads as a bug. The row
 /// stays cached, so putting the image back costs nothing.
 ///
 /// Unusable readings are dropped here too, in one place, so the index and
@@ -364,7 +364,7 @@ pub fn referenced_image_text(
         .collect()
 }
 
-/// Dictations are usually one thought — chunked only when long.
+/// Dictations are usually one thought; chunked only when long.
 pub fn chunk_dictation(created_at: DateTime<Utc>, text: &str) -> Vec<BuiltChunk> {
     let text = text.trim();
     if text.is_empty() {
@@ -463,7 +463,7 @@ mod tests {
         assert_eq!(a[0].content_hash, b[0].content_hash);
 
         let mut d = docs(&segments);
-        d.title = "Renamed Sync"; // header feeds the hash — a rename re-embeds
+        d.title = "Renamed Sync"; // header feeds the hash; a rename re-embeds
         let c = chunk_meeting(&d);
         assert_ne!(a[0].content_hash, c[0].content_hash);
     }
@@ -547,7 +547,7 @@ Just words.
         assert_eq!(strip_image_links(plain), plain);
     }
 
-    /// The path leaves the index and the OCR text takes its place — the
+    /// The path leaves the index and the OCR text takes its place: the
     /// two halves of the same decision.
     #[test]
     fn what_an_image_says_is_indexed_under_its_own_source() {
@@ -570,7 +570,7 @@ Just words.
             built.iter().filter(|c| c.source == Source::ImageText).collect();
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].text, "Q3 revenue 4.2M\nQ4 forecast 5.1M");
-        // The context header rides along, like every other source.
+        // The context header is included, like every other source.
         assert!(images[0].embedding_text.contains("Planning Sync"));
         // And the passage knows which image it came out of, which is the
         // only way a search hit can point at one.
@@ -578,7 +578,7 @@ Just words.
         assert!(notes[0].image_filename.is_none(), "only image passages name one");
     }
 
-    /// Two short images pack into one chunk, as any two short units would —
+    /// Two short images pack into one chunk, as any two short units would,
     /// but they stay separate units, so one slide's last line never runs
     /// into the next slide's first.
     #[test]
@@ -621,7 +621,7 @@ Just words.
             vec![("img-01.png".to_string(), "Q3 revenue 4.2M".to_string())]
         );
 
-        // The summary counts too — an image the user removed from the notes
+        // The summary counts too: an image the user removed from the notes
         // is still live while the summary places it.
         let summary = "as shown ![b](assets/m1/img-02.png)";
         assert_eq!(

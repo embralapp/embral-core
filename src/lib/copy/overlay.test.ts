@@ -13,7 +13,7 @@ describe('overlay', () => {
     const merged = overlay(base, { a: { b: 'over-b' } });
     expect(merged.a.b).toBe('over-b');
     expect(merged.a.c).toBe('base-c');
-    // Untouched subtrees keep referential identity — no wasteful copies.
+    // Untouched subtrees keep referential identity: no wasteful copies.
     expect(merged.d).toBe(base.d);
     // The base is never mutated.
     expect(base.a.b).toBe('base-b');
@@ -65,7 +65,7 @@ describe('overlay', () => {
   });
 
   it('the Linux overlay is a subset of what macOS needed to change', () => {
-    // Not a style rule — a check that Linux has not quietly picked up a
+    // Not a style rule, but a check that Linux has not quietly picked up a
     // macOS-shaped key. Every path Linux overrides must also be one macOS
     // overrides, because macOS diverges from the Windows base in strictly
     // more places (modifiers and titlebar on top of these two).

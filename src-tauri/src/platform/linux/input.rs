@@ -1,15 +1,15 @@
-//! Keystroke synthesis + focused-app identity — the dictation output's
+//! Keystroke synthesis + focused-app identity: the dictation output's
 //! platform surface ([dictation.md](../../../../docs/dictation.md)).
 //!
-//! **X11, always.** `lib.rs` pins GTK to the X11 backend on Linux, so a
+//! X11, always. `lib.rs` pins GTK to the X11 backend on Linux, so a
 //! Wayland session runs the app through Xwayland and this module always has
 //! a real X server to talk to. There is no session sniffing here and no
 //! Wayland branch: an absent X server is an error like any other.
 //!
 //! The one thing that narrowing does not buy: XTEST events reach X11 and
-//! Xwayland windows only. On a Wayland session a *natively* Wayland focused
+//! Xwayland windows only. On a Wayland session a natively Wayland focused
 //! app will not receive the paste, and `_NET_ACTIVE_WINDOW` cannot see it
-//! either — `focused_app` returns `None` and the text stays on the clipboard,
+//! either; `focused_app` returns `None` and the text stays on the clipboard,
 //! which is the floor the output pipeline guarantees regardless.
 //!
 //! [260801-linux-port.md]: ../../../../docs/plans/260801-linux-port.md
@@ -23,7 +23,7 @@ use x11rb::protocol::xtest::ConnectionExt as _;
 use crate::platform::types::AppId;
 
 /// Synthesize the platform paste chord (Ctrl+V) into the focused app, via
-/// XTEST — the X11 extension for exactly this, ungated (any client on the
+/// XTEST, the X11 extension for exactly this, ungated (any client on the
 /// display may use it, which is why Wayland refuses to have it).
 pub fn paste_keystroke() -> Result<()> {
     // No session sniffing: `lib.rs` pins GTK to the X11 backend, so either an
@@ -38,11 +38,11 @@ pub fn paste_keystroke() -> Result<()> {
         .ok_or_else(|| anyhow!("no keycode for V on this keymap"))?;
 
     // Press and release through the XTEST fake-input path; window 0 targets
-    // whatever has focus — the point.
+    // whatever has focus, which is the point.
     //
-    // **Each event is synced through before the next is sent, and the
-    // events are spaced.** Posting all four with identical zero timestamps
-    // in one flush left the *releases* unprocessed on a real server —
+    // Each event is synced through before the next is sent, and the
+    // events are spaced. Posting all four with identical zero timestamps
+    // in one flush left the releases unprocessed on a real server;
     // measured: the desktop's Control modifier stayed logically held after
     // the chord, turning every subsequent keystroke into a Ctrl-chord until
     // something released it. `sync()` is a full round-trip, so when it
@@ -63,7 +63,7 @@ pub fn paste_keystroke() -> Result<()> {
     Ok(())
 }
 
-/// The app that currently has focus — the paste target (the overlay never
+/// The app that currently has focus: the paste target (the overlay never
 /// takes focus). `_NET_ACTIVE_WINDOW` on the root, then that window's
 /// `_NET_WM_PID`, then `/proc` for the executable name. Any gap along the
 /// way is `None`: an EWMH-illiterate window manager, a window that never
@@ -122,7 +122,7 @@ const KEYSYM_LOWER_V: u32 = 0x0076;
 const KEYSYM_CONTROL_L: u32 = 0xffe3;
 
 /// First keycode whose keysym table contains `keysym`, from the server's
-/// own keyboard mapping — keycodes are layout-dependent, so this is looked
+/// own keyboard mapping; keycodes are layout-dependent, so this is looked
 /// up per call rather than hardcoded.
 fn keycode_for(conn: &impl Connection, keysym: u32) -> Result<Option<u8>> {
     let setup = conn.setup();
@@ -145,7 +145,7 @@ fn atom(conn: &impl Connection, name: &[u8]) -> Option<u32> {
     Some(conn.intern_atom(false, name).ok()?.reply().ok()?.atom)
 }
 
-/// WM_CLASS is two NUL-terminated strings — instance, then class; the
+/// WM_CLASS is two NUL-terminated strings (instance, then class); the
 /// class is the one that names the app.
 fn wm_class(conn: &impl Connection, window: u32) -> Option<String> {
     let reply = conn
@@ -167,7 +167,7 @@ mod tests {
 
     /// End-to-end paste mechanism: stage text on the clipboard (arboard, as
     /// the real output pipeline does), post the chord, and keep serving the
-    /// selection while the target reads it — on X11 the clipboard is a
+    /// selection while the target reads it: on X11 the clipboard is a
     /// conversation, not a buffer, and exits with the process. Orchestrated
     /// from a shell with a `zenity --entry` holding focus.
     #[test]

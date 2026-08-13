@@ -40,7 +40,7 @@
     if (distance <= 0) return 0;
     return (scrollTop / distance) * (clientHeight - thumbHeight);
   });
-  // Hover is CSS (`group-hover`), not state — a pointerenter handler on a plain
+  // Hover is CSS (`group-hover`), not state: a pointerenter handler on a plain
   // div is a static-element interaction, and the thumb is not interactive chrome
   // a screen reader should hear about.
   const active = $derived(scrolling || dragging);
@@ -116,7 +116,7 @@
 
 <style>
   /* No gutter, no track: the scrollbar must not take a strip the rows cannot
-     paint into. (Scoped here rather than in layout.css — the settings pages
+     paint into. (Scoped here rather than in layout.css; the settings pages
      still want their stable gutter.) */
   .no-native-scrollbar {
     scrollbar-width: none;

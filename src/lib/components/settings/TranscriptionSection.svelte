@@ -21,7 +21,7 @@
 
     let selectedModel = $derived(modelsStore.status(draft.local_asr_model));
     // The manageable library, as card grids by what the model does.
-    // *Selection* happens on the Meetings and Dictation pages; this page
+    // Selection happens on the Meetings and Dictation pages; this page
     // manages the files.
     let speechModels = $derived(
         modelsStore.statuses.filter(
@@ -75,7 +75,7 @@
         </div>
     </div>
 
-    <!-- Hidden entirely for models the runtime can't boost — a control
+    <!-- Hidden entirely for models the runtime can't boost: a control
          that can't do anything is noise, and the list is kept in config
          for models that can. -->
     {#if selectedModel?.supports_hotwords !== false}

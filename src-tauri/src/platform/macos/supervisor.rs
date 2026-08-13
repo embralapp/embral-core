@@ -1,4 +1,4 @@
-//! Children die with this process, however it dies — the reaper pattern
+//! Children die with this process, however it dies: the reaper pattern
 //! ([architecture.md](../../../../docs/architecture.md) §Process/threading).
 //!
 //! macOS has no job-object equivalent and no `PR_SET_PDEATHSIG`, and the
@@ -6,8 +6,8 @@
 //! at startup the app re-execs itself as `embral --child-reaper`, holding
 //! the write end of a pipe wired to the reaper's stdin. Managed children
 //! spawn into their own process groups (`prepare_spawn`), and their pgids
-//! are written down the pipe (`watch_child`). When this process dies —
-//! cleanly, by crash, by SIGKILL, by a dev-loop rebuild — the kernel
+//! are written down the pipe (`watch_child`). When this process dies
+//! (cleanly, by crash, by SIGKILL, by a dev-loop rebuild), the kernel
 //! closes the pipe, the reaper's stdin hits EOF, and it `killpg`s every
 //! registered group: SIGTERM, a short grace, SIGKILL. Pipe EOF can't
 //! suffer pid-reuse races, which is why it beats watching the parent pid.
@@ -16,14 +16,14 @@ use std::io::Write;
 use std::sync::Mutex;
 
 /// The reaper's stdin (write end). `None` until init, or if the spawn
-/// failed — then children are only cleaned up by the clean-quit path.
+/// failed; then children are only cleaned up by the clean-quit path.
 static REAPER: Mutex<Option<std::process::ChildStdin>> = Mutex::new(None);
 
 /// Grace between SIGTERM and SIGKILL in the reaper.
 const GRACE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Spawn the reaper subprocess. Failure degrades to clean-quit-only
-/// cleanup with a warning — never fatal.
+/// cleanup with a warning, never fatal.
 pub fn kill_children_with_us() {
     let exe = match std::env::current_exe() {
         Ok(p) => p,

@@ -2,12 +2,12 @@
 //! ([storage.md](../../../../docs/storage.md) §The chunk index).
 //!
 //! Vision has been in the box since 10.15 and is the better of the two
-//! engines this app uses — notably on handwriting, which the Windows one
+//! engines this app uses, notably on handwriting, which the Windows one
 //! barely manages. Nothing to download, nothing to bundle, no permission
 //! prompt: `VNImageRequestHandler` works on bytes we already own.
 //!
-//! Vision's API is synchronous when driven this way — `performRequests:`
-//! returns once the work is done — so there is no completion handler and
+//! Vision's API is synchronous when driven this way (`performRequests:`
+//! returns once the work is done), so there is no completion handler and
 //! nothing to keep alive across a callback.
 
 use objc2::rc::Retained;
@@ -22,7 +22,7 @@ use crate::platform::types::Recognized;
 use embral_notes::ocr::OcrLine;
 
 /// Read the text in one image. Bytes rather than a path: the handler takes
-/// an `NSData` directly, and file IO belongs above the seam.
+/// an `NSData` directly, and file IO belongs above the platform layer.
 pub fn recognize_text(bytes: &[u8]) -> Recognized {
     let request = VNRecognizeTextRequest::new();
     request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
@@ -40,7 +40,7 @@ pub fn recognize_text(bytes: &[u8]) -> Recognized {
 
     let as_request: &VNRequest = &request;
     if let Err(e) = handler.performRequests_error(&NSArray::from_slice(&[as_request])) {
-        // Vision refused this file — a truncated download, or a format the
+        // Vision refused this file: a truncated download, or a format the
         // decoder will not take. An answer about the image, not about the
         // engine, so the caller retires it rather than retrying forever.
         return Recognized::Failed(e.localizedDescription().to_string());
@@ -89,8 +89,8 @@ mod tests {
     /// `EMBRAL_TEST_OCR_IMAGE=/path/to/slide.png
     ///  cargo test -p embral --lib ocr -- --ignored --nocapture`
     ///
-    /// Point it at a screenshot of slides *and* at a photographed
-    /// whiteboard — Vision handles both, and the handwriting result is
+    /// Point it at a screenshot of slides and also at a photographed
+    /// whiteboard: Vision handles both, and the handwriting result is
     /// worth seeing at least once.
     #[test]
     #[ignore = "needs EMBRAL_TEST_OCR_IMAGE pointing at an image file"]
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn a_non_image_fails_rather_than_pretending() {
-        // Refusing to decode is `Failed` — an answer about this file — not
+        // Refusing to decode is `Failed` (an answer about this file), not
         // `Unavailable`, which would leave it pending forever.
         match recognize_text(b"this is not an image") {
             Recognized::Failed(_) => {}
@@ -125,7 +125,7 @@ mod tests {
     /// The committed two-column fixture through the real engine: the whole
     /// point of carrying geometry is that the left column's text comes out
     /// before the right's instead of interleaved straight across both.
-    /// This is also the check on the blind-written y flip above — Vision
+    /// This is also the check on the blind-written y flip above; Vision
     /// always ships, so unlike the Windows twin there is no skip path.
     #[test]
     fn columns_are_read_in_order() {

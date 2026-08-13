@@ -39,7 +39,7 @@
     return map;
   });
 
-  // Same-speaker sentences read as one turn, broken at starred moments —
+  // Same-speaker sentences read as one turn, broken at starred moments:
   // the same grouping the saved transcript editor uses, minus the editing.
   interface Turn {
     speaker: string | null;
@@ -70,8 +70,8 @@
     </div>
   </div>
 
-  <!-- What's still cooking: the summary. Notes, transcript, and (as soon
-       as it's encoded) the audio are already real below. -->
+  <!-- What's still being generated: the summary. Notes, transcript, and (as
+       soon as it's encoded) the audio are already real below. -->
   <div class="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
     {#if pending.error}
       <p class="text-xs text-destructive">{pending.error}</p>

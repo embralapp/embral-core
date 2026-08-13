@@ -1,6 +1,6 @@
 // Linux wording, overlaid onto the shared English catalog at the swap
 // point in ../index.ts (docs/copy.md). Only keys whose Windows wording is
-// wrong on Linux appear here — the base file stays the single readable
+// wrong on Linux appear here; the base file stays the single readable
 // document per surface, and this file reads as the diff.
 //
 // Much shorter than the macOS overlay on purpose. Linux shares Windows'

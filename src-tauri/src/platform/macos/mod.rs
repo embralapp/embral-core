@@ -42,6 +42,6 @@ pub use theme::{theme_snapshot, watch_theme};
 /// tint temporarily switches template off to keep its accent color.)
 pub const TRAY_IDLE_IS_TEMPLATE: bool = true;
 
-/// A menu-bar item opens its menu on click — the platform convention —
+/// A menu-bar item opens its menu on click (the platform convention),
 /// so the left-click window toggle never fires here.
 pub const TRAY_MENU_ON_LEFT_CLICK: bool = true;

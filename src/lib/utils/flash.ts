@@ -2,9 +2,9 @@
  * Briefly mark the thing a search result landed on.
  *
  * Scrolling a paragraph into the middle of a long document is only half an
- * answer: the user still has to work out *which* paragraph they were sent
+ * answer: the user still has to work out which paragraph they were sent
  * to. A short highlight says it without adding any chrome that has to be
- * dismissed — it fades on its own and leaves the document alone.
+ * dismissed: it fades on its own and leaves the document alone.
  */
 
 export const FLASH_CLASS = 'embral-flash';
@@ -21,15 +21,16 @@ const running = new WeakMap<Element, ReturnType<typeof setTimeout>>();
  * Run `then` once a smooth scroll to `target` has arrived.
  *
  * A highlight that starts with the scroll is half over by the time the
- * reader's eye gets there — worse the further it travels, which is exactly
- * when the mark is most needed. So the mark waits for the journey to end.
+ * reader's eye gets there, and worse the further it travels, which is
+ * exactly when the mark is most needed. So the mark waits for the journey
+ * to end.
  *
- * Whether a journey is happening is decided from where the target *is*,
+ * Whether a journey is happening is decided from where the target is,
  * not by watching `scrollTop`: a smooth scroll has not moved a pixel by the
  * next frame, so sampling the position just says "no scroll" and marks
- * immediately — which is the bug this exists to fix.
+ * immediately, which is the bug this exists to fix.
  *
- * Call it *before* starting the scroll, so the measurement is of the
+ * Call it before starting the scroll, so the measurement is of the
  * position being left rather than the one being sought.
  */
 export function afterScrollTo(scroller: Element, target: Element, then: () => void): void {

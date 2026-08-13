@@ -1,4 +1,4 @@
-// Composition only — no logic, no strings of its own.
+// Composition only: no logic, no strings of its own.
 // One entry per settings page, in the order the rail lists them.
 
 import { about } from './about';

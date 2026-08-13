@@ -10,7 +10,7 @@ pub fn mic_permission() -> crate::platform::types::PermissionState {
 }
 
 /// Ask the OS for the microphone; resolves when the user answers (prompts
-/// only from the not-determined state — a denial needs System Settings).
+/// only from the not-determined state; a denial needs System Settings).
 #[tauri::command]
 pub async fn request_mic_permission() -> Result<crate::platform::types::PermissionState, AppError> {
     Ok(crate::platform::permissions::request_microphone().await)
@@ -38,7 +38,7 @@ pub fn request_accessibility_permission() -> crate::platform::types::PermissionS
 /// asks nothing; Windows and macOS never do either.
 ///
 /// The AppImage runtime exports `$APPIMAGE` (the path of the running image),
-/// which is the reliable discriminator — the alternative is guessing from the
+/// which is the reliable discriminator; the alternative is guessing from the
 /// executable's location, and a `.deb` and a hand-copied AppImage can sit in
 /// the same directory. Absent that variable on Linux, we are running from a
 /// package. Lives beside the permission checks because it answers the same

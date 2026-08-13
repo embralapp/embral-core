@@ -1,4 +1,4 @@
-// Shared model-management copy — the ModelCard footer, used by both the
+// Shared model-management copy: the ModelCard footer, used by both the
 // Transcription and Synthesis pages so the library reads as one surface.
 
 export const models = {

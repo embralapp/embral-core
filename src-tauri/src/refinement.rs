@@ -50,7 +50,7 @@ const WEBHOOK_RETRY_PAUSES: [std::time::Duration; 2] = [
 
 /// Run best-effort post-meeting integrations (the Markdown export and the
 /// meeting-finished webhooks). Gated on their config fields; failures are
-/// logged, never propagated — a broken vault path or a dead endpoint must
+/// logged, never propagated: a broken vault path or a dead endpoint must
 /// not affect the saved meeting. `export_md` is the composed document; the
 /// webhook payload carries metadata always and the content parts only for
 /// destinations that opted in ([integrations.md] §Webhooks).
@@ -81,7 +81,7 @@ pub fn run_post_meeting_integrations(
     // Webhooks: one spawned task per destination, so a slow or dead
     // endpoint never blocks finalize or a neighbor destination. Each task
     // owns its payload and retry clock; the final failure becomes an event
-    // the frontend turns into a notification (events.ts) — the user
+    // the frontend turns into a notification (events.ts): the user
     // configured this endpoint, so silence would be the worst outcome.
     for destination in &config.webhooks {
         if destination.url.trim().is_empty() {

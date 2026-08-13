@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** Inline speaker-name editor with an app-themed suggestion popover —
+  /** Inline speaker-name editor with an app-themed suggestion popover;
    * replaces the native datalist (which renders as the browser's autofill
    * dropdown). Suggestions come from the profile registry plus the
    * meeting's other labels (for merges); arrows + Enter pick, Escape
@@ -9,7 +9,7 @@
    * is a piece of text you edit in place, not a form field you click
    * into. Callers pass the same classes the name carries when it is not
    * being edited (`nameClass` and its size), so the text keeps its
-   * identity — colour, weight, position — while the caret is in it. */
+   * identity (colour, weight, position) while the caret is in it. */
 
   import { copy } from '$lib/copy';
 
@@ -24,7 +24,7 @@
   }: {
     value?: string;
     suggestions?: string[];
-    /** The text styling this name wears when it is not being edited. */
+    /** The text styling this name has when it is not being edited. */
     class?: string;
     onCommit: () => void;
     onCancel: () => void;
@@ -83,13 +83,13 @@
 
 <!-- The name's classes sit on the wrapper, not only on the mirror: a
      box's line height can never be shorter than its own font's, and this
-     wrapper otherwise inherits the row's larger font — which made the
+     wrapper otherwise inherits the row's larger font, which made the
      editing box taller than the idle name and shifted the row on click. -->
 <span class="relative inline-block {className}">
   <!-- The invisible mirror is what sizes the field: same font (inherited
        from the wrapper), same text, so the box is exactly as wide as its
        content and the name's glyphs hold still when the caret arrives.
-       The input overlays it absolutely — in flow it would contribute its
+       The input overlays it absolutely; in flow it would contribute its
        own intrinsic width and stretch the box. (`size`-based widths are
        character approximations and shifted the text; CSS field-sizing is
        absent from WKWebView.) -->

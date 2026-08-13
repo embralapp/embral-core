@@ -1,10 +1,10 @@
 //! Meeting auto-detection: notices when a meeting app is using the
 //! microphone and starts/stops recording per the configured policy.
 //!
-//! - `state` — the pure tick state machine + app matcher (unit-tested).
-//! - `crate::platform::mic_users` — the per-OS scan for processes with an
+//! - `state`: the pure tick state machine + app matcher (unit-tested).
+//! - `crate::platform::mic_users`: the per-OS scan for processes with an
 //!   active mic session.
-//! - this module — the poll loop tying config, state, and actions together.
+//! - this module: the poll loop tying config, state, and actions together.
 
 pub mod silence;
 mod state;
@@ -49,7 +49,7 @@ pub fn spawn(handle: AppHandle) {
         let mut current_windows = (0u32, 0u32);
         // Last tick's matched-candidate labels and detector phase, so the
         // log carries transitions (apps appearing/vanishing, phase walks)
-        // rather than a line per tick — the trail that answers "did the
+        // rather than a line per tick: the trail that answers "did the
         // detector ever see this call end?".
         let mut last_labels: Vec<String> = Vec::new();
         let mut last_phase = detector.phase_name();
@@ -79,7 +79,7 @@ pub fn spawn(handle: AppHandle) {
             }
 
             // A manual recording in progress: don't track calls against it
-            // unless the scope says every recording stops on call end — the
+            // unless the scope says every recording stops on call end; the
             // Start arm below still refuses to act while recording, so
             // ticking here only ever feeds auto-stop.
             let recording = state.recorder.lock().await.is_some();
@@ -140,7 +140,7 @@ pub fn spawn(handle: AppHandle) {
                                     .await
                             {
                                 // The user asked for this recording and is
-                                // not looking at the app — a log line alone
+                                // not looking at the app; a log line alone
                                 // means a meeting silently goes unrecorded.
                                 tracing::warn!("auto-start failed: {e}");
                                 state.auto_started.store(false, Ordering::Release);

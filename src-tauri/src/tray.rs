@@ -1,12 +1,12 @@
 //! The tray icon and the running window's taskbar icon. Both carry the bare
-//! embral mark in whichever shade the OS shell needs — white on a dark
+//! embral mark in whichever shade the OS shell needs: white on a dark
 //! surface, black on a light one. The shade and the accent come from
 //! `crate::platform::theme_snapshot()`, and the platform's theme watcher
 //! refreshes the icons on change ([shell.md]). The installed icon set
-//! (Start menu, installer) is static and keeps its dark tile — only these
+//! (Start menu, installer) is static and keeps its dark tile; only these
 //! two runtime surfaces follow the theme.
 //!
-//! While recording, the whole tray mark — circle and lines — is tinted at
+//! While recording, the whole tray mark (circle and lines) is tinted at
 //! runtime in the OS accent color (or the `tray_recording_color` preset).
 
 use anyhow::Result;
@@ -54,9 +54,9 @@ pub fn create_tray(app: &App) -> Result<()> {
         .icon(Image::from_bytes(idle)?)
         .icon_as_template(crate::platform::TRAY_IDLE_IS_TEMPLATE)
         .menu(&menu)
-        // On Windows the menu belongs to right-click only — popping it on
+        // On Windows the menu belongs to right-click only: opening it on
         // left-click too raced the toggle below (the menu flashed, or
-        // swallowed the click). On macOS the menu on click *is* the
+        // swallowed the click). On macOS the menu on click is the
         // platform convention, so the toggle never fires there.
         .show_menu_on_left_click(crate::platform::TRAY_MENU_ON_LEFT_CLICK)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -66,7 +66,7 @@ pub fn create_tray(app: &App) -> Result<()> {
                     // (`lib.rs`): a window that was minimised rather than
                     // hidden stays invisible through `show()` alone, and on
                     // Wayland the two states are harder to tell apart than
-                    // elsewhere — the app reporting itself visible while
+                    // elsewhere; the app reporting itself visible while
                     // nothing is on screen is exactly the reachable-nowhere
                     // failure this menu item exists to prevent.
                     let _ = w.unminimize();
@@ -123,7 +123,7 @@ pub fn set_recording_color(hex: &str) {
 
 /// Re-derive both runtime icons from current state: the tray from the
 /// recording flag, taskbar shade, and disc color; the window's taskbar icon
-/// from the shade alone. The window may not exist yet during setup —
+/// from the shade alone. The window may not exist yet during setup; it is
 /// skipped, and the next refresh catches it.
 pub fn refresh(app: &AppHandle) -> Result<()> {
     let light = crate::platform::theme_snapshot().is_light;
@@ -148,7 +148,7 @@ pub fn refresh(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-/// The current OS accent color as `#RRGGBB` — the swatch beside the
+/// The current OS accent color as `#RRGGBB`: the swatch beside the
 /// system-accent choice in settings.
 #[tauri::command]
 pub fn system_accent_color() -> String {
@@ -178,8 +178,8 @@ fn parse_hex(hex: &str) -> Option<[u8; 3]> {
     Some([(v >> 16) as u8, (v >> 8) as u8, v as u8])
 }
 
-/// Recolor a mark: every pixel's RGB becomes `rgb` while its alpha — the
-/// mark's shape, anti-aliased edges included — stays.
+/// Recolor a mark: every pixel's RGB becomes `rgb` while its alpha (the
+/// mark's shape, anti-aliased edges included) stays.
 fn tint(rgba: &[u8], rgb: [u8; 3]) -> Vec<u8> {
     let mut out = rgba.to_vec();
     for px in out.chunks_exact_mut(4) {

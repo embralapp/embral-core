@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 //
 // The paste placement contract ([shell.md] §Writing surface): a pasted
-// image lands the way typed text would — an empty block is replaced
+// image goes where typed text would. An empty block is replaced
 // outright (an empty bullet becomes the image's bullet), a non-empty one
-// takes the image right after it, still nested under its bullet — and the
+// takes the image right after it, still nested under its bullet, and the
 // caret then moves below the last image onto a fresh bullet or line, so
 // writing continues under the screenshot. Driven through the extension's
 // real handlePaste with a synthetic clipboard; the backend save is
@@ -120,7 +120,7 @@ describe('image paste placement', () => {
     expect(pasteFiles(editor, 1)).toBe(true);
     await settled(editor, 1);
 
-    // The image IS the second bullet — no empty text line above it.
+    // The image is itself the second bullet, with no empty text line above it.
     expect(editor.storage.markdown.getMarkdown()).toContain('- ![](assets/m1/img-01.png)');
     editor.commands.insertContent('next');
     expect(editor.storage.markdown.getMarkdown()).toContain('- next');
@@ -136,7 +136,7 @@ describe('image paste placement', () => {
     await settled(editor, 1);
 
     // Markdown cannot write an image-only task, so the empty paragraph
-    // stays and the image nests under it — and nothing trips the schema.
+    // stays and the image nests under it, and nothing trips the schema.
     const md = editor.storage.markdown.getMarkdown();
     expect(md).toContain('[ ] open');
     expect(md).toContain('img-01.png');

@@ -7,8 +7,8 @@
 //
 // `--debug` builds the dev profile instead, for the CI jobs that only
 // check and test. They stage a sidecar at all because tauri-build
-// validates externalBin at compile time — nothing runs it and nothing
-// ships it — and a release build there compiles ort, tokenizers and
+// validates externalBin at compile time (nothing runs it and nothing
+// ships it), and a release build there compiles ort, tokenizers and
 // bundled SQLite a second time, into a target/ the rest of the job never
 // touches. In the dev profile that work is shared with `cargo test`.
 import { execSync } from "node:child_process";

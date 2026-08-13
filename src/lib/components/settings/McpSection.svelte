@@ -45,7 +45,7 @@
         }
     });
 
-    // Every action ends by re-reading disk/CLI truth — "Registered" is
+    // Every action ends by re-reading disk/CLI truth; "Registered" is
     // never assumed from a button click.
     function act(client: McpClientId): McpAction {
         return async (kind) => {

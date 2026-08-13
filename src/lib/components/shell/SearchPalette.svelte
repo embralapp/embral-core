@@ -14,7 +14,7 @@
     } from "lucide-svelte";
     import { importRecording } from "$lib/utils/importRecording";
     import type { LibraryMeetingHit, LibrarySearchResults } from "$lib/types";
-    import { appState, type AppView } from "$lib/stores/app-state.svelte";
+    import { appState } from "$lib/stores/app-state.svelte";
     import { meetingsStore } from "$lib/stores/meetings.svelte";
     import { configStore } from "$lib/stores/config.svelte";
     import { dictationStore } from "$lib/stores/dictation.svelte";
@@ -33,14 +33,14 @@
     let results = $state<LibrarySearchResults>(noResults);
     let searching = $state(false);
     let searchTimer: ReturnType<typeof setTimeout> | null = null;
-    /** Which search is the current one. A slower earlier query must not land on
-     * top of a newer one's results — the palette would show answers to a question
-     * the user has already moved on from. */
+    /** Which search is the current one. A slower earlier query must not
+     * overwrite a newer one's results: the palette would show answers to a
+     * question the user has already moved on from. */
     let generation = 0;
 
     // Debounced hybrid query (meetings + dictations in one call); results
     // are already ranked by the backend, so the Command list renders them
-    // as-is (shouldFilter=false — all filtering here is manual).
+    // as-is (shouldFilter=false; all filtering here is manual).
     $effect(() => {
         const q = query.trim();
         if (searchTimer) clearTimeout(searchTimer);
@@ -110,7 +110,7 @@
     }
 
     // Opening a result carries the passage it matched, so the detail pane
-    // lands on that sentence rather than at the top of the meeting. The
+    // opens on that sentence rather than at the top of the meeting. The
     // search already knew where it was; making the user find it again was
     // the whole gap.
     async function openMeeting(hit: LibraryMeetingHit) {
@@ -147,8 +147,8 @@
 
     // Navigation entries, filtered manually against the query. The main
     // pages always show; settings pages surface as you type. The order and the
-    // destinations are this component's; the names come from the catalog —
-    // these must stay the same words the sidebar and the settings rail use.
+    // destinations are this component's; the names come from the catalog.
+    // These must stay the same words the sidebar and the settings rail use.
     const pages: {
         key: keyof typeof copy.shell.sidebar.nav;
         icon: typeof Mic;
@@ -159,7 +159,7 @@
         { key: "dictation", icon: Type, go: () => appState.setView("dictation") },
     ];
     // Ids follow SettingsLayout's SectionId values. Account is deliberately
-    // absent — it has no deep link.
+    // absent: it has no deep link.
     const settingsIds = [
         "general",
         "meetings",

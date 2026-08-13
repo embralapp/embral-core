@@ -8,7 +8,7 @@
 //!
 //! `type` distinguishes the supplies: `Mains` (an AC adapter, `online` is
 //! 1 when the cable is live) from `Battery`. A machine with an online mains
-//! supply — or with no battery at all, which is every desktop — reads as
+//! supply (or with no battery at all, which is every desktop) reads as
 //! `Plugged`, per the `PowerSource` contract's "is this thing at a desk".
 
 use crate::platform::types::PowerSource;
@@ -43,7 +43,7 @@ pub fn power_source() -> PowerSource {
         // A battery and no live adapter: running down the battery.
         PowerSource::Battery
     } else {
-        // No battery in the machine — a desktop, the most desk-bound thing
+        // No battery in the machine: a desktop, the most desk-bound thing
         // there is.
         PowerSource::Plugged
     }

@@ -1,9 +1,4 @@
-import type {
-  InterimSegment,
-  MeetingStar,
-  ProviderCapabilities,
-  TranscriptionSegment
-} from '$lib/types';
+import type { InterimSegment, MeetingStar, TranscriptionSegment } from '$lib/types';
 import { copy } from '$lib/copy';
 
 export type AppView =
@@ -19,15 +14,14 @@ export type ProcessingStep =
   | 'generating-notes'
   | null;
 
-/** A just-stopped meeting that hasn't landed in the database yet: the
- * Meetings page shows it immediately — transcript already in hand, notes
- * and audio marked in progress — until `notes-generation-complete`
- * replaces it with the persisted record. */
+/** A just-stopped meeting not yet written to the database: the Meetings
+ * page shows it immediately (transcript already in hand, notes and audio
+ * marked in progress) until `notes-generation-complete` replaces it with
+ * the persisted record. */
 export interface PendingMeeting {
   title: string;
   /** Recorded length, frozen at stop. */
   durationSeconds: number;
-  endedAt: number;
   segments: TranscriptionSegment[];
   /** Starred moments with their notes anchors, snapshotted at stop. */
   stars: MeetingStar[];
@@ -40,7 +34,6 @@ export interface PendingMeeting {
 }
 
 let _view = $state<AppView>('idle');
-let _prevView = $state<AppView>('idle');
 let _isRecording = $state(false);
 let _isPaused = $state(false);
 let _segments = $state<TranscriptionSegment[]>([]);
@@ -49,7 +42,6 @@ let _segments = $state<TranscriptionSegment[]>([]);
 // speaker change to conform; any future provider must too). A Segment always
 // means the current interim has been committed.
 let _interim = $state<InterimSegment | null>(null);
-let _providerCapabilities = $state<ProviderCapabilities | null>(null);
 // The recording clock, derived from the backend's start instant so elapsed
 // time survives view remounts. Paused spans are accumulated here (every
 // pause path funnels through setPaused); stopping freezes the clock via
@@ -71,7 +63,7 @@ export interface StarredMoment {
   id: number;
   seconds: number;
 }
-// Starred moments of the current recording — mirrors the backend
+// Starred moments of the current recording; mirrors the backend
 // accumulator for live display.
 let _stars = $state<StarredMoment[]>([]);
 let _nextStarId = 1;
@@ -85,25 +77,24 @@ let _error = $state<string | null>(null);
 let _silenceNoticeMinutes = $state<number | null>(null);
 // Shadow mode: the user has asked the screen to stop announcing that a
 // meeting is being recorded. Its own control, deliberately not tied to
-// the transcript being shut — collapsing a pane for room is not the same
+// the transcript being shut: collapsing a pane for room is not the same
 // request as going quiet. Per-recording, never remembered: a recording
 // that starts with no visible indication because of a choice made weeks
 // ago is a trap, and the tray staying lit is not enough on its own.
 let _shadowMode = $state(false);
 // Whether the running recording is labeling speakers. Mirrors the
 // backend's per-recording flag, which starts from the setting and can be
-// stood down by the header toggle or the runaway guard.
+// turned off by the header toggle or the runaway guard.
 let _liveDiarization = $state(true);
-// Which of the two stood it down. The header note names the reason,
+// Which of the two turned it off. The header note names the reason,
 // because "the app found too many voices" is news to the reader, while
 // "you turned this off" is not.
 let _diarizationRunaway = $state(false);
 // Mid-recording provider swap notice (cloud -> local); shown as a quiet
 // banner in the recording view, cleared when the next recording starts.
 let _fallbackNotice = $state<string | null>(null);
-// Import flow: true between import-started and completion; fraction 0..1
-// while the file is being transcribed.
-let _isImporting = $state(false);
+// Import flow: the transcription fraction 0..1 while the file is being
+// processed, null when no import is running.
 let _importFraction = $state<number | null>(null);
 // A detected call awaiting the user's decision (prompt policy).
 let _detectedApp = $state<string | null>(null);
@@ -120,9 +111,6 @@ export const appState = {
   get view() {
     return _view;
   },
-  get prevView() {
-    return _prevView;
-  },
   get isRecording() {
     return _isRecording;
   },
@@ -135,17 +123,11 @@ export const appState = {
   get interim() {
     return _interim;
   },
-  get providerCapabilities() {
-    return _providerCapabilities;
-  },
   get processingStep() {
     return _processingStep;
   },
   get error() {
     return _error;
-  },
-  get isImporting() {
-    return _isImporting;
   },
   get importFraction() {
     return _importFraction;
@@ -160,7 +142,6 @@ export const appState = {
   /** Navigate to a specific settings page (palette deep links). */
   openSettings(section: string | null = null) {
     _settingsTarget = section;
-    _prevView = _view;
     _view = 'settings';
   },
   /** Pending deep-link target; the settings layout clears it on arrival. */
@@ -174,7 +155,6 @@ export const appState = {
   /** Navigate to Profiles in create-a-profile mode. */
   openProfilesCreate() {
     _profilesCreateRequest = true;
-    _prevView = _view;
     _view = 'speakers';
   },
   get profilesCreateRequest() {
@@ -185,7 +165,6 @@ export const appState = {
   },
 
   setView(v: AppView) {
-    _prevView = _view;
     _view = v;
   },
   get recordingStartedAt() {
@@ -232,7 +211,7 @@ export const appState = {
     _recordingSnapshotProvider = fn;
   },
   /** The current drafts, for stops the backend initiates (auto-stop,
-   * silence) — the stop must carry them exactly like the stop button does. */
+   * silence); the stop must carry them exactly like the stop button does. */
   recordingSnapshot() {
     return _recordingSnapshotProvider?.() ?? null;
   },
@@ -271,14 +250,14 @@ export const appState = {
       _pausedSince = null;
     }
   },
-  /** Wholesale adoption of the backend's accumulated segments — the
-   * focus-time reconcile (`recording_status`) replays what a hidden
-   * window's dropped events would have built. */
+  /** Adopt the backend's accumulated segments wholesale: the focus-time
+   * reconcile (`recording_status`) replays what a hidden window's dropped
+   * events would have built. */
   replaceSegments(segments: TranscriptionSegment[]) {
     _segments = [...segments];
   },
-  /** **Shadow mode**: the user asked the screen to stop saying a meeting
-   * is being recorded. Only meaningful while one is — the indicators it
+  /** Shadow mode: the user asked the screen to stop saying a meeting is
+   * being recorded. Only meaningful while one is: the indicators it
    * suppresses don't exist otherwise. */
   get shadowMode() {
     return _isRecording && _shadowMode;
@@ -287,14 +266,14 @@ export const appState = {
     _shadowMode = v;
   },
   /** Speaker labeling for the running recording (the transcript header's
-   * toggle, or the backend's runaway guard standing it down). */
+   * toggle, or the backend's runaway guard turning it off). */
   get liveDiarization() {
     return _liveDiarization;
   },
   setLiveDiarization(on: boolean) {
-    // A real flip is no longer the guard's doing; a no-op call — the
-    // focus reconcile adopting a backend flag that never changed — must
-    // not launder the guard's reason into a user choice.
+    // A real flip is no longer the guard's doing; a no-op call (the
+    // focus reconcile adopting a backend flag that never changed) must
+    // not turn the guard's reason into a user choice.
     if (on !== _liveDiarization) _diarizationRunaway = false;
     _liveDiarization = on;
   },
@@ -304,17 +283,17 @@ export const appState = {
     _liveDiarization = false;
     _diarizationRunaway = true;
   },
-  /** A new recording starts with no guard history — called at
+  /** A new recording starts with no guard history; called at
    * recording-started, where adopting the setting may be a no-op call
    * that would otherwise preserve a stale reason. */
   clearDiarizationRunaway() {
     _diarizationRunaway = false;
   },
-  /** True only while labeling is off *because* of the guard. */
+  /** True only while labeling is off because of the guard. */
   get diarizationRunaway() {
     return _diarizationRunaway;
   },
-  /** Drop the labels from what is already on screen — the backend has done
+  /** Drop the labels from what is already on screen: the backend has done
    * the same to its accumulator, and a half-labeled transcript reads as
    * the app having lost track of who is talking. */
   stripSpeakers() {
@@ -349,7 +328,6 @@ export const appState = {
     _pendingMeeting = {
       title: _pendingTitleHint ?? copy.meetings.newMeetingTitle,
       durationSeconds: this.elapsedSeconds(),
-      endedAt: Date.now(),
       segments: [..._segments],
       stars: _stars.map((s) => ({
         seconds: s.seconds,
@@ -384,9 +362,6 @@ export const appState = {
     _segments = [];
     _interim = null;
   },
-  setProviderCapabilities(c: ProviderCapabilities) {
-    _providerCapabilities = c;
-  },
   setProcessingStep(s: ProcessingStep) {
     _processingStep = s;
   },
@@ -405,8 +380,9 @@ export const appState = {
   get silenceNoticeMinutes() {
     return _silenceNoticeMinutes;
   },
+  /** Called at both ends of an import. Only the end matters now: it clears
+   * the fraction the processing view reads. */
   setImporting(v: boolean) {
-    _isImporting = v;
     if (!v) _importFraction = null;
   },
   setImportFraction(f: number | null) {
@@ -419,11 +395,9 @@ export const appState = {
     _diarizationRunaway = false;
     _segments = [];
     _interim = null;
-    _providerCapabilities = null;
     _processingStep = null;
     _error = null;
     _silenceNoticeMinutes = null;
-    _isImporting = false;
     _importFraction = null;
     _recordingStartedAt = null;
     _recordingEndedAt = null;

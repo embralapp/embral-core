@@ -2,7 +2,7 @@
 //!
 //! The database (`{storage_dir}/embral.db`) is the **source of truth** for
 //! meetings, their two documents, and their structured transcript segments.
-//! `index.json` remains on disk as a *generated export* written after each
+//! `index.json` remains on disk as a generated export written after each
 //! mutation, and the markdown export writes meetings into a vault one-way
 //! ([integrations.md](../../../docs/integrations.md)); every read inside the
 //! app comes from here.
@@ -27,20 +27,20 @@ use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 
 mod schema;
 
-/// The schema version this build of the crate writes — readers compare it
+/// The schema version this build of the crate writes; readers compare it
 /// against [`Db::schema_version`] to detect a library from a different
 /// embral version.
 pub use schema::latest_version as latest_schema_version;
 
 /// Re-exported so sibling crates (embral-search) run SQL through
-/// [`Db::with_conn`] against the *same* rusqlite — one version, one
+/// [`Db::with_conn`] against the same rusqlite: one version, one
 /// `Connection` type across the workspace.
 pub use rusqlite;
 
 /// Register sqlite-vec as an auto-extension, once per process: every
-/// connection opened afterwards — the app's writer, the MCP server's
-/// per-call read-only opens, in-memory test DBs — has the `vec0` module.
-/// This must run before *any* `Connection::open`, which is why every open
+/// connection opened afterwards (the app's writer, the MCP server's
+/// per-call read-only opens, in-memory test DBs) has the `vec0` module.
+/// This must run before any `Connection::open`, which is why every open
 /// path below calls it first.
 fn register_vec_extension() {
     static VEC_INIT: std::sync::Once = std::sync::Once::new();
@@ -60,7 +60,7 @@ fn register_vec_extension() {
 
 /// One meeting, as stored. Field set mirrors what the commands layer needs
 /// to render `MeetingDetail` and regenerate the index export. The user's own
-/// notes are not here — they are read and written on their own
+/// notes are not here: they are read and written on their own
 /// (`get_notes` / `set_notes`), so an `upsert_meeting` can never clobber
 /// them with a stale copy.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,12 +73,35 @@ pub struct MeetingRow {
     pub transcript: String,
     pub attendees: Vec<String>,
     /// Storage-relative path to the meeting's audio. The one file a meeting
-    /// still owns — the summary and transcript documents are columns, not
+    /// still owns: the summary and transcript documents are columns, not
     /// files (v11).
     pub audio_path: String,
 }
 
+/// Where a page of the meeting list stopped: the last row it handed back.
+/// The next page asks for the rows strictly older than this one.
+///
+/// A row offset would be the other way to page, and it is the wrong one
+/// here: the list is newest-first and rows come and go under it (a delete, a
+/// finished recording, the janitor), and any of those shifts every later row
+/// by one, so an offset silently skips a meeting or shows the same one
+/// twice. A cursor names a place in the order instead of counting from the
+/// top, so it survives all of that.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeetingCursor {
+    pub started_at: DateTime<Utc>,
+    pub id: String,
+}
+
 impl MeetingRow {
+    /// Where a page ending on this row continues from.
+    pub fn cursor(&self) -> MeetingCursor {
+        MeetingCursor {
+            started_at: self.started_at,
+            id: self.id.clone(),
+        }
+    }
+
     /// The index.json record for this row.
     pub fn to_record(&self) -> MeetingRecord {
         MeetingRecord {
@@ -92,7 +115,7 @@ impl MeetingRow {
     }
 }
 
-/// One person in the speaker registry. This is the *write* shape; the profiles
+/// One person in the speaker registry. This is the write shape; the profiles
 /// list reads [`SpeakerListRow`], which adds the activity the list orders by.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct SpeakerRow {
@@ -101,7 +124,7 @@ pub struct SpeakerRow {
     pub notes: String,
 }
 
-/// A registry person plus when they were last in a meeting — what the profiles
+/// A registry person plus when they were last in a meeting: what the profiles
 /// list sorts and groups by, so its date headers mean "people you met with
 /// today" rather than "people you happened to add today".
 #[derive(Debug, Clone, PartialEq)]
@@ -113,7 +136,7 @@ pub struct SpeakerListRow {
     pub last_seen: Option<DateTime<Utc>>,
 }
 
-/// One meeting a person spoke in — a row of the profile pane's record.
+/// One meeting a person spoke in: a row of the profile pane's record.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpeakerMeetingRow {
     pub meeting_id: String,
@@ -135,7 +158,7 @@ pub struct DictationRow {
     pub created_at: String,
 }
 
-/// f32 slice → little-endian bytes for BLOB storage — the wire format
+/// f32 slice → little-endian bytes for BLOB storage: the wire format
 /// sqlite-vec's `vec0` tables take (embral-search's vector store).
 pub fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
     embedding.iter().flat_map(|v| v.to_le_bytes()).collect()
@@ -165,13 +188,13 @@ impl Db {
         Self::init(conn)
     }
 
-    /// In-memory database — tests only.
+    /// In-memory database (tests only).
     pub fn open_in_memory() -> Result<Db> {
         register_vec_extension();
         Self::init(Connection::open_in_memory()?)
     }
 
-    /// Open an *existing* database read-only — for sibling processes (the MCP
+    /// Open an existing database read-only, for sibling processes (the MCP
     /// server) reading while the app owns all writes. Never creates a file,
     /// never migrates, never changes the journal mode; a missing database is
     /// an error the caller renders friendly.
@@ -225,7 +248,7 @@ impl Db {
     }
 
     /// Run `f` against the raw connection, holding the lock for the
-    /// closure's duration. This is embral-search's doorway: the retrieval
+    /// closure's duration. This is embral-search's entry point: the retrieval
     /// engine owns its own SQL (chunks, FTS, vectors) rather than mirroring
     /// CRUD into this crate, but the connection and its lock stay here.
     pub fn with_conn<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
@@ -284,17 +307,44 @@ impl Db {
         limit: Option<u32>,
         since: Option<DateTime<Utc>>,
     ) -> Result<Vec<MeetingRow>> {
+        self.list_meetings_page(limit, since, None)
+    }
+
+    /// One page of [`list_meetings`], picking up where `before` left off.
+    /// The whole list is this call with no cursor, so both read the same
+    /// order and a page boundary lands where the previous page ended.
+    pub fn list_meetings_page(
+        &self,
+        limit: Option<u32>,
+        since: Option<DateTime<Utc>>,
+        before: Option<&MeetingCursor>,
+    ) -> Result<Vec<MeetingRow>> {
         let conn = self.lock();
         let since_str = since.map(|dt| rfc3339(&dt));
+        let before_at = before.map(|c| rfc3339(&c.started_at));
+        let before_id = before.map(|c| c.id.as_str());
         // RFC3339 UTC strings sort lexicographically in time order.
+        //
+        // The id breaks ties on the second, which a bulk import produces
+        // easily. Without it the order is not total, so two meetings sharing
+        // a start time could fall either side of a page boundary and be
+        // dropped or repeated; with it the cursor names exactly one row.
         let mut stmt = conn.prepare(&format!(
             "SELECT {MEETING_COLS} FROM meetings
              WHERE (?1 IS NULL OR started_at >= ?1)
-             ORDER BY started_at DESC
-             LIMIT ?2"
+               AND (?2 IS NULL
+                    OR started_at < ?2
+                    OR (started_at = ?2 AND id < ?3))
+             ORDER BY started_at DESC, id DESC
+             LIMIT ?4"
         ))?;
         let rows = stmt.query_map(
-            params![since_str, limit.map(i64::from).unwrap_or(-1)],
+            params![
+                since_str,
+                before_at,
+                before_id,
+                limit.map(i64::from).unwrap_or(-1)
+            ],
             row_to_meeting,
         )?;
         rows.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into)
@@ -433,10 +483,10 @@ impl Db {
         rows.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into)
     }
 
-    /// Registry speakers with their last meeting, newest first — the profiles
+    /// Registry speakers with their last meeting, newest first: the profiles
     /// list's order. Someone never seen in a meeting sorts by when they were
-    /// created, so a just-added profile still lands at the top where the user
-    /// is looking.
+    /// created, so a just-added profile still appears at the top where the
+    /// user is looking.
     pub fn list_speakers_by_activity(&self) -> Result<Vec<SpeakerListRow>> {
         self.speakers_by_activity(None)
     }
@@ -459,8 +509,8 @@ impl Db {
               WHERE ?1 IS NULL OR s.id = ?1
               ORDER BY COALESCE(last_seen, s.created_at) DESC, s.name COLLATE NOCASE",
         )?;
-        // Timestamps come back as strings and are parsed outside the closure —
-        // rusqlite's row mapper can only fail with a rusqlite error.
+        // Timestamps come back as strings and are parsed outside the
+        // closure: rusqlite's row mapper can only fail with a rusqlite error.
         let rows = stmt.query_map(params![only], |row| {
             Ok((
                 SpeakerRow {
@@ -498,8 +548,8 @@ impl Db {
     }
 
     /// Delete each candidate speaker that is orphaned: no segment anywhere
-    /// links to it and its notes are empty. A profile with notes survives —
-    /// words the user wrote outrank tidiness — and one still linked
+    /// links to it and its notes are empty. A profile with notes survives
+    /// (words the user wrote outrank tidiness), and one still linked
     /// somewhere is no orphan. Unknown ids are skipped. Returns the ids
     /// actually deleted.
     pub fn prune_orphaned_speakers(&self, candidates: &[String]) -> Result<Vec<String>> {
@@ -585,8 +635,8 @@ impl Db {
 
     /// Link every unlinked segment whose label matches this person's name,
     /// case-insensitively, across all meetings. Names arrive through more
-    /// than one door — typed live, applied by the notes-naming pass — and
-    /// not every door sets the registry link; this is the catch-up that
+    /// than one path (typed live, applied by the notes-naming pass) and
+    /// not every path sets the registry link; this is the catch-up that
     /// runs whenever a profile is created, renamed, or merged into. The
     /// label text itself does not change, so no transcript document needs
     /// regenerating. Returns rows changed.
@@ -606,7 +656,7 @@ impl Db {
         Ok(n)
     }
 
-    /// The meetings a person spoke in, newest first — the profile pane's
+    /// The meetings a person spoke in, newest first: the profile pane's
     /// record.
     pub fn speaker_meetings(&self, speaker_id: &str) -> Result<Vec<SpeakerMeetingRow>> {
         let conn = self.lock();
@@ -750,7 +800,7 @@ impl Db {
         Ok(rows)
     }
 
-    /// Which of this meeting's images have already been read — the filenames
+    /// Which of this meeting's images have already been read: the filenames
     /// only, so the sweep can diff them against the asset directory without
     /// pulling every passage into memory.
     pub fn image_text_filenames(&self, meeting_id: &str) -> Result<Vec<String>> {
@@ -827,7 +877,7 @@ impl Db {
     }
 
     /// Drop dictations older than `days` (0 = keep everything). Returns rows
-    /// removed — the janitor logs it.
+    /// removed; the janitor logs it.
     pub fn prune_dictations(&self, days: u32) -> Result<usize> {
         if days == 0 {
             return Ok(0);
@@ -843,7 +893,7 @@ impl Db {
     // --- Full clears (the scoped reset; commands.rs::reset_app_data) ---
 
     /// Delete every meeting (segments cascade, FTS rows via trigger).
-    /// Returns rows removed. The caller removes the meetings' files first —
+    /// Returns rows removed. The caller removes the meetings' files first;
     /// the rows carry the paths.
     pub fn clear_meetings(&self) -> Result<usize> {
         Ok(self.lock().execute("DELETE FROM meetings", [])?)
@@ -867,7 +917,7 @@ impl Db {
     }
 
     /// Keep only the newest `count` dictations (0 = keep everything).
-    /// Returns rows removed — the janitor logs it.
+    /// Returns rows removed; the janitor logs it.
     pub fn prune_dictations_beyond(&self, count: u32) -> Result<usize> {
         if count == 0 {
             return Ok(0);
@@ -991,6 +1041,58 @@ mod tests {
         );
     }
 
+    /// Walk the whole list a page at a time, the way the meetings list does.
+    fn page_through(db: &Db, size: u32) -> Vec<String> {
+        let mut seen = Vec::new();
+        let mut cursor: Option<MeetingCursor> = None;
+        loop {
+            let page = db.list_meetings_page(Some(size), None, cursor.as_ref()).unwrap();
+            let Some(last) = page.last() else { break };
+            cursor = Some(last.cursor());
+            seen.extend(page.iter().map(|m| m.id.clone()));
+            if page.len() < size as usize {
+                break;
+            }
+        }
+        seen
+    }
+
+    #[test]
+    fn pages_cover_the_list_exactly_once() {
+        let db = Db::open_in_memory().unwrap();
+        // "c1" and "c2" start in the same second, which a bulk import
+        // produces easily. Ordering on the timestamp alone leaves the pair
+        // in no fixed order, so a page boundary between them could hand
+        // back one of them twice and never the other.
+        for (id, day) in [("a", 1), ("b", 2), ("c1", 3), ("c2", 3), ("e", 5)] {
+            db.upsert_meeting(&mk(id, "T", day, "", "")).unwrap();
+        }
+
+        assert_eq!(page_through(&db, 2), vec!["e", "c2", "c1", "b", "a"]);
+        // The page size must not change which meetings the user can reach.
+        assert_eq!(page_through(&db, 1), page_through(&db, 5));
+    }
+
+    #[test]
+    fn a_delete_mid_scroll_does_not_skip_the_next_row() {
+        let db = Db::open_in_memory().unwrap();
+        for (id, day) in [("a", 1), ("b", 2), ("c", 3), ("d", 4), ("e", 5)] {
+            db.upsert_meeting(&mk(id, "T", day, "", "")).unwrap();
+        }
+
+        let first = db.list_meetings_page(Some(2), None, None).unwrap();
+        assert_eq!(first.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["e", "d"]);
+
+        // Deleting a row the user has already scrolled past pulls every
+        // later row up by one. An offset of 2 would resume at "b" and lose
+        // "c"; the cursor still names the row the page ended on.
+        db.delete_meeting("e").unwrap();
+        let next = db
+            .list_meetings_page(Some(2), None, Some(&first[1].cursor()))
+            .unwrap();
+        assert_eq!(next.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["c", "b"]);
+    }
+
     #[test]
     fn segments_roundtrip_and_cascade() {
         let db = Db::open_in_memory().unwrap();
@@ -1029,7 +1131,7 @@ mod tests {
     }
 
     /// The profiles list is ordered by who you last met with, so the query has
-    /// to find each person's newest meeting — not their first, and not the
+    /// to find each person's newest meeting, not their first, and not the
     /// newest meeting overall.
     #[test]
     fn speakers_are_ordered_by_their_last_meeting() {
@@ -1038,21 +1140,26 @@ mod tests {
         db.upsert_speaker(&mk_speaker("sp_b", "Bob")).unwrap();
         db.upsert_speaker(&mk_speaker("sp_c", "Never Seen")).unwrap();
 
-        // Alice speaks in the older meeting, Bob in both — so Bob is the more
-        // recent of the two, even though Alice also appears in the newest one's
-        // *earlier* meeting.
+        // Alice speaks only in the older meeting. Bob speaks in both, so his
+        // first meeting ties Alice's and only his newest one ranks him ahead.
         db.upsert_meeting(&mk("m_old", "Old", 1, "", "")).unwrap();
         db.upsert_meeting(&mk("m_new", "New", 9, "", "")).unwrap();
-        db.replace_segments("m_old", &[seg(Some("Alice"), Some("sp_a"), 0.0)])
-            .unwrap();
+        db.replace_segments(
+            "m_old",
+            &[
+                seg(Some("Alice"), Some("sp_a"), 0.0),
+                seg(Some("Bob"), Some("sp_b"), 2.0),
+            ],
+        )
+        .unwrap();
         db.replace_segments("m_new", &[seg(Some("Bob"), Some("sp_b"), 0.0)])
             .unwrap();
 
         let rows = db.list_speakers_by_activity().unwrap();
         let order: Vec<&str> = rows.iter().map(|r| r.speaker.name.as_str()).collect();
 
-        // Never Seen has no meeting, so it sorts on created_at — which is now,
-        // i.e. newer than either meeting (they are dated in the past).
+        // Never Seen has no meeting, so it sorts on created_at, which is now
+        // and so newer than either meeting (they are dated in the past).
         assert_eq!(order, vec!["Never Seen", "Bob", "Alice"]);
 
         let bob = rows.iter().find(|r| r.speaker.id == "sp_b").unwrap();
@@ -1145,7 +1252,7 @@ mod tests {
     fn prune_deletes_only_unlinked_noteless_speakers() {
         let db = Db::open_in_memory().unwrap();
         db.upsert_meeting(&mk("m1", "T", 1, "", "")).unwrap();
-        // Orphan: no segments, no notes — the typo profile.
+        // Orphan: no segments, no notes (the typo profile).
         db.upsert_speaker(&mk_speaker("sp-typo", "Jhon")).unwrap();
         // Still linked: keeps its history.
         db.upsert_speaker(&mk_speaker("sp-live", "John")).unwrap();
@@ -1359,7 +1466,7 @@ mod tests {
             .upsert_meeting(&mk("m1", "Pipeline Review", 1, "# Notes", "budget talk"))
             .unwrap();
 
-        // The writer stays open — this is the app-running case.
+        // The writer stays open: this is the app-running case.
         let reader = Db::open_read_only(&path).unwrap();
         assert_eq!(reader.list_meetings(None, None).unwrap().len(), 1);
         assert_eq!(
@@ -1430,7 +1537,7 @@ mod tests {
         assert_eq!(fts_hits(&db, "budget"), vec![id]);
 
         // Bookkeeping updates (reorder, embedding progress) skip the FTS
-        // trigger entirely — it is scoped to `UPDATE OF text`.
+        // trigger entirely: it is scoped to `UPDATE OF text`.
         db.with_conn(|conn| {
             conn.execute(
                 "UPDATE chunks SET chunk_index = 7, embedded_with = 'model-x' WHERE id = ?1",
@@ -1595,7 +1702,7 @@ mod tests {
 
         db.set_image_text("m1", "img-02.png", "Q4 forecast", "windows").unwrap();
         db.set_image_text("m1", "img-01.png", "Q3 revenue", "windows").unwrap();
-        // Paste order, not insert order — the filenames carry it.
+        // Paste order, not insert order; the filenames carry it.
         assert_eq!(
             db.image_text("m1").unwrap(),
             vec![

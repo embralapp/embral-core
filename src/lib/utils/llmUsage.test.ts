@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { usesLocalLlm } from './llmUsage';
 import type { AppConfig } from '$lib/types';
 
-/** Mirrors `llm::uses_local_llm` in src-tauri — the same drift hazard the
+/** Mirrors `llm::uses_local_llm` in src-tauri, the same drift hazard the
  * asrModel mirror guards: the Performance settings would show while the
  * backend refuses to keep the model warm, or vice versa. */
 function config(fields: Partial<AppConfig>): AppConfig {

@@ -1,6 +1,6 @@
 [package]
 name = "embral"
-version = "26.8.3"
+version = "26.8.4"
 description = "Meeting transcription and notes, on your machine."
 authors = ["avirut"]
 edition = "2021"
@@ -47,9 +47,9 @@ hound = "3.5"
 rubato = "0.15"
 mp3lame-encoder = "0.2"
 # rustls, not the platform TLS stack. `embral-engine` and `embral-notes`
-# already link rustls, so the default `native-tls` here was the odd one out
-# — and on Linux it means OpenSSL, i.e. a `libssl3` the AppImage would have
-# to find on the host. Everything reqwest's defaults gave us is listed
+# already link rustls, so the default `native-tls` here was the odd one
+# out, and on Linux it means OpenSSL, i.e. a `libssl3` the AppImage would
+# have to find on the host. Everything reqwest's defaults gave us is listed
 # explicitly so the only thing that changes is the TLS backend.
 #
 # **Native roots, not just webpki.** Plain `rustls-tls` means bundled
@@ -58,7 +58,7 @@ mp3lame-encoder = "0.2"
 # workspace's reqwest through schannel / Security.framework, so a machine
 # carrying a corporate root CA or sitting behind a TLS-inspecting proxy
 # verified fine and would have started failing every model download and
-# cloud call — on a build that passes every check.
+# cloud call, on a build that passes every check.
 #
 # The two root sets add rather than replace (reqwest extends the store with
 # webpki's, then the OS store's), and `embral-engine` / `embral-notes` still
@@ -81,7 +81,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 # rustls too, and the same system roots as reqwest above. The relay this
 # talks to is embral's own backend on a public CA, so bundled roots would
-# reach it — but a proxy that terminates TLS sits in front of every host
+# reach it, but a proxy that terminates TLS sits in front of every host
 # equally, and one connection failing where the rest succeed is the harder
 # bug to read.
 tokio-tungstenite = { version = "0.21", default-features = false, features = [
@@ -134,8 +134,8 @@ windows = { version = "0.62", features = [
     "Win32_UI_Input_KeyboardAndMouse",
 ] }
 # The `#[implement]` macro (per-process audio capture's completion
-# handler) expands to `windows_core::` paths, so the crate must be nameable
-# — the `windows` facade's re-export is not enough.
+# handler) expands to `windows_core::` paths, so the crate must be
+# nameable; the `windows` facade's re-export is not enough.
 windows-core = "0.62"
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -157,12 +157,12 @@ objc2-vision = { version = "0.3.2", features = ["VNObservation", "VNRecognizeTex
 
 # The Linux platform layer (src/platform/linux/). Kept deliberately small:
 # every capability here is either a plain syscall, a freedesktop D-Bus
-# interface, or the PulseAudio protocol — no desktop-environment SDKs.
+# interface, or the PulseAudio protocol; no desktop-environment SDKs.
 [target.'cfg(target_os = "linux")'.dependencies]
 # PR_SET_PDEATHSIG + uname (platform/linux/supervisor.rs, os_build.rs).
 libc = "0.2.189"
 # The XDG settings portal, for the shell theme + accent
-# (platform/linux/theme.rs). Pure Rust — no glib main loop to integrate.
+# (platform/linux/theme.rs). Pure Rust; no glib main loop to integrate.
 zbus = "5"
 # The PulseAudio protocol, for the three audio jobs (platform/linux/pulse.rs,
 # mic_users.rs, audio_apps.rs, and loopback.rs from Phase 3). Served by
@@ -170,8 +170,9 @@ zbus = "5"
 # PulseAudio for free.
 libpulse-binding = "2.28"
 # The blocking record-stream API, for the monitor-source capture lane
-# (platform/linux/loopback.rs). A dedicated thread already owns that lane, so
-# a blocking read loop is the right shape — no second mainloop to pump.
+# (platform/linux/loopback.rs). A dedicated thread already owns that
+# capture, so a blocking read loop is the right shape; no second mainloop
+# to pump.
 libpulse-simple-binding = "2.28"
 # X11, for dictation's paste chord (XTEST) and the focused-window query
 # (platform/linux/input.rs). Pure Rust; only the extensions named here.

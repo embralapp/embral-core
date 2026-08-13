@@ -1,11 +1,11 @@
 //! What is playing audio right now?
 //!
 //! The sibling of `mic_users.rs`: the same WASAPI session walk, over
-//! **render** endpoints instead of capture ones. It answers "which apps
+//! render endpoints instead of capture ones. It answers "which apps
 //! could this recording include", which the source picker lists
 //! ([recording.md](../../../../docs/recording.md) §Dual-stream capture).
 //!
-//! Read-only enumeration — no activation, no hosted COM object. Any COM
+//! Read-only enumeration: no activation, no hosted COM object. Any COM
 //! failure degrades to an empty list: the picker then shows no apps and
 //! the recording keeps capturing everything, which is the safe default.
 
@@ -21,9 +21,9 @@ use windows::Win32::System::Com::{
 use crate::platform::types::AppId;
 
 /// Apps with an audio session on any active output device, excluding our
-/// own. Sessions that are merely *inactive* (an app between sounds) are
+/// own. Sessions that are merely inactive (an app between sounds) are
 /// included: dropping them would make rows flicker in and out of the
-/// picker between utterances. Expired sessions are skipped — that app is
+/// picker between utterances. Expired sessions are skipped; that app is
 /// gone.
 pub fn apps_playing_audio(exclude_pid: u32) -> Vec<AppId> {
     match scan(exclude_pid) {
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn the_same_app_on_two_endpoints_is_listed_once() {
-        // An app rendering to speakers *and* a headset has a session on
+        // An app rendering to both speakers and a headset has a session on
         // each; the picker must show one row, not two.
         let own = std::process::id();
         let listed = named(&[own, own]);
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn dead_pids_drop_out_rather_than_appearing_unnamed() {
-        // Nothing can be named for a pid that no longer exists — a blank
+        // Nothing can be named for a pid that no longer exists; a blank
         // row would be worse than no row.
         assert!(named(&[u32::MAX]).is_empty());
     }

@@ -1,13 +1,13 @@
 //! The refinement system prompt and user-message builder.
 //!
 //! Extracted from `src-tauri/src/refinement.rs` so it can be unit-tested and
-//! shared across every notes engine unchanged — the prompt is engine-neutral
+//! shared across every notes engine unchanged: the prompt is engine-neutral
 //! (it targets a generic chat model); only the transport differs.
 
 /// The editable half of the summary prompt. Users may replace this wholesale
-/// in Settings; it deliberately contains no output-format rules — those live
+/// in Settings; it deliberately contains no output-format rules: those live
 /// in [`OUTPUT_CONTRACT`], which is always appended so the machine-read
-/// pieces (frontmatter, Chapters) survive any customization.
+/// frontmatter survives any customization.
 pub const DEFAULT_SUMMARY_PROMPT: &str = r#"You are a professional meeting notes assistant. Transform the raw diarized transcript and user notes into a clean, structured markdown document.
 
 Core principles:
@@ -32,9 +32,9 @@ Identifying attendees:
 - Only fall back to generic speaker labels when no real names can be inferred.
 - Do not include both a real name and its generic speaker label unless they clearly refer to different people."#;
 
-/// The locked half: the exact output shape the app parses (frontmatter fields,
-/// the Chapters format, the section scaffold). Appended after the editable
-/// prompt unconditionally.
+/// The locked half: the exact output shape the app parses (frontmatter
+/// fields, the section scaffold). Appended after the editable prompt
+/// unconditionally.
 pub const OUTPUT_CONTRACT: &str = r#"Output format (follow exactly):
 
 ---
@@ -115,7 +115,7 @@ mod tests {
         )
     }
 
-    /// A meeting with no images says nothing about images at all — a
+    /// A meeting with no images says nothing about images at all: a
     /// standing paragraph on every image-less meeting is wasted tokens and
     /// an invitation to invent one.
     #[test]
@@ -206,7 +206,7 @@ pub fn build_user_message(
     transcript: &str,
     user_notes: Option<&str>,
     // What OCR read inside each image, keyed by the link the notes carry.
-    // Images with no entry are still offered — the model can place one on
+    // Images with no entry are still offered; the model can place one on
     // the strength of the prose around it.
     image_text: &[(String, String)],
 ) -> String {
@@ -228,9 +228,9 @@ pub fn build_user_message(
         }
     };
 
-    // The *rule* about images lives in the locked contract; the inventory
+    // The rule about images lives in the locked contract; the inventory
     // lives here, because it is a fact about this meeting. Omitted entirely
-    // when there are none — a standing paragraph about images on every
+    // when there are none: a standing paragraph about images on every
     // image-less meeting is wasted tokens and an invitation to invent one.
     let images = crate::assets::image_links(user_notes.unwrap_or(""));
     let image_block = if images.is_empty() {

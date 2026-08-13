@@ -4,7 +4,7 @@
 //! engine's synchronous `LocalSession`: audio chunks flow over a std channel
 //! into a blocking task that feeds the engine and forwards its events. The
 //! recognizer itself lives in the app-wide warm [`embral_engine::Engine`], so
-//! only the *first* session pays the model-load cost; later recordings start
+//! only the first session pays the model-load cost; later recordings start
 //! instantly.
 
 use anyhow::Result;
@@ -29,7 +29,7 @@ pub struct LocalProvider {
     engine: Arc<Engine>,
     model_id: String,
     vocabulary: Vec<String>,
-    /// Live provisional speaker labels — off when the user disabled
+    /// Live provisional speaker labels; off when the user disabled
     /// speaker detection.
     live_speaker_labels: bool,
 }
@@ -81,7 +81,7 @@ fn forward_events(
                         end,
                     },
                     // Diff-derived (words agreeing with the previous decode
-                    // are stable); already carries the seam's leading-space
+                    // are stable); already carries the leading-space
                     // word-boundary convention.
                     tentative,
                 });

@@ -10,7 +10,7 @@ describe('entryCoversToken', () => {
   });
 
   it('keeps Chrome and Chromium apart', () => {
-    // The one brand pair where substring matching does not collapse them —
+    // The one brand pair where substring matching does not collapse them:
     // neither name contains the other, which is why each needs its own entry.
     expect(entryCoversToken('chromium', 'chrome')).toBe(false);
     expect(entryCoversToken('chrome', 'chromium')).toBe(false);
@@ -29,7 +29,7 @@ describe('the Windows ms-teams regression', () => {
   // Windows shipped `["zoom", "ms-teams", "teams", …]` as its default while
   // the grid only ever had a `teams` checkbox. With exact-equality checks,
   // unchecking Teams removed `teams`, left `ms-teams`, and detection kept
-  // firing against a box that showed unchecked — so Teams detection could
+  // firing against a box that showed unchecked, so Teams detection could
   // not be turned off at all.
   const shipped = ['zoom', 'ms-teams', 'teams', 'chrome', 'msedge'];
 
@@ -41,7 +41,7 @@ describe('the Windows ms-teams regression', () => {
     const after = disableApp(shipped, 'teams');
     expect(after).not.toContain('teams');
     expect(after).not.toContain('ms-teams');
-    // And says so when asked again — the box no longer lies.
+    // And says so when asked again: the box no longer lies.
     expect(isAppEnabled(after, 'teams')).toBe(false);
     // Everything else is untouched.
     expect(after).toEqual(['zoom', 'chrome', 'msedge']);

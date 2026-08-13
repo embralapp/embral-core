@@ -26,7 +26,7 @@
     let confirmMerge = $state(false);
     let merging = $state(false);
 
-    // The same selection model as the meetings list — the two lists are one
+    // The same selection model as the meetings list; the two lists are one
     // object with different contents.
     const selection = new ListSelection();
 
@@ -37,7 +37,7 @@
     let speakers = $derived(speakersStore.speakers);
 
     // Grouped under the same date headers as the meetings list, by when each
-    // person was last in a meeting — so the headings read "who you met with
+    // person was last in a meeting, so the headings read "who you met with
     // today". Someone never seen in one falls back to when they were added,
     // which keeps a just-created profile at the top where the user is looking.
     // The backend already returns them in this order.
@@ -65,7 +65,7 @@
     }
 
     /** The menu acts on the selection, so a right-click outside it moves
-     * the selection first — exactly what a plain click would have done. */
+     * the selection first, exactly what a plain click would have done. */
     function onRowContextMenu(id: string, event: MouseEvent) {
         if (!selection.has(id)) onRowClick(id, event);
     }
@@ -119,7 +119,7 @@
         }
     }
 
-    // Palette "New profile" lands here in create mode.
+    // Palette "New profile" opens this page in create mode.
     $effect(() => {
         if (appState.profilesCreateRequest) {
             appState.clearProfilesCreateRequest();
@@ -148,7 +148,7 @@
     >
         {#snippet left()}
             <!-- People list: no header, just the scrollable list with the
-                 floating add button — the same object as the meetings pane,
+                 floating add button. The same object as the meetings pane,
                  down to the row treatment and the date headers. -->
             <div
                 class="relative flex min-h-0 w-full flex-1 flex-col border-r border-border bg-muted/20"
@@ -213,7 +213,7 @@
                         {/each}
                         {#if speakers.length === 0 && speakersStore.loaded && !creating}
                             <!-- Same treatment as the meeting list's empty
-                                 state — the two pages are the same object. -->
+                                 state; the two pages are the same object. -->
                             <p class="px-3 py-4 text-sm text-muted-foreground">
                                 {t.empty}
                             </p>

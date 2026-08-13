@@ -1,7 +1,7 @@
 //! Where Claude Desktop keeps its MCP config
 //! ([integrations.md](../../../../docs/integrations.md)).
 //!
-//! One location on macOS — `~/Library/Application Support/Claude` — no
+//! One location on macOS (`~/Library/Application Support/Claude`), no
 //! MSIX-style virtualization to resolve. "Installed but never launched"
 //! is covered by the app bundle check, so registration can create the
 //! config folder the way the Windows path does.
@@ -14,7 +14,7 @@ fn config_dir() -> Option<PathBuf> {
 }
 
 /// The best Claude Desktop config directory visible on disk (the single
-/// candidate — returned even when absent, so callers can say where to
+/// candidate, returned even when absent, so callers can say where to
 /// look).
 pub fn desktop_config_dir_on_disk() -> Option<PathBuf> {
     config_dir()
@@ -22,7 +22,7 @@ pub fn desktop_config_dir_on_disk() -> Option<PathBuf> {
 
 /// The live Claude Desktop config directory and whether it's installed:
 /// the config folder exists (it has run), or the app bundle is present
-/// (installed, never launched — registration creates the folder).
+/// (installed, never launched; registration creates the folder).
 pub async fn resolve_desktop_config_dir() -> (Option<PathBuf>, bool) {
     let dir = config_dir();
     let has_config = dir.as_deref().map(|d| d.is_dir()).unwrap_or(false);

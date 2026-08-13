@@ -1,6 +1,6 @@
 <script lang="ts">
     // Dictation's day-one decisions: the hotkey that makes it exist, the
-    // cleanup mode, and where the text lands. The provider/language tree
+    // cleanup mode, and where the text goes. The provider/language tree
     // keeps its defaults; Settings has the rest.
     import * as Select from "$lib/components/ui/select";
     import { Switch } from "$lib/components/ui/switch";

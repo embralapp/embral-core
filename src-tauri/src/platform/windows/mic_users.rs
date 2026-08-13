@@ -1,7 +1,7 @@
 //! Who is using the microphone right now?
 //!
 //! Enumerates WASAPI audio sessions on every active capture endpoint and
-//! returns the process names holding an *active* stream — the most reliable
+//! returns the process names holding an active stream, the most reliable
 //! signal that a call is underway. Runs on a blocking thread each poll tick.
 //! Any COM failure degrades to an empty list (detection must never take the
 //! app down); warnings are throttled by the caller.
@@ -84,7 +84,7 @@ fn scan(exclude_pid: u32) -> windows::core::Result<Vec<AppId>> {
                         }
                     }
                     // The implicit liveness check: a session whose process is
-                    // gone can't be named — and can't hold a call open.
+                    // gone can't be named, and can't hold a call open.
                     None => tracing::debug!(pid, "active mic session with no live process; skipped"),
                 }
             }
@@ -95,7 +95,7 @@ fn scan(exclude_pid: u32) -> windows::core::Result<Vec<AppId>> {
 
 #[cfg(test)]
 mod tests {
-    /// Live probe of the real COM scan — run manually while some app holds a
+    /// Live probe of the real COM scan; run manually while some app holds a
     /// microphone stream: `cargo test -p embral --lib scan_lists -- --ignored --nocapture`.
     #[test]
     #[ignore = "manual probe; needs an app actively capturing the mic"]

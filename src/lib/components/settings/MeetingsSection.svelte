@@ -90,7 +90,7 @@
     ];
 
     // Both read the allowlist the way the detector does (bidirectional
-    // substring), not by exact equality — otherwise a covering entry the grid
+    // substring), not by exact equality; otherwise a covering entry the grid
     // has no checkbox for survives an uncheck and keeps the app detected
     // while the box shows off. See utils/allowlist.ts.
     function appChecked(match: string): boolean {
@@ -124,7 +124,7 @@
         }
     });
 
-    // The summary engine (moved here from the Synthesis page — it is the
+    // The summary engine (moved here from the Synthesis page: it is the
     // product question "who writes my summaries", not a model-management
     // knob). Engines are fixed per edition; the backend picks actual models.
     let engineValue = $derived(draft.summaries_profile_id || BUILTIN_PROFILE_ID);
@@ -134,7 +134,7 @@
             : providers.localModel,
     );
 
-    // "" in config means "use the default" — the editor always shows the
+    // "" in config means "use the default": the editor always shows the
     // effective text; the first edit materializes it as a custom prompt.
     let customized = $derived(draft.summary_prompt.trim().length > 0);
     let promptText = $derived(customized ? draft.summary_prompt : defaultPrompt);
@@ -145,8 +145,7 @@
     }
 
     // "Open on Summary" is only an option while summaries exist at all; a
-    // stored `summary` with the switch off rewrites to notes (same pattern
-    // as the diarization↔model effect above).
+    // stored `summary` with the switch off rewrites to notes.
     $effect(() => {
         if (!draft.summaries_enabled && draft.open_meeting_tab === "summary") {
             draft.open_meeting_tab = "notes";
@@ -274,7 +273,7 @@
         {/if}
 
         <!-- The silence check-in guards every recording, whatever the
-             detection policy — it sits outside the policy gate. -->
+             detection policy; it sits outside the policy gate. -->
         <SettingRow
             title={t.autoStart.silence.label}
             description={t.autoStart.silence.sub}

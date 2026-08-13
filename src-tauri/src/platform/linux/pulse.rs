@@ -1,12 +1,12 @@
 //! A short-lived PulseAudio connection, shared by the two introspection
 //! scans (`mic_users.rs`, `audio_apps.rs`). Served by PipeWire's
 //! pulse-compatibility layer on every desktop that matters, and by real
-//! PulseAudio on legacy systems — one protocol covers both
+//! PulseAudio on legacy systems; one protocol covers both
 //! ([260801-linux-port.md]).
 //!
-//! **Drop order is load-bearing.** Rust drops struct fields in declaration
+//! Drop order matters here. Rust drops struct fields in declaration
 //! order, and dropping the `Mainloop` while the `Context` still owns IO
-//! events trips a C-side assertion and `abort()`s the whole process —
+//! events trips a C-side assertion and `abort()`s the whole process:
 //! `Assertion '!e->dead' failed at mainloop.c:207, mainloop_io_free()`. Not
 //! an `Err`: an abort, with no Rust-level way to catch it. So the context is
 //! declared first (dropped first) and disconnected explicitly. This cost the
@@ -16,7 +16,7 @@
 //! from `spawn_blocking`, a session connect is sub-millisecond on a local
 //! socket, and a long-lived connection would need its own thread to pump the
 //! mainloop plus reconnect logic for a server restart. Absence of a server
-//! is a normal state (`None`), not an error — it degrades to "no apps seen".
+//! is a normal state (`None`), not an error; it degrades to "no apps seen".
 //!
 //! [260801-linux-port.md]: ../../../../docs/plans/260801-linux-port.md
 
@@ -45,7 +45,7 @@ pub struct MonitorTarget {
 }
 
 pub struct Pulse {
-    // Declared before `mainloop` on purpose — see the module doc.
+    // Declared before `mainloop` on purpose; see the module doc.
     ctx: Context,
     mainloop: Mainloop,
 }
@@ -57,7 +57,7 @@ impl Drop for Pulse {
 }
 
 impl Pulse {
-    /// Connect to the session's sound server. `None` when there is none —
+    /// Connect to the session's sound server. `None` when there is none:
     /// the honest inert value, and a real state on a machine with no audio
     /// stack rather than only an error path.
     pub fn connect() -> Option<Self> {
@@ -101,7 +101,7 @@ impl Pulse {
         }
     }
 
-    /// The default sink's **monitor source** — what system-audio capture
+    /// The default sink's monitor source: what system-audio capture
     /// records ([recording.md](../../../../docs/recording.md)).
     ///
     /// `SinkInfo::monitor_source_name` is authoritative, so this never builds
@@ -109,9 +109,9 @@ impl Pulse {
     /// sink measured, but the field is the field.
     ///
     /// The native channel count and rate come back too, because the capture
-    /// asks the server for *native* geometry and lets `audio/pipeline.rs` do
-    /// the downmix and resample — the same division of labour as the WASAPI
-    /// and Core Audio lanes, rather than having the server convert.
+    /// asks the server for native geometry and lets `audio/pipeline.rs` do
+    /// the downmix and resample, the same division of labour as the WASAPI
+    /// and Core Audio capture paths, rather than having the server convert.
     pub fn default_monitor(&mut self) -> Option<MonitorTarget> {
         let default_sink = {
             let name = Rc::new(RefCell::new(None::<String>));
@@ -160,7 +160,7 @@ impl Pulse {
         found
     }
 
-    /// Apps with an open **record** stream — detection's signal.
+    /// Apps with an open record stream: detection's signal.
     pub fn record_streams(&mut self, exclude_pid: u32) -> Vec<AppId> {
         let found = Rc::new(RefCell::new(Vec::new()));
         let done = Rc::new(RefCell::new(false));
@@ -183,7 +183,7 @@ impl Pulse {
         dedupe(apps)
     }
 
-    /// Apps with an open **playback** stream — the source picker's rows.
+    /// Apps with an open playback stream: the source picker's rows.
     pub fn playback_streams(&mut self, exclude_pid: u32) -> Vec<AppId> {
         let found = Rc::new(RefCell::new(Vec::new()));
         let done = Rc::new(RefCell::new(false));
@@ -210,8 +210,8 @@ impl Pulse {
 /// A stream's properties → the identity the matcher tests
 /// ([detection.md](../../../../docs/detection.md) §Matching).
 ///
-/// Deliberately **not** filtered on `corked`. A corked stream is one the
-/// client paused, and an app that still holds the source is still in a call —
+/// Deliberately not filtered on `corked`. A corked stream is one the
+/// client paused, and an app that still holds the source is still in a call,
 /// which is the whole basis of detection's grace budget ("mute does not
 /// release the capture session", detection.md §Signal). Treating corked as
 /// "gone" would end a meeting the moment someone muted.
@@ -220,8 +220,8 @@ impl Pulse {
 /// `application.name`; either alone is enough for the matcher, and having
 /// both is useful redundancy. Measured against a real Zoom-in-Chrome call:
 /// `binary = "chrome"` and `name = "Google Chrome input"`, and the `chrome`
-/// token matches *both*. Note the `" input"` suffix pulse appends to a record
-/// stream's app name — harmless through `displayAppName`'s token map, wrong
+/// token matches both. The `" input"` suffix pulse appends to a record
+/// stream's app name is harmless through `displayAppName`'s token map, wrong
 /// if ever shown raw.
 fn app_from_props(props: &Proplist, exclude_pid: u32) -> Option<AppId> {
     let pid: u32 = props
@@ -262,12 +262,12 @@ fn app_from_props(props: &Proplist, exclude_pid: u32) -> Option<AppId> {
 /// Measured, not theorised: the detection log read
 /// `mic sessions changed now=["chrome", "PipeWire ALSA [embral]"]` during a
 /// real call. Under the `prompt` and `selective` policies the allowlist
-/// rejects that name and nothing goes wrong, which is exactly why this hid —
-/// but `Always` takes *any* mic user, so embral would have detected itself
+/// rejects that name and nothing goes wrong, which is exactly why this hid;
+/// but `Always` takes any mic user, so embral would have detected itself
 /// and auto-started a recording of its own recording.
 ///
 /// Hence the fallback: match our own program name in either identity. Erring
-/// toward excluding one stream too many is the safe direction — a missed
+/// toward excluding one stream too many is the safe direction: a missed
 /// detection is a nuisance, self-detection is a loop.
 fn is_our_own(pid: u32, exclude_pid: u32, exe: Option<&str>, display_name: Option<&str>) -> bool {
     if pid != 0 && pid == exclude_pid {
@@ -288,7 +288,7 @@ fn is_our_own(pid: u32, exclude_pid: u32, exe: Option<&str>, display_name: Optio
 /// Two sources, unioned, because neither alone is trustworthy:
 ///
 /// - `CARGO_PKG_NAME` is what the shipped binary is called and is stable in
-///   every build **including under `cargo test`**, where `current_exe()` is
+///   every build, including under `cargo test`, where `current_exe()` is
 ///   the test harness (`embral_lib-<hash>`) rather than the app. Relying on
 ///   `current_exe` alone made this module's own regression test fail, which
 ///   is a fair warning about relying on it in a bundle.
@@ -313,9 +313,9 @@ fn own_markers() -> &'static [String] {
 }
 
 /// One row per app, as on macOS. An app commonly holds several streams at
-/// once — Chrome's audio service opens one per tab — and the same label twice
+/// once (Chrome's audio service opens one per tab), and the same label twice
 /// is a row the reader cannot tell apart. Keyed on the identity rather than
-/// the pid, because the pid belongs to a *helper*: a real Zoom-in-Chrome call
+/// the pid, because the pid belongs to a helper: a real Zoom-in-Chrome call
 /// reports Chrome's `audio.mojom.AudioService` child, not the browser, so
 /// two tabs could differ by pid while being one app to the user.
 fn dedupe(apps: Vec<AppId>) -> Vec<AppId> {
@@ -373,9 +373,9 @@ mod tests {
             ("application.name", "PipeWire ALSA [embral]"),
         ]);
         assert!(app_from_props(&ours, 4242).is_none(), "we are not a meeting");
-        // And still ours when the pid does not match — which is the whole
+        // And still ours when the pid does not match, which is the whole
         // point, since the ALSA bridge publishes no pid at all. An earlier
-        // version of this test asserted the opposite and was simply wrong.
+        // version of this test asserted the opposite and was wrong.
         assert!(
             app_from_props(&ours, 1).is_none(),
             "our own name identifies us regardless of pid"
@@ -390,8 +390,8 @@ mod tests {
     }
 
     /// The regression this file's `is_our_own` exists for, measured on a real
-    /// call: our own capture appears in the scan with **no process props at
-    /// all**, because cpal records through ALSA and PipeWire's ALSA layer
+    /// call: our own capture appears in the scan with no process props at
+    /// all, because cpal records through ALSA and PipeWire's ALSA layer
     /// publishes only a stream name. `exclude_pid` cannot see it.
     #[test]
     fn our_own_alsa_bridged_stream_is_excluded_without_a_pid() {
@@ -443,7 +443,7 @@ mod tests {
     fn a_stream_with_no_identity_is_skipped() {
         let p = props(&[("application.process.id", "7")]);
         assert!(app_from_props(&p, 0).is_none());
-        // Whitespace is not an identity either — it would match every token.
+        // Whitespace is not an identity either; it would match every token.
         let blank = props(&[
             ("application.process.id", "7"),
             ("application.process.binary", "   "),
@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn one_app_holding_several_streams_becomes_one_row() {
         // Chrome's audio service opens a stream per tab, and its pid is the
-        // helper's — so two rows can differ by pid yet be one app.
+        // helper's, so two rows can differ by pid yet be one app.
         let chrome = |pid| AppId {
             pid,
             exe: Some("chrome".into()),

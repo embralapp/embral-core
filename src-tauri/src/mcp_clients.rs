@@ -1,10 +1,10 @@
-//! Registering the MCP server with the AI clients on this machine —
-//! Claude Desktop (its JSON config), Claude Code and Codex (their CLIs) —
-//! plus the copy-paste setup info for everything else. Detection reports
-//! disk/CLI truth, never UI state: the frontend refetches after every
+//! Registering the MCP server with the AI clients on this machine (Claude
+//! Desktop through its JSON config, Claude Code and Codex through their
+//! CLIs), plus the copy-paste setup info for everything else. Detection
+//! reports disk/CLI truth, never UI state: the frontend refetches after every
 //! action instead of assuming success ([integrations.md](../../docs/integrations.md)).
 //! Where Claude Desktop keeps its config (and how CLIs resolve) is
-//! per-OS — `crate::platform::{mcp_paths, find_cli}` own that.
+//! per-OS; `crate::platform::{mcp_paths, find_cli}` own that.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -36,7 +36,7 @@ pub enum McpClient {
 pub struct ClientStatus {
     pub installed: bool,
     pub registered: bool,
-    /// The resolved CLI/config path, or why detection came up empty — the
+    /// The resolved CLI/config path, or why detection came up empty: the
     /// UI's status line.
     pub detail: String,
 }
@@ -55,7 +55,7 @@ pub struct McpClientsStatus {
 /// The server binary: bundled sidecar next to the app exe first, then the
 /// workspace's release and debug builds (dev). The final fallback is the
 /// sidecar path even when absent, so the UI can say what's missing.
-/// Also the app's embedding worker — `search_index` spawns this same
+/// Also the app's embedding worker: `search_index` spawns this same
 /// binary in its `embed` mode.
 pub(crate) fn server_binary() -> Result<(PathBuf, bool), String> {
     let exe = crate::platform::exe_name("embral-mcp");
@@ -84,9 +84,9 @@ pub(crate) fn server_binary() -> Result<(PathBuf, bool), String> {
 }
 
 /// Where an AppImage's registrations must point instead of the mount.
-/// `Some` only when this process runs *as* an AppImage: the exe-dir path
+/// `Some` only when this process runs as an AppImage: the exe-dir path
 /// lives under `/tmp/.mount_*`, renamed every launch and gone whenever
-/// the app is closed — a client config holding it is broken by design.
+/// the app is closed; a client config holding it is broken by design.
 /// The stable home is `~/.local/share/embral/bin` (the same per-user
 /// root the logs use).
 fn appimage_stable_dir() -> Option<PathBuf> {
@@ -119,13 +119,13 @@ fn refresh_stable_copy(src: &Path, dest: &Path) -> std::io::Result<bool> {
     Ok(true)
 }
 
-/// The server path client-facing surfaces hand out — registration
+/// The server path client-facing surfaces hand out: registration
 /// writes, the status line, the copy-paste snippets. Normally the
 /// sidecar next to the app exe; under an AppImage, a stable per-user
 /// copy refreshed from the mount, because the mount path dies with the
 /// process ([integrations.md]). A copy failure falls back to the
 /// sidecar path: degraded (the old behavior), never newly broken. The
-/// app's own embedding worker keeps spawning `server_binary()` — the
+/// app's own embedding worker keeps spawning `server_binary()`; the
 /// mount is valid for exactly as long as the app runs.
 pub(crate) fn registered_server_binary() -> Result<(PathBuf, bool), String> {
     let (sidecar, exists) = server_binary()?;
@@ -145,7 +145,7 @@ pub(crate) fn registered_server_binary() -> Result<(PathBuf, bool), String> {
 
 /// The AppImage half of boot-time update hygiene: refresh the stable
 /// copy so clients pick up a new build at their next spawn even if
-/// Settings → MCP is never opened — a stale copy after an app update is
+/// Settings → MCP is never opened. A stale copy after an app update is
 /// exactly the old-server-on-new-library case the schema guard refuses.
 #[cfg(target_os = "linux")]
 pub fn refresh_appimage_server_copy() {
@@ -162,8 +162,8 @@ pub fn refresh_appimage_server_copy() {
 /// Update leftovers: the Windows installer renames a locked
 /// `embral-mcp.exe` aside as `embral-mcp.exe.stale-N` instead of failing
 /// the update ([release.md] §Installer hooks). Whatever it left behind is
-/// removed here at the next app start; a file still locked — a client
-/// that has not restarted, still running the old server — is skipped,
+/// removed here at the next app start; a file still locked (a client
+/// that has not restarted, still running the old server) is skipped,
 /// and a later boot gets it.
 #[cfg(windows)]
 pub fn sweep_stale_servers() {
@@ -222,7 +222,7 @@ fn codex_config() -> Option<PathBuf> {
 // --- Pure config-file logic (tested) ---
 
 /// Set `mcpServers.embral` in a Claude-style JSON config, preserving every
-/// other key byte-for-byte semantically. Refuses input it can't parse —
+/// other key byte-for-byte semantically. Refuses input it can't parse:
 /// never clobber a config we couldn't read.
 fn upsert_mcp_server(existing: &str, command: &str) -> Result<String, String> {
     let mut root: serde_json::Value = if existing.trim().is_empty() {
@@ -270,7 +270,7 @@ fn codex_toml_snippet(server_path: &str) -> String {
     format!("[mcp_servers.embral]\ncommand = '{server_path}'\nargs = []")
 }
 
-/// Set `mcp_servers.embral` in `~/.codex/config.toml` — the direct-write
+/// Set `mcp_servers.embral` in `~/.codex/config.toml`: the direct-write
 /// path for a machine running ChatGPT desktop without the `codex` CLI.
 /// `toml_edit` keeps every other table, key, and comment as written; a
 /// file that doesn't parse is refused, never clobbered.
@@ -307,7 +307,7 @@ fn remove_codex_server(existing: &str) -> Result<Option<String>, String> {
     Ok(Some(doc.to_string()))
 }
 
-/// Whether the shared OpenAI config home exists — what a ChatGPT desktop
+/// Whether the shared OpenAI config home exists: what a ChatGPT desktop
 /// install creates even when the `codex` CLI is not on PATH. The desktop
 /// app, the CLI, and the IDE extension read the same
 /// `~/.codex/config.toml` ([integrations.md]).
@@ -338,7 +338,7 @@ fn codex_registered() -> bool {
 use crate::platform::find_cli;
 
 /// Run a resolved CLI without flashing a console window, bounded so a hung
-/// client can't wedge the settings page. Handing std/tokio the explicit
+/// client can't hang the settings page. Handing std/tokio the explicit
 /// `.cmd` path is safe: the runtime wraps cmd.exe itself with correct
 /// quoting, and our args are fixed strings plus a path.
 async fn run_cli(exe: &Path, args: &[&str]) -> Result<std::process::Output, String> {
@@ -351,7 +351,7 @@ async fn run_cli(exe: &Path, args: &[&str]) -> Result<std::process::Output, Stri
         .map_err(|e| format!("{}: {e}", exe.display()))
 }
 
-/// The last chunk of a failed CLI's chatter — enough to see why, short
+/// The last chunk of a failed CLI's output: enough to see why, short
 /// enough for an inline error line.
 fn output_tail(output: &std::process::Output) -> String {
     let mut text = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -425,8 +425,8 @@ pub async fn mcp_clients_status() -> Result<McpClientsStatus, String> {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "the claude CLI was not found on PATH".into()),
     };
-    // The card covers every surface of the unified OpenAI app — ChatGPT
-    // desktop, the Codex CLI, the IDE extension — which share one config
+    // The card covers every surface of the unified OpenAI app (ChatGPT
+    // desktop, the Codex CLI, the IDE extension), which share one config
     // file. The CLI is one signal; the config home the desktop app
     // creates is the other.
     let codex = ClientStatus {
@@ -452,7 +452,7 @@ pub async fn mcp_clients_status() -> Result<McpClientsStatus, String> {
     })
 }
 
-/// The client's telemetry name — the vocabulary's closed set.
+/// The client's telemetry name, from the vocabulary's closed set.
 fn client_label(client: McpClient) -> &'static str {
     match client {
         McpClient::ClaudeDesktop => "claude_desktop",
@@ -524,8 +524,8 @@ async fn mcp_register_inner(client: McpClient) -> Result<String, String> {
         }
         McpClient::Codex => {
             // The vendor's own tool when it's here; the shared config file
-            // directly when only ChatGPT desktop is installed — the app,
-            // the CLI, and the IDE extension all read it.
+            // directly when only ChatGPT desktop is installed (the app,
+            // the CLI, and the IDE extension all read it).
             match find_cli("codex").await {
                 Some(cli) => {
                     let _ = run_cli(&cli, &["mcp", "remove", "embral"]).await;
@@ -647,9 +647,9 @@ mod tests {
     /// Registration on Linux has three moving parts the unit tests above
     /// cannot cover, because they all touch the machine: the sidecar has to
     /// resolve, `claude` has to be findable on a PATH a desktop launch
-    /// inherits, and the merge has to survive a *real* config — Claude Code's
+    /// inherits, and the merge has to survive a real config (Claude Code's
     /// own file is tens of kilobytes of nested project state, not the tidy
-    /// fixtures above. Nothing is written; the merge runs in memory and every
+    /// fixtures above). Nothing is written; the merge runs in memory and every
     /// top-level key is checked to survive it.
     #[test]
     #[ignore = "manual probe; reads the real ~/.claude.json (never writes)"]
@@ -781,7 +781,7 @@ mod tests {
     fn the_stable_copy_refreshes_only_when_bytes_differ() {
         let dir = tempfile::tempdir().unwrap();
         let src = dir.path().join("src.bin");
-        // The dest's parent does not exist yet — the refresh creates it.
+        // The dest's parent does not exist yet; the refresh creates it.
         let dest = dir.path().join("bin").join("embral-mcp");
         std::fs::write(&src, b"build one").unwrap();
 

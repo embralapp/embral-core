@@ -7,7 +7,7 @@
   import { speakersStore } from '$lib/stores/speakers.svelte';
   import { nameClass } from '$lib/utils/speakerColors';
   import { formatTime } from '$lib/utils/meetingFormat';
-  import { startsNewParagraph } from '$lib/utils/transcriptBreaks';
+  import { charLen, startsNewParagraph } from '$lib/utils/transcriptBreaks';
   import { cn } from '$lib/utils';
   import SpeakerNameInput from './SpeakerNameInput.svelte';
   import * as ContextMenu from '$lib/components/ui/context-menu';
@@ -26,7 +26,7 @@
   }: {
     detail: MeetingDetail;
     onDetailChange?: (updated: MeetingDetail) => void;
-    /** Playback position (seconds) — highlights the current segment. */
+    /** Playback position (seconds); highlights the current segment. */
     currentTime?: number;
     playing?: boolean;
     /** Seek-and-play from a segment's timestamp; absent = no audio. */
@@ -49,10 +49,10 @@
   // Turn armed for click-to-split.
   let splittingTurn = $state<number | null>(null);
   // The turn under the pointer (or holding focus). Turns mount their action
-  // cluster and play affordance only while hovered — a thousand rows of
+  // cluster and play affordance only while hovered: a thousand rows of
   // always-mounted icons and tooltips is what made this tab slow.
   let hoverTurn = $state<number | null>(null);
-  // The sentence a right-click landed on — the context menu's target.
+  // The sentence a right-click landed on: the context menu's target.
   let menuSeg = $state<number | null>(null);
 
   onMount(() => {
@@ -85,8 +85,8 @@
     return seen;
   });
 
-  // --- Turns: the list reads as one block per speaker turn — consecutive
-  // sentences from the same label flow together as a paragraph — because a
+  // --- Turns: the list reads as one block per speaker turn (consecutive
+  // sentences from the same label flow together as a paragraph) because a
   // row per sentence made long transcripts a wall to scroll. The sentences
   // and their timings are untouched underneath: each is still its own
   // clickable span (seek, split target, context-menu target). A turn also
@@ -100,13 +100,13 @@
   interface Turn {
     speaker: string | null;
     start: number;
-    /** Index of the turn's first segment — the stable render key. */
+    /** Index of the turn's first segment: the stable render key. */
     first: number;
     items: TurnItem[];
   }
   const turns = $derived.by(() => {
     const out: Turn[] = [];
-    // The shared paragraph rules (gaps, sentence breaks, running length —
+    // The shared paragraph rules (gaps, sentence breaks, running length;
     // the same ones the stored markdown uses), plus this surface's own
     // breaks: a starred moment, and the row under edit. Without the
     // shared rules a speakerless meeting rendered as one turn.
@@ -122,9 +122,9 @@
         editingRow === i - 1
       ) {
         out.push({ speaker: seg.speaker ?? null, start: seg.start, first: i, items: [] });
-        runningLen = seg.text.length;
+        runningLen = charLen(seg.text);
       } else {
-        runningLen += seg.text.length + 1;
+        runningLen += charLen(seg.text) + 1;
       }
       out[out.length - 1].items.push({ seg, index: i });
     }
@@ -139,7 +139,7 @@
 
   // --- Progressive render: an instant first screen, the rest mounted in
   // idle time. Long transcripts made the tab switch stall for seconds when
-  // every row mounted synchronously. Counted in turns — the worst case
+  // every row mounted synchronously. Counted in turns: the worst case
   // (every sentence its own turn) is the old per-row behavior.
   const INITIAL_TURNS = 200;
   const RENDER_BATCH = 400;
@@ -158,7 +158,7 @@
     return () => clearTimeout(timeout);
   });
 
-  /** Mount up to a target segment's turn now — scroll targets can sit past
+  /** Mount up to a target segment's turn now: scroll targets can sit past
    * the rendered window while the idle growth is still catching up. */
   async function ensureRendered(index: number) {
     const g = turnOf[index] ?? turns.length - 1;
@@ -180,14 +180,14 @@
     return -1;
   });
 
-  // Sentence spans by segment index — scroll targets for playback follow
+  // Sentence spans by segment index: scroll targets for playback follow
   // and search landings stay sentence-precise inside the grouped turns.
   let sentenceEls: (HTMLElement | null)[] = [];
   let following = $state(true);
 
-  // Unfollow only on the user's own scrolling — wheel, touch, or grabbing
+  // Unfollow only on the user's own scrolling: wheel, touch, or grabbing
   // the scrollbar (a pointerdown whose target is the scroller itself).
-  // Watching the scroll *event* needed an "is this scroll ours" flag whose
+  // Watching the scroll event needed an "is this scroll ours" flag whose
   // timer raced the smooth-scroll animation, and a follow scroll that
   // outlasted it read as the user scrolling off.
   function unfollowIfScrollbar(e: PointerEvent) {
@@ -205,7 +205,7 @@
     following = true;
   }
 
-  /** Bring one line to the middle — how a search result arrives.
+  /** Bring one line to the middle: how a search result arrives.
    *
    * Takes the index rather than reading the playhead: the row list is
    * virtualized and the playhead's own segment is derived from a time the
@@ -221,7 +221,7 @@
     await ensureRendered(index);
     // Centre by arithmetic rather than `scrollIntoView`: the list is
     // virtualized, so rows keep rendering after the scroll starts and the
-    // target drifts under it — a smooth `scrollIntoView` reliably finished
+    // target drifts under it; a smooth `scrollIntoView` reliably finished
     // a screen short. Set the position, then correct once more after the
     // layout has settled.
     centreRow(index);
@@ -242,7 +242,7 @@
   }
 
   /** Playback follow keeps the current sentence in the middle of the
-   * viewport — riding the bottom edge left no read-ahead below the line. */
+   * viewport: riding the bottom edge left no read-ahead below the line. */
   async function scrollActiveIntoView(behavior: ScrollBehavior) {
     if (activeIndex < 0) return;
     await ensureRendered(activeIndex);
@@ -322,8 +322,8 @@
   }
 
   /** Rename a whole turn in one edit: the turn's rows are contiguous by
-   * construction, so a single index-range reassign covers it — one
-   * document regeneration however long the turn, which is what makes
+   * construction, so a single index-range reassign covers it (one
+   * document regeneration however long the turn), which is what makes
    * naming a speakerless meeting practical ([speakers.md]). */
   async function commitTurnEdit(g: number) {
     const turn = turns[g];
@@ -368,7 +368,7 @@
   }
 
   /** A sentence click: the split target while its turn is armed, ignored
-   * mid-text-selection (copying, not seeking), otherwise a seek — which
+   * mid-text-selection (copying, not seeking), otherwise a seek, which
    * also re-pins the follow: "go here" is the opposite of scrolling off. */
   function onSentenceClick(g: number, index: number) {
     if (splittingTurn === g) {
@@ -386,7 +386,7 @@
     labelDraft = label;
   }
 
-  /** "Speaker N" — a machine label, never worth a profile. */
+  /** "Speaker N" is a machine label, never worth a profile. */
   function isGenericLabel(label: string): boolean {
     return /^Speaker \d+$/.test(label);
   }
@@ -432,8 +432,8 @@
 
 {#snippet starRow(star: number)}
   <!-- A starred moment at its place in the transcript; clicking plays it. The
-       tooltip rides the enabled state for free: a disabled button emits no
-       pointer events, so it simply never opens without a player to seek. -->
+       tooltip follows the enabled state for free: a disabled button emits no
+       pointer events, so it never opens without a player to seek. -->
   <button
     use:tip={t.playFromHere}
     class="flex w-full items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground transition-colors {onSeek

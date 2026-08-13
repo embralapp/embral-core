@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
 import { markdownExtensions } from './extensions';
 
-/** Parse markdown into a real editor and serialize it straight back — the
+/** Parse markdown into a real editor and serialize it straight back: the
  * exact path a document takes when a tab mounts and the user types once. */
 function roundTrip(markdown: string): string {
   const element = document.createElement('div');
@@ -14,7 +14,7 @@ function roundTrip(markdown: string): string {
 }
 
 /** Everything in the supported contract, one construct per case. Formatting
- * is allowed to normalize (`*` vs `-` bullets, spacing); *content* is not
+ * is allowed to normalize (`*` vs `-` bullets, spacing); content is not
  * allowed to disappear, which is what each `keeps` string checks for. */
 const CORPUS: { name: string; markdown: string; keeps: string[] }[] = [
   { name: 'headings', markdown: '# One\n\n## Two\n\n### Three', keeps: ['# One', '## Two', '### Three'] },
@@ -78,8 +78,8 @@ describe('the markdown contract', () => {
   });
 
   // Images are block nodes ([shell.md] §Writing surface). The stock
-  // serializer never closed the image's block — the next paragraph came
-  // out glued onto the image's line — so these pin the corrected spec.
+  // serializer never closed the image's block (the next paragraph came
+  // out glued onto the image's line), so these pin the corrected spec.
   it('a block image keeps its distance from the next paragraph', () => {
     const doc = 'one\n\n![shot](assets/a/img-01.png)\n\ntwo';
     expect(roundTrip(doc)).toBe(doc);
@@ -98,7 +98,7 @@ describe('the markdown contract', () => {
 
   it('an image alone on a tight bullet normalizes once and holds', () => {
     // listItem content is `paragraph block*`, so a marker-line image gets
-    // hoisted out of the (now empty) item — content preserved, and the
+    // hoisted out of the (now empty) item: content preserved, and the
     // shape is stable from the first pass on.
     const once = roundTrip('- ![shot](assets/a/img-01.png)');
     expect(once).toContain('![shot](assets/a/img-01.png)');

@@ -55,7 +55,7 @@ export const shell = {
     dialogDescription: 'Search meetings, dictations, and commands',
     placeholder: 'Search meetings, dictations, and commands...',
 
-    // Shown only once a search has finished — saying it mid-flight tells the
+    // Shown only once a search has finished: saying it mid-flight tells the
     // user their meeting isn't there a moment before it appears.
     empty: 'No results',
     searching: 'Searching...',

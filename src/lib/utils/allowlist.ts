@@ -3,8 +3,8 @@
 //
 // The grid's contract is "this checkbox decides whether this app is
 // detected", and for that to be true the checkbox has to reason about the
-// allowlist the way the *detector* does — case-insensitively, bidirectional
-// substring — not by exact string equality.
+// allowlist the way the detector does (case-insensitively, bidirectional
+// substring), not by exact string equality.
 //
 // Testing equality instead was a real bug: Windows' default list shipped
 // both `teams` and `ms-teams` while the grid only had a `teams` checkbox, so
@@ -19,7 +19,7 @@ function normalize(value: string): string {
 }
 
 /**
- * Whether an allowlist `entry` covers the same app as a grid `token` —
+ * Whether an allowlist `entry` covers the same app as a grid `token`:
  * bidirectional substring, so `teams` covers `ms-teams` and `teams-for-linux`
  * alike. Neither `chrome` nor `chromium` contains the other, so those stay
  * separate, which is why each needs its own entry.
@@ -31,13 +31,13 @@ export function entryCoversToken(entry: string, token: string): boolean {
   return e.includes(t) || t.includes(e);
 }
 
-/** Whether this app is currently detected — any covering entry counts. */
+/** Whether this app is currently detected; any covering entry counts. */
 export function isAppEnabled(allowlist: string[], token: string): boolean {
   return allowlist.some((entry) => entryCoversToken(entry, token));
 }
 
 /**
- * Turn this app off: drop *every* entry that would still detect it, not just
+ * Turn this app off: drop every entry that would still detect it, not just
  * the one spelled like the token. Leaving a covering entry behind is what
  * made the checkbox lie.
  */

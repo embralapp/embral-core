@@ -5,9 +5,9 @@
 //! with a plain POSIX or freedesktop answer (supervisor, proc, power,
 //! os_build, mcp_paths, permissions, ocr); audio, input, and theme arrive in
 //! their own phases and are inert until then. A stub means "feature absent",
-//! never a crash — callers degrade by contract.
+//! never a crash; callers degrade by contract.
 //!
-//! Two contract items are deliberately *not* Linux capabilities at all, and
+//! Two contract items are deliberately not Linux capabilities at all, and
 //! their modules say so rather than promising a later phase: there is no
 //! in-box OCR engine to reach for, and Claude Desktop has no Linux build.
 //!
@@ -52,14 +52,14 @@ pub use theme::{theme_snapshot, watch_theme};
 pub const TRAY_IDLE_IS_TEMPLATE: bool = false;
 
 /// StatusNotifier items are menu-only here, and that is **measured, not
-/// assumed** (2026-08-02, Cinnamon): the item libayatana-appindicator
-/// publishes exposes `Scroll` and `SecondaryActivate` but **no `Activate`
-/// method** — calling it returns `UnknownMethod`. `Activate` is what a host
+/// assumed (2026-08-02, Cinnamon): the item libayatana-appindicator
+/// publishes exposes `Scroll` and `SecondaryActivate` but no `Activate`
+/// method at all, and calling it returns `UnknownMethod`. `Activate` is what a host
 /// invokes on a primary click, so there is nothing for Cinnamon to call and
 /// no click event can reach the app however this flag is set.
 ///
 /// Which means setting this `false` to get Windows' left-click-opens-window
-/// would leave left-click doing *nothing at all* — strictly worse than a
+/// would leave left-click doing nothing at all, strictly worse than a
 /// menu. The menu is therefore the whole interaction, with "Show Window"
 /// first in it. The upstream path, if this ever matters enough: Tauri moving
 /// to `libayatana-appindicator-glib`, which the current library's own

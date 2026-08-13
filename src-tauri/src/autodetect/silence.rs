@@ -1,7 +1,7 @@
 //! The silence check-in's decision rule ([detection.md] §Auto-stop on
 //! silence): after a configured stretch with no transcribed word, the
 //! recording asks "Still recording?"; unanswered past a fixed grace it
-//! stops (or stands down, per the setting). Pure — the watcher task in
+//! stops (or a notice is shown, per the setting). Pure logic; the watcher task in
 //! `commands::recording` feeds it clocks and acts on the verdict.
 
 /// How long an unanswered check-in waits before acting. A constant, not a
@@ -11,14 +11,14 @@ pub const GRACE_SECS: u64 = 120;
 
 /// Liveness evidence from the transcription stream, kept by the event
 /// forwarder. The check-in must count words as they arrive on screen, not
-/// only utterances that close — a segment can stay open for minutes of
+/// only utterances that close; a segment can stay open for minutes of
 /// live speech. Interims carry the in-flight utterance's committed (final)
 /// text beside a tentative tail; only the committed part counts, because a
 /// tentative hypothesis can be noise that never becomes a word.
 #[derive(Debug, Default)]
 pub struct LivenessTracker {
     /// The committed text of the last interim seen. Empty at rest and
-    /// after every segment close — an utterance starts from nothing.
+    /// after every segment close; an utterance starts from nothing.
     last_committed: String,
 }
 
@@ -26,7 +26,7 @@ impl LivenessTracker {
     /// A live preview arrived; true when it proves new final tokens:
     /// committed text that is non-empty and not what it was. Growth is the
     /// common case; any revision still shows live decoding. Empty never
-    /// counts — after a close, tentative-only flicker arrives with no
+    /// counts: after a close, tentative-only flicker arrives with no
     /// committed text at all.
     pub fn observe_interim(&mut self, committed: &str) -> bool {
         let advanced = !committed.is_empty() && committed != self.last_committed;
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn tentative_only_flicker_is_not() {
         // The same committed text again means only the tentative tail
-        // moved — a hypothesis, not a word.
+        // moved: a hypothesis, not a word.
         let mut t = LivenessTracker::default();
         assert!(t.observe_interim("hello"));
         assert!(!t.observe_interim("hello"));
@@ -164,7 +164,7 @@ mod tests {
     fn an_utterance_opens_from_nothing_without_counting() {
         // Both providers' first interim of an utterance can carry no
         // committed text yet (local always, cloud on a tentative-only
-        // response) — nothing final has arrived.
+        // response); nothing final has arrived.
         let mut t = LivenessTracker::default();
         assert!(!t.observe_interim(""));
     }
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn a_revision_still_shows_live_decoding() {
         // The local engine's committed part is the agreed prefix of two
-        // consecutive decodes — it can shrink while words keep arriving.
+        // consecutive decodes; it can shrink while words keep arriving.
         let mut t = LivenessTracker::default();
         assert!(t.observe_interim("hello world"));
         assert!(t.observe_interim("hello"));

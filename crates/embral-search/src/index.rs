@@ -1,4 +1,4 @@
-//! Keeping `chunks` true to the library — incremental by content hash, so
+//! Keeping `chunks` true to the library: incremental by content hash, so
 //! an edit re-embeds only what actually changed. Chunk+FTS sync is cheap
 //! and runs inside the mutation paths; embedding is the slow part and runs
 //! in the app's background worker (`embed_pending`).
@@ -65,7 +65,7 @@ fn apply(conn: &Connection, owner: &Owner, built: &[BuiltChunk]) -> Result<SyncS
         let key = (chunk.source.as_str().to_string(), chunk.content_hash.clone());
         if let Some(id) = existing.get_mut(&key).and_then(Vec::pop) {
             // Same content: keep the row and its embedding; refresh bookkeeping.
-            // (No text update — the FTS trigger must not fire.)
+            // (No text update; the FTS trigger must not fire.)
             tx.execute(
                 "UPDATE chunks SET chunk_index = ?2, start_secs = ?3, end_secs = ?4 WHERE id = ?1",
                 params![id, chunk.chunk_index, chunk.start_secs, chunk.end_secs],
@@ -160,7 +160,7 @@ pub fn sync_dictation(db: &Db, dictation_id: i64) -> Result<SyncStats> {
     })
 }
 
-/// Index owners that have no chunks at all — the first-run backfill and the
+/// Index owners that have no chunks at all: the first-run backfill and the
 /// safety net behind missed hooks. Returns how many owners were synced.
 /// Also evicts placeholder chunks an earlier chunker version indexed
 /// (idempotent; the current chunker no longer produces them).
@@ -230,7 +230,7 @@ pub fn pending_count(db: &Db) -> Result<u64> {
     })
 }
 
-/// The chunks most worth embedding next — newest owners first, so a fresh
+/// The chunks most worth embedding next: newest owners first, so a fresh
 /// meeting becomes semantically searchable before old backlog.
 pub fn next_pending(db: &Db, batch: usize) -> Result<Vec<(i64, String)>> {
     db.with_conn(|conn| {
@@ -249,8 +249,8 @@ pub fn next_pending(db: &Db, batch: usize) -> Result<Vec<(i64, String)>> {
     })
 }
 
-/// Record one embedded batch: vectors in, `embedded_with` stamped — a single
-/// short write transaction.
+/// Record one embedded batch (vectors in, `embedded_with` stamped) in a
+/// single short write transaction.
 pub fn store_embeddings(db: &Db, rows: &[(i64, Vec<f32>)]) -> Result<()> {
     db.with_conn(|conn| {
         let tx = conn.unchecked_transaction()?;

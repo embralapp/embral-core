@@ -2,7 +2,7 @@
   // What this recording is capturing, changeable mid-meeting
   // ([recording.md] §Dual-stream capture). Two sections: the apps playing
   // audio, and the microphones. Everything starts checked except extra
-  // mics — unchecking an app narrows the capture to the ones left, which
+  // mics; unchecking an app narrows the capture to the ones left, which
   // is the only way to keep a music player out of a meeting.
   //
   // The meter beside this button is the feedback: uncheck an app and watch

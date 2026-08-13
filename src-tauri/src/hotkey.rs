@@ -6,16 +6,26 @@ use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 
 use tauri::{AppHandle, Manager, Wry};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::AppState;
 
-/// Which parsed shortcut maps to which action — written by [`apply`], read by
+/// Which parsed shortcut maps to which action: written by [`apply`], read by
 /// the plugin handler (which only receives the fired `Shortcut`).
 #[derive(Default)]
 struct Routes {
     record: Option<Shortcut>,
     dictation: Option<Shortcut>,
+    cancel: Option<Shortcut>,
+}
+
+/// Escape, held only while a dictation session is running ([`arm_cancel`]).
+/// It has to be a global shortcut rather than a key handler on the overlay:
+/// the overlay is built `.focused(false)` and ignores cursor events on every
+/// platform, so it never holds keyboard focus and a keydown there would
+/// never fire.
+fn cancel_shortcut() -> Shortcut {
+    Shortcut::new(None, Code::Escape)
 }
 
 fn routes() -> &'static Mutex<Routes> {
@@ -23,16 +33,17 @@ fn routes() -> &'static Mutex<Routes> {
     ROUTES.get_or_init(|| Mutex::new(Routes::default()))
 }
 
-/// The plugin, with the dispatch handler baked in. Registration of the actual
+/// The plugin, with the dispatch handler built in. Registration of the actual
 /// combos happens in [`apply`].
 pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app: &AppHandle<Wry>, shortcut, event| {
-            let (is_record, is_dictation) = {
+            let (is_record, is_dictation, is_cancel) = {
                 let r = routes().lock().expect("hotkey routes poisoned");
                 (
                     r.record.as_ref() == Some(shortcut),
                     r.dictation.as_ref() == Some(shortcut),
+                    r.cancel.as_ref() == Some(shortcut),
                 )
             };
             if is_record && event.state() == ShortcutState::Pressed {
@@ -43,6 +54,14 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<Wry> {
             }
             if is_dictation {
                 handle_dictation_key(app, event.state());
+            }
+            if is_cancel && event.state() == ShortcutState::Pressed {
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = crate::dictation::cancel(&handle).await {
+                        tracing::warn!("dictation cancel failed: {e}");
+                    }
+                });
             }
         })
         .build()
@@ -115,6 +134,31 @@ async fn toggle_recording(app: AppHandle) {
     }
 }
 
+/// Hold Escape for the life of a dictation session so it can be cancelled
+/// without waiting for the words to land. Failure is not fatal: dictation
+/// still starts, it just cannot be escaped (something else on the machine
+/// already owns the key).
+pub fn arm_cancel(app: &AppHandle) {
+    let shortcut = cancel_shortcut();
+    match app.global_shortcut().register(shortcut) {
+        Ok(()) => {
+            routes().lock().expect("hotkey routes poisoned").cancel = Some(shortcut);
+        }
+        Err(e) => tracing::warn!("Escape unavailable for cancelling dictation: {e}"),
+    }
+}
+
+/// Release Escape at the end of a dictation session. Every exit path calls
+/// this, so the key never stays grabbed once the overlay is gone.
+pub fn disarm_cancel(app: &AppHandle) {
+    let held = routes().lock().expect("hotkey routes poisoned").cancel.take();
+    if let Some(shortcut) = held {
+        if let Err(e) = app.global_shortcut().unregister(shortcut) {
+            tracing::warn!("failed to release the dictation cancel key: {e}");
+        }
+    }
+}
+
 /// (Re)register both shortcuts (empty = none). Invalid combos return an error
 /// string for the settings UI; a bad dictation combo doesn't unregister a
 /// valid record combo.
@@ -156,6 +200,17 @@ pub fn apply(app: &AppHandle, record: &str, dictation: &str) -> Result<(), Strin
         let mut r = routes().lock().expect("hotkey routes poisoned");
         r.record = record_shortcut;
         r.dictation = dictation_shortcut;
+        // `unregister_all` above dropped Escape too. A settings save during a
+        // dictation session is rare but would otherwise leave that session
+        // uncancellable.
+        r.cancel = None;
+    }
+    if app
+        .state::<AppState>()
+        .dictating
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        arm_cancel(app);
     }
     if errors.is_empty() {
         Ok(())

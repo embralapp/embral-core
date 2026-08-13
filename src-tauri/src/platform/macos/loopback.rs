@@ -1,10 +1,10 @@
 //! System-audio capture ([recording.md](../../../../docs/recording.md)):
 //! a Core Audio process tap (macOS 14.4+).
 //!
-//! A `CATapDescription` asks for a **mono global mixdown of every process
-//! except our own** (we must not re-record our own notification sounds),
+//! A `CATapDescription` asks for a mono global mixdown of every process
+//! except our own (we must not re-record our own notification sounds),
 //! marked private and unmuted (a muted tap would silence the user's
-//! speakers). `AudioHardwareCreateProcessTap` mints the tap — the OS
+//! speakers). `AudioHardwareCreateProcessTap` creates the tap; the OS
 //! shows its consent prompt ("System Audio Recording Only") on first use;
 //! there is no public API to query that TCC state, so this whole module
 //! is the probe: any failure returns `None` and the mixer records
@@ -41,7 +41,7 @@ use crate::audio::pipeline::Pipeline;
 /// capture stops (and the tap tears down) when this is dropped.
 ///
 /// Not `Send` (it owns the IO block): built and owned by the recorder's
-/// dedicated system-audio thread, like the Windows loopback stream —
+/// dedicated system-audio thread, like the Windows loopback stream,
 /// which also absorbs the consent-blocked first creation.
 pub struct SystemAudioCapture {
     tap: AudioObjectID,
@@ -61,16 +61,16 @@ pub struct SystemAudioCapture {
 }
 
 impl SystemAudioCapture {
-    /// Own the system-audio lane until `stop_rx` closes — the seam's
-    /// blocking entry point (the Windows side supervises reopens in here;
-    /// the macOS tap already follows the default output, so this is
+    /// Hold the system-audio capture until `stop_rx` closes: the platform
+    /// layer's blocking entry point (the Windows side supervises reopens in
+    /// here; the macOS tap already follows the default output, so this is
     /// start-once, announce, park, drop).
     pub fn run(
         sink_factory: crate::platform::types::SystemAudioSinkFactory,
         paused: Arc<AtomicBool>,
         preferred_device: Option<&str>,
         // The source picker's selection, ignored here: the tap is one
-        // global mixdown, so there is no per-app lane to narrow to.
+        // global mixdown, so there is no per-app stream to narrow to.
         // Per-process `CATapDescription`s are the macOS analogue and are
         // backlogged ([backlog.md]).
         _wanted: Box<dyn Fn() -> crate::platform::types::SystemAudioWanted + Send>,
@@ -92,10 +92,10 @@ impl SystemAudioCapture {
     }
 
     /// Start capturing everything the machine plays (except us). `None` on
-    /// any failure — consent refused, no output hardware, format surprise —
-    /// and the mixer degrades to mic-only. `preferred_device` is ignored:
-    /// the global tap follows the default output like the Windows
-    /// Everything lane; per-device taps are a later refinement.
+    /// any failure (consent refused, no output hardware, an unexpected
+    /// format), and the mixer degrades to mic-only. `preferred_device` is
+    /// ignored: the global tap follows the default output like the Windows
+    /// Everything mode; per-device taps are a later refinement.
     pub fn start(
         sink: Box<dyn Fn(&[f32]) + Send>,
         paused: Arc<AtomicBool>,
@@ -310,7 +310,7 @@ fn translate_pid_to_process_object(pid: i32) -> Option<AudioObjectID> {
 mod tests {
     use super::*;
 
-    /// Live probe of the real tap — run manually while something plays
+    /// Live probe of the real tap; run manually while something plays
     /// audio: `cargo test -p embral --lib tap_captures -- --ignored --nocapture`.
     /// First run fires the system-audio consent prompt; on a machine with
     /// no output hardware this instead proves the degrade path (a clean

@@ -1,7 +1,7 @@
 // Packs the MCP server into an MCP Bundle (dist/embral.mcpb) for Claude
 // Desktop's Extensions page. The manifest is generated here so it can't go
 // stale against the crate: the version comes from Cargo.toml, and the tools
-// list mirrors crates/embral-mcp/src/server.rs — the source of truth.
+// list mirrors crates/embral-mcp/src/server.rs, the source of truth.
 import { execSync } from "node:child_process";
 import {
   copyFileSync,
@@ -38,7 +38,7 @@ const manifest = {
       },
     },
   },
-  // Display metadata only — the schemas the client actually sees come from
+  // Display metadata only; the schemas the client actually sees come from
   // the server itself (server.rs).
   tools: [
     {

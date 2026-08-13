@@ -1,5 +1,5 @@
 //! embral's MCP server: read-only stdio access to the local meeting library.
-//! No IPC with the app — it reads `embral.db` directly and works with the
+//! No IPC with the app: it reads `embral.db` directly and works with the
 //! app closed ([integrations.md](../../../docs/integrations.md)).
 
 mod embed_mode;

@@ -13,7 +13,7 @@
         Brain,
         CircleUser,
     } from "lucide-svelte";
-    import { CLOUD_ENABLED, loadAccountSection } from "$lib/cloud";
+    import { CLOUD_ENABLED, loadAccountSection, CLOUD_CHANGED_EVENT } from "$lib/cloud";
     import type { AppConfig } from "$lib/types";
     import { appState } from "$lib/stores/app-state.svelte";
     import { settingsForm } from "$lib/stores/settings-form.svelte";
@@ -55,8 +55,9 @@
                 { id: "general", label: nav.sections.general, icon: SettingsIcon },
                 { id: "meetings", label: nav.sections.meetings, icon: Disc },
                 { id: "dictation", label: nav.sections.dictation, icon: Speech },
-                // Account exists only in the cloud edition; it sits with About
-                // — the two pages about you rather than about the app's work.
+                // Account exists only in the cloud edition; it sits with
+                // About, the two pages about you rather than about the app's
+                // work.
                 ...(CLOUD_ENABLED
                     ? [
                           {
@@ -108,12 +109,12 @@
             // old values back over it.
             settingsForm.reset();
         };
-        window.addEventListener("embral:cloud-changed", onCloudChanged);
+        window.addEventListener(CLOUD_CHANGED_EVENT, onCloudChanged);
         return () =>
-            window.removeEventListener("embral:cloud-changed", onCloudChanged);
+            window.removeEventListener(CLOUD_CHANGED_EVENT, onCloudChanged);
     });
 
-    // Palette deep links: land on the requested page (also fires when a
+    // Palette deep links: go to the requested page (also fires when a
     // deep link arrives while settings is already open).
     $effect(() => {
         const target = appState.settingsTarget;

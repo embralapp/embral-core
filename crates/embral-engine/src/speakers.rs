@@ -1,4 +1,4 @@
-//! Pure diarization math — no ONNX, fully unit-testable.
+//! Pure diarization math: no ONNX, fully unit-testable.
 //!
 //! The diarization models (see [`crate::Engine::diarize`] / `embed`) produce
 //! per-recording clusters and voice embeddings; everything that turns those
@@ -27,7 +27,7 @@ pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
 /// spuriously split speaker is immediately visible noise.
 pub const ONLINE_CLUSTER_THRESHOLD: f32 = 0.6;
 
-/// One-pass greedy clustering over per-utterance voice embeddings — the live
+/// One-pass greedy clustering over per-utterance voice embeddings: the live
 /// counterpart of the recording-wide diarization pass. Each embedding joins
 /// the most similar existing cluster at or above `threshold` (updating that
 /// cluster's running-mean centroid) or opens a new one. Cluster indices are

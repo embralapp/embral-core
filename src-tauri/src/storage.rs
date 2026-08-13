@@ -1,7 +1,7 @@
 //! Storage roots, the database handle, and generated exports.
 //!
 //! Since R1 the SQLite database (`{storage_dir}/embral.db`) is the source of
-//! truth. `index.json` is an *export* regenerated from it after every
+//! truth. `index.json` is an export regenerated from it after every
 //! mutation. The summary and transcript documents used to be exported as
 //! markdown files too; since v11 they are columns only, and putting a
 //! meeting on disk in readable form is the markdown export's job
@@ -30,12 +30,12 @@ pub fn init_storage_dirs(base: &Path) -> Result<()> {
 ///
 /// The static scope in `tauri.conf.json` allows `$HOME`, `$DOCUMENT` and
 /// `$AUDIO`, but the storage dir is a free-form directory picker
-/// (Settings → General), so anywhere else — a second drive, most obviously —
+/// (Settings → General), so anywhere else (a second drive, most obviously)
 /// was outside it and every `convertFileSrc` URL 403'd. That is why audio
 /// playback silently died for a library on `D:\`. Called at startup and again
 /// whenever `storage_dir` changes; the scope is additive, so a moved library
 /// leaves the old directory allowed until the next launch, which is
-/// harmless — it is a read permission on the user's own former library.
+/// harmless: it is a read permission on the user's own former library.
 pub fn allow_asset_access(app: &tauri::AppHandle, base: &Path) {
     use tauri::Manager;
     if let Err(e) = app.asset_protocol_scope().allow_directory(base, true) {
@@ -69,7 +69,7 @@ pub fn open_db(base: &Path) -> Result<Db> {
 }
 
 /// One entry of a pre-R1 `index.json`, which is the only place the markdown
-/// file paths still exist — the current export dropped them with v11, and
+/// file paths still exist: the current export dropped them with v11, and
 /// this shape is what makes the one-time migration able to find the files.
 #[derive(serde::Deserialize)]
 struct LegacyRecord {
@@ -96,7 +96,7 @@ fn read_legacy_index(base: &Path) -> Result<Vec<LegacyRecord>> {
 }
 
 /// Build DB rows from a legacy index + its markdown files. Legacy meetings
-/// have no structured segments; their transcript text still lands in
+/// have no structured segments; their transcript text still goes into
 /// `transcript`, which the FTS index covers.
 fn import_legacy_index(db: &Db, base: &Path) -> Result<usize> {
     let records = read_legacy_index(base)?;
@@ -206,15 +206,15 @@ pub fn prune_old_meetings(db: &Db, base: &Path, days: u32) -> Result<usize> {
     Ok(pruned)
 }
 
-/// Delete asset directories whose meeting no longer exists — the residue of
+/// Delete asset directories whose meeting no longer exists: the leftovers of
 /// a recording abandoned between the first paste and the row being written,
-/// or of a save that failed after the images landed.
+/// or of a save that failed after the images were written.
 ///
-/// **The live recording's directory is skipped**, and that guard is the
+/// The live recording's directory is skipped, and that guard is the
 /// whole subtlety: a recording in flight has images on disk and no row yet,
 /// so a sweep that only asked the database would delete the user's
 /// screenshots mid-meeting. A meeting with a recovery scratch still
-/// pending is skipped for the same reason — its rescue has not run yet
+/// pending is skipped for the same reason: its rescue has not run yet
 /// (or is between attempts), and its images belong to the meeting the
 /// rescue will commit.
 pub fn prune_orphan_assets(db: &Db, base: &Path) -> Result<usize> {
@@ -275,7 +275,7 @@ mod tests {
             .join("embral-demo");
         if !fixture.join("index.json").is_file() {
             // The demo library lives in docs/, which the public-repo filter
-            // drops — the open-core tree skips this test (decode.rs idiom).
+            // drops; the open-core tree skips this test (decode.rs idiom).
             eprintln!("demo fixture missing; skipping");
             return;
         }
@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(n, 10, "all demo meetings imported");
 
         // Imported content carries the markdown bodies (search happens at
-        // chunk level now — embral-search's own tests cover it).
+        // chunk level now; embral-search's own tests cover it).
         let rows = db.list_meetings(None, None).unwrap();
         assert!(rows.iter().all(|r| !r.summary.is_empty()));
 
@@ -366,7 +366,7 @@ mod tests {
     }
 
     /// The orphan sweep deletes asset directories with no meeting behind
-    /// them — except the recording happening right now, which has images on
+    /// them, except the recording happening right now, which has images on
     /// disk and no row yet. Getting that guard wrong deletes the user's
     /// screenshots mid-meeting.
     #[test]
@@ -374,8 +374,8 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("embral-assets-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
-        // The sweep asks the database one question — "is there a meeting
-        // with this id" — and does its real work on the filesystem, so an
+        // The sweep asks the database one question ("is there a meeting
+        // with this id") and does its real work on the filesystem, so an
         // in-memory library keeps the test about the part that matters.
         let db = Db::open_in_memory().unwrap();
 

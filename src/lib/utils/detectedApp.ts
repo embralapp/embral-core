@@ -1,7 +1,7 @@
 // The friendly name for a detected app's raw process label ("Zoom.exe",
 // "ms-teams.exe", "com.google.Chrome.helper"). The token set mirrors the
 // detector's fixed meeting-app grid; anything outside it degrades to a
-// cleaned-up process name — raw exe text never reaches the user.
+// cleaned-up process name; raw exe text never reaches the user.
 import { copy } from '$lib/copy';
 
 type AppKey = keyof typeof copy.settings.meetings.autoStart.apps.names;
@@ -9,7 +9,7 @@ type AppKey = keyof typeof copy.settings.meetings.autoStart.apps.names;
 const TOKENS: { token: string; key: AppKey }[] = [
   { token: 'zoom', key: 'zoom' },
   { token: 'teams', key: 'teams' },
-  // Chromium before Chrome only for readability — the two cannot collide,
+  // Chromium before Chrome only for readability; the two cannot collide,
   // since neither name is a substring of the other. Without its own entry a
   // Linux Chromium would fall through to the cleaned-stem path below.
   { token: 'chromium', key: 'chromium' },
@@ -36,7 +36,7 @@ export type AppGroup = { label: string; pids: number[] };
 /**
  * Collapse a render-session list into one row per app.
  *
- * An app commonly holds several audio sessions at once — Zoom listed twice
+ * An app commonly holds several audio sessions at once: Zoom listed twice
  * is two pids, indistinguishable to the reader, and per-app capture climbs
  * both to the same process tree anyway. Two identical rows make a checkbox
  * that cannot be reasoned about, so the row carries every pid behind the
